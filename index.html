@@ -1,8 +1,10 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>oblix</title>
-  <style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>oblix</title>
+    <style>
     /* --- Base Styles --- */
     a { color: white; }
     body {
@@ -47,14 +49,17 @@
     .input-group label {
         display: block; margin-bottom: 5px; /* Increased margin */
         font-size: 0.9em; color: #bbb; /* Lighter label */
+        cursor: help; /* Indicate tooltips exist */
     }
     /* Checkbox label specific style */
     .input-group label input[type="checkbox"] {
         margin-right: 8px;
         vertical-align: middle;
+        cursor: pointer;
     }
      .input-group label span { /* For inline text next to checkbox */
         vertical-align: middle;
+        cursor: help;
      }
 
     .settings-grid {
@@ -88,6 +93,7 @@
       transform: translateY(10px); animation: fadeInUp 0.5s ease-out forwards;
       animation-delay: 0.5s; font-family: monospace; font-weight: bold;
       margin-right: 10px; /* Add spacing between buttons */
+      margin-bottom: 5px; /* Ensure buttons wrap nicely */
     }
     button:hover:not(:disabled) {
       border: 1px solid white; color: white; background: #222; /* Darker hover */
@@ -155,7 +161,7 @@
         .widget { padding: 15px; }
         input, select, textarea, button { font-size: 0.9em; padding: 6px 10px; }
      }
-  </style>
+    </style>
 </head>
 <body>
   <h3>Oblix</h3>
@@ -168,7 +174,9 @@
       <div class="widget-title">Data & Model Configuration</div>
       <div class="input-group">
         <label for="trainingData">Training Set (CSV, last column=output):</label>
-        <textarea id="trainingData" rows="4" placeholder="0.1, 0.9, 0.1&#10;0.9, 0.1, 0.9&#10;0.2, 0.8, 0.2"></textarea>
+        <textarea id="trainingData" rows="4" placeholder="0.1, 0.9, 0.1
+0.9, 0.1, 0.9
+0.2, 0.8, 0.2"></textarea>
       </div>
       <div class="input-group">
         <label for="testData">Validation Set (Optional):</label>
@@ -178,43 +186,46 @@
       <div class="widget-title" style="margin-top: 20px;">Training Parameters</div>
       <div class="settings-grid">
         <div class="input-group">
-          <label for="epochs">Epochs:</label>
+          <label for="epochs" title="Number of full passes through the training dataset.">Epochs:</label>
           <input type="number" id="epochs" value="50" min="1">
         </div>
         <div class="input-group">
-            <label for="lossFunction">Loss Function:</label>
+            <label for="lossFunction" title="How the model's error is calculated. MSE for regression, Cross-Entropy for classification.">Loss Function:</label>
             <select id="lossFunction">
-                <option value="mse" selected>MSE (Mean Squared Error)</option>
+                <option value="mse" selected>MSE</option>
                 <option value="crossentropy">Cross-Entropy</option>
             </select>
         </div>
          <div class="input-group">
-          <label for="optimizer">Optimizer:</label>
+          <label for="optimizer" title="Algorithm used to update model weights based on error. Adam is often a good default.">Optimizer:</label>
           <select id="optimizer">
               <option value="sgd">SGD</option>
               <option value="adam" selected>Adam</option>
               <option value="rmsprop">RMSprop</option>
-              <!-- Add AdamW later if desired -->
           </select>
          </div>
         <div class="input-group">
-          <label for="learningRate">Learning Rate:</label>
+          <label for="learningRate" title="How much the model weights are adjusted each update. Too high can diverge, too low is slow.">Learning Rate:</label>
           <input type="number" id="learningRate" value="0.01" step="0.001" min="0">
         </div>
-        <div class="input-group" id="decayRateGroup" style="display: none;"> <!-- Show only for RMSprop -->
-           <label for="decayRate">Decay Rate (ρ):</label>
+        <div class="input-group" id="decayRateGroup" style="display: none;">
+           <label for="decayRate" title="Decay factor for RMSprop optimizer's moving average.">Decay Rate (ρ):</label>
            <input type="number" id="decayRate" value="0.9" step="0.01" min="0" max="1">
         </div>
         <div class="input-group">
-          <label for="batchSize">Batch Size:</label>
+          <label for="batchSize" title="Number of training samples processed before updating weights.">Batch Size:</label>
           <input type="number" id="batchSize" value="8" min="1">
         </div>
         <div class="input-group">
-            <label for="l2Lambda">L2 Lambda:</label>
+            <label for="l2Lambda" title="Strength of L2 regularization (weight decay). Helps prevent overfitting (0 to disable).">L2 Lambda:</label>
             <input type="number" id="l2Lambda" value="0" step="0.0001" min="0">
         </div>
         <div class="input-group">
-            <label for="usePositionalEncoding">
+            <label for="gradientClipValue" title="Max absolute value for gradients before update (0 to disable). Helps prevent exploding gradients.">Grad Clip Val:</label>
+            <input type="number" id="gradientClipValue" value="0" step="0.1" min="0">
+        </div>
+        <div class="input-group">
+            <label title="Adds information about the position of inputs, useful for sequence data.">
                 <input type="checkbox" id="usePositionalEncoding"><span>Use Positional Encoding</span>
             </label>
         </div>
@@ -222,8 +233,8 @@
 
       <div class="widget-title" style="margin-top: 20px;">Layer Architecture</div>
        <div class="input-group">
-         <label for="numHiddenLayers">Number of Hidden Layers:</label>
-         <input type="number" id="numHiddenLayers" value="2" min="0"> <!-- Default to 2 layers -->
+         <label for="numHiddenLayers" title="Number of layers between input and output. More layers allow for more complex patterns but increase training time/risk of overfitting.">Number of Hidden Layers:</label>
+         <input type="number" id="numHiddenLayers" value="2" min="0">
        </div>
       <!-- Dynamic Layer Configuration UI -->
       <div id="hiddenLayersConfig"></div>
@@ -255,7 +266,7 @@
         </div>
 
         <div class="flex-container" style="margin-top: 20px;"> <!-- Wrap Prediction & Viz -->
-            <div class="prediction-section widget"> <!-- Make prediction its own widget -->
+            <div class="prediction-section widget">
                 <div class="widget-title">Manual Prediction</div>
                 <p>Predict output for new input.</p>
                 <div class="input-group">
@@ -266,7 +277,7 @@
                 <div id="predictionResult" style="margin-top: 10px; font-weight: bold;">Result: -</div>
             </div>
 
-            <div class="visualization-container widget"> <!-- Make viz its own widget -->
+            <div class="visualization-container widget">
                 <div class="widget-title">Network Visualization</div>
                 <div class="progress-container">
                     <canvas id="networkGraph" class="network-graph"></canvas>
@@ -294,1947 +305,178 @@
         this.isTraining = false; // Track training state for Dropout
 
         // --- Optimizer State ---
-        // Adam
-        this.beta1 = 0.9;
-        this.beta2 = 0.999;
-        this.epsilon = 1e-8;
-        this.t = 0; // Adam timestep
+        this.beta1 = 0.9; this.beta2 = 0.999; this.epsilon = 1e-8; this.t = 0;
         this.m_dw = []; this.v_dw = []; this.m_db = []; this.v_db = [];
         this.m_dgamma = []; this.v_dgamma = []; this.m_dbeta = []; this.v_dbeta = [];
-        // RMSprop (shared epsilon with Adam)
-        this.decayRate = 0.9; // Default RMSprop decay rate
-        this.s_dw = []; this.s_db = [];
-        this.s_dgamma = []; this.s_dbeta = [];
+        this.decayRate = 0.9;
+        this.s_dw = []; this.s_db = []; this.s_dgamma = []; this.s_dbeta = [];
 
-        this.lastActivations = null; // Cache for visualization
-        this.forwardCache = null; // Cache for backprop intermediates
+        this.lastActivations = null; this.forwardCache = null;
       }
 
       // --- ADD RESET METHOD ---
       reset() {
         if (this.debug) console.log("Resetting oblix instance...");
-        this.layers = [];
-        this.weights = [];
-        this.biases = [];
-        this.gammas = [];
-        this.betas = [];
-        this.masks = [];
-
+        this.layers = []; this.weights = []; this.biases = []; this.gammas = []; this.betas = []; this.masks = [];
         this.details = {};
-        // this.usePositionalEncoding = false;
         this.isTraining = false;
-
-        // Reset Optimizer State
         this.t = 0;
-        this.m_dw = []; this.v_dw = []; this.m_db = []; this.v_db = [];
-        this.m_dgamma = []; this.v_dgamma = []; this.m_dbeta = []; this.v_dbeta = [];
+        this.m_dw = []; this.v_dw = []; this.m_db = []; this.v_db = []; this.m_dgamma = []; this.v_dgamma = []; this.m_dbeta = []; this.v_dbeta = [];
         this.s_dw = []; this.s_db = []; this.s_dgamma = []; this.s_dbeta = [];
-
-        // Reset Caches
-        this.lastActivations = null;
-        this.forwardCache = null;
+        this.lastActivations = null; this.forwardCache = null;
       }
       // --- END RESET METHOD ---
 
-      // --- Layer Definition ---
       layer(config) {
-        const { type = 'dense', inputSize, outputSize, activation = 'tanh',
-                numHeads = 2, useBias = true, rate = 0.5 } = config; // Added useBias, rate
-
-        // --- Input Validation ---
-        if (typeof inputSize !== 'number' || inputSize <= 0) {
-           throw new Error(`Layer ${this.layers.length}: Invalid inputSize: ${inputSize}.`);
-        }
-        // Check connection to previous layer
-        if (this.layers.length > 0) {
-          const prevLayer = this.layers[this.layers.length - 1];
-          if (inputSize !== prevLayer.outputSize) {
-            throw new Error(`Layer ${this.layers.length} (${type}): Input size ${inputSize} doesn't match previous layer's output size ${prevLayer.outputSize}.`);
-          }
-        }
-
+        const { type = 'dense', inputSize, outputSize, activation = 'tanh', numHeads = 2, useBias = true, rate = 0.5 } = config;
+        if (typeof inputSize !== 'number' || inputSize <= 0) throw new Error(`Layer ${this.layers.length}: Invalid inputSize: ${inputSize}.`);
+        if (this.layers.length > 0) { const prevLayer = this.layers[this.layers.length - 1]; if (inputSize !== prevLayer.outputSize) throw new Error(`Layer ${this.layers.length} (${type}): Input size ${inputSize} doesn't match previous layer's output size ${prevLayer.outputSize}.`); }
         let actualOutputSize = outputSize;
-        // Validate/Determine Output Size based on type
-        switch (type) {
-            case 'dense':
-                if (typeof outputSize !== 'number' || outputSize <= 0) {
-                     throw new Error(`Dense Layer ${this.layers.length}: Invalid outputSize: ${outputSize}.`);
-                 }
-                 break;
-            case 'layernorm':
-            case 'attention':
-            case 'dropout':
-            case 'softmax': // These layers preserve size
-                 actualOutputSize = inputSize;
-                 if (outputSize !== undefined && outputSize !== inputSize) {
-                      console.warn(`${type} layer ${this.layers.length}: Output size ${outputSize} ignored; it must equal input size ${inputSize}.`);
-                 }
-                 break;
-            default:
-                throw new Error(`Unknown layer type: ${type}`);
-        }
-
-        // Type-Specific Validation
-        if (type === 'attention' && inputSize % numHeads !== 0) {
-          throw new Error(`Attention layer ${this.layers.length}: Input size ${inputSize} not divisible by numHeads ${numHeads}.`);
-        }
-        if (type === 'dropout' && (rate < 0 || rate >= 1)) {
-            throw new Error(`Dropout layer ${this.layers.length}: Rate ${rate} must be >= 0 and < 1.`);
-        }
-
-        const layerConfig = { type, inputSize, outputSize: actualOutputSize, activation, numHeads, useBias, rate };
-        this.layers.push(layerConfig);
-
-        // --- Initialize Parameters and Optimizer State Placeholders ---
-        // Actual initialization happens in this.layer or this.initializeOptimizerState
-        this.weights.push(null);
-        this.biases.push(null);
-        this.gammas.push(null);
-        this.betas.push(null);
-        this.masks.push(null); // For dropout
-
-        this.m_dw.push(null); this.v_dw.push(null); this.m_db.push(null); this.v_db.push(null);
-        this.m_dgamma.push(null); this.v_dgamma.push(null); this.m_dbeta.push(null); this.v_dbeta.push(null);
-        this.s_dw.push(null); this.s_db.push(null);
-        this.s_dgamma.push(null); this.s_dbeta.push(null);
-
-        // Initialize parameters for specific layer types
-        if (type === 'dense') {
-          // Xavier/Glorot initialization
-          const limit = Math.sqrt(6 / (inputSize + actualOutputSize));
-          const weights = Array.from({ length: actualOutputSize }, () =>
-            Array.from({ length: inputSize }, () => (Math.random() * 2 - 1) * limit)
-          );
-          this.weights[this.layers.length - 1] = weights;
-          if (useBias) {
-            this.biases[this.layers.length - 1] = Array(actualOutputSize).fill(0.01);
-          }
-        } else if (type === 'layernorm') {
-          this.gammas[this.layers.length - 1] = Array(actualOutputSize).fill(1.0);
-          this.betas[this.layers.length - 1] = Array(actualOutputSize).fill(0.0);
-        }
+        switch (type) { case 'dense': if (typeof outputSize !== 'number' || outputSize <= 0) throw new Error(`Dense Layer ${this.layers.length}: Invalid outputSize: ${outputSize}.`); break; case 'layernorm': case 'attention': case 'dropout': case 'softmax': actualOutputSize = inputSize; if (outputSize !== undefined && outputSize !== inputSize) console.warn(`${type} layer ${this.layers.length}: Output size ignored.`); break; default: throw new Error(`Unknown layer type: ${type}`); }
+        if (type === 'attention' && inputSize % numHeads !== 0) throw new Error(`Attention layer ${this.layers.length}: Input size ${inputSize} not divisible by numHeads ${numHeads}.`);
+        if (type === 'dropout' && (rate < 0 || rate >= 1)) throw new Error(`Dropout layer ${this.layers.length}: Rate ${rate} must be >= 0 and < 1.`);
+        const layerConfig = { type, inputSize, outputSize: actualOutputSize, activation, numHeads, useBias, rate }; this.layers.push(layerConfig);
+        this.weights.push(null); this.biases.push(null); this.gammas.push(null); this.betas.push(null); this.masks.push(null);
+        this.m_dw.push(null); this.v_dw.push(null); this.m_db.push(null); this.v_db.push(null); this.m_dgamma.push(null); this.v_dgamma.push(null); this.m_dbeta.push(null); this.v_dbeta.push(null); this.s_dw.push(null); this.s_db.push(null); this.s_dgamma.push(null); this.s_dbeta.push(null);
+        if (type === 'dense') { const limit = Math.sqrt(6 / (inputSize + actualOutputSize)); const weights = Array.from({ length: actualOutputSize }, () => Array.from({ length: inputSize }, () => (Math.random() * 2 - 1) * limit)); this.weights[this.layers.length - 1] = weights; if (useBias) this.biases[this.layers.length - 1] = Array(actualOutputSize).fill(0.01); }
+        else if (type === 'layernorm') { this.gammas[this.layers.length - 1] = Array(actualOutputSize).fill(1.0); this.betas[this.layers.length - 1] = Array(actualOutputSize).fill(0.0); }
       }
 
-      // --- Activation Functions ---
+      // --- Activation Functions (ADDED Swish, Mish) ---
        activationFunction(x, activation) {
-        const alpha = 0.01; // For LeakyReLU
+        const alpha = 0.01; const softplus = (v) => Math.log(1 + Math.exp(v));
         switch (activation) {
-          case 'tanh': return Math.tanh(x);
-          case 'sigmoid': return 1 / (1 + Math.exp(-x));
-          case 'relu': return Math.max(0, x);
-          case 'leakyrelu': return x > 0 ? x : alpha * x;
-          case 'gelu':
-             return 0.5 * x * (1 + Math.tanh(Math.sqrt(2 / Math.PI) * (x + 0.044715 * x**3)));
-          case 'selu':
-            const selu_alpha = 1.67326; const selu_scale = 1.0507;
-            return x > 0 ? selu_scale * x : selu_scale * selu_alpha * (Math.exp(x) - 1);
-          case 'softmax':
-          case 'none':
-          default: return x; // Linear
+          case 'tanh': return Math.tanh(x); case 'sigmoid': return 1 / (1 + Math.exp(-x)); case 'relu': return Math.max(0, x); case 'leakyrelu': return x > 0 ? x : alpha * x; case 'gelu': return 0.5 * x * (1 + Math.tanh(Math.sqrt(2 / Math.PI) * (x + 0.044715 * x**3))); case 'selu': const sa = 1.67326, ss=1.0507; return x > 0 ? ss * x : ss * sa * (Math.exp(x) - 1);
+          case 'swish': return x / (1 + Math.exp(-x)); case 'mish': return x * Math.tanh(softplus(x));
+          case 'softmax': case 'none': default: return x;
         }
       }
 
       activationDerivative(x, activation) {
-          const alpha = 0.01; // For LeakyReLU
-          let val; // To avoid recalculation
+          const alpha = 0.01; let val; const sigmoid = (v) => 1 / (1 + Math.exp(-v)); const softplus = (v) => Math.log(1 + Math.exp(v)); const dtanh_dx = (v) => 1 - Math.tanh(v)**2;
           switch (activation) {
-              case 'tanh': val = Math.tanh(x); return 1 - val * val;
-              case 'sigmoid': val = 1 / (1 + Math.exp(-x)); return val * (1 - val);
-              case 'relu': return x > 0 ? 1 : 0;
-              case 'leakyrelu': return x > 0 ? 1 : alpha;
-              case 'gelu':
-                 const k = Math.sqrt(2 / Math.PI);
-                 const inner = k * (x + 0.044715 * x**3);
-                 const tanh_inner = Math.tanh(inner);
-                 const d_inner_dx = k * (1 + 0.134145 * x**2); // 0.044715 * 3 = 0.134145
-                 const sech_sq_inner = 1 - tanh_inner**2;
-                 return 0.5 * (1 + tanh_inner) + 0.5 * x * sech_sq_inner * d_inner_dx;
-               case 'selu':
-                  const selu_alpha = 1.67326; const selu_scale = 1.0507;
-                  return x > 0 ? selu_scale : selu_scale * selu_alpha * Math.exp(x);
-              case 'softmax': // Softmax derivative handled in its backward pass combined with loss
-              case 'none':
-              default: return 1; // Linear derivative
+              case 'tanh': val = Math.tanh(x); return 1 - val * val; case 'sigmoid': val = sigmoid(x); return val * (1 - val); case 'relu': return x > 0 ? 1 : 0; case 'leakyrelu': return x > 0 ? 1 : alpha; case 'gelu': const k=Math.sqrt(2 / Math.PI), inner=k*(x+0.044715*x**3), tanh_inner=Math.tanh(inner), d_inner_dx=k*(1+0.134145*x**2), sech_sq_inner=1-tanh_inner**2; return 0.5*(1+tanh_inner)+0.5*x*sech_sq_inner*d_inner_dx; case 'selu': const sa=1.67326, ss=1.0507; return x > 0 ? ss : ss * sa * Math.exp(x);
+              case 'swish': const sig_x = sigmoid(x); return sig_x + x * sig_x * (1 - sig_x);
+              case 'mish': const sp_x = softplus(x); const tanh_sp_x = Math.tanh(sp_x); const dsp_dx = sigmoid(x); const dtanh_dsp = dtanh_dx(sp_x); return tanh_sp_x + x * dtanh_dsp * dsp_dx;
+              case 'softmax': case 'none': default: return 1;
           }
       }
 
-      // --- Positional Encoding ---
-      positionalEncoding(input, maxLen = -1) {
-           const dModel = input.length;
-            if (dModel === 0) return [];
-            if (maxLen < 0) maxLen = dModel;
-            const pe = new Array(dModel).fill(0);
-            for (let i = 0; i < dModel; i++) {
-                const divTermBase = Math.pow(10000, Math.floor(i / 2) * 2 / dModel);
-                if (divTermBase === 0) continue;
-                const angle = i / divTermBase; // Position 'i' used directly here
-                pe[i] = (i % 2 === 0) ? Math.sin(angle) : Math.cos(angle);
-            }
-            return input.map((val, i) => val + pe[i]);
-      }
+      positionalEncoding(input, maxLen = -1) { const dModel=input.length; if(dModel===0) return []; if(maxLen<0) maxLen=dModel; const pe=new Array(dModel).fill(0); for(let i=0;i<dModel;i++){ const divTermBase=Math.pow(10000,Math.floor(i/2)*2/dModel); if(divTermBase===0) continue; const angle=i/divTermBase; pe[i]=(i%2===0)?Math.sin(angle):Math.cos(angle); } return input.map((val,i)=>val+pe[i]); }
+      multiHeadSelfAttention(input, numHeads = 2) { const inputDim=input.length; if(inputDim===0) return []; if(numHeads<=0||!Number.isInteger(numHeads)||inputDim%numHeads!==0){ console.error(`Attn Error: Dim ${inputDim} not divisible by ${numHeads}`); return input; } const headSize=inputDim/numHeads; const output=new Array(inputDim).fill(0); const allAttentionWeights=[]; for(let h=0;h<numHeads;h++){ const start=h*headSize; const end=start+headSize; const q_head=input.slice(start,end); const k_head=q_head; const v_head=q_head; const scores=Array.from({length:headSize},(_,i)=>Array.from({length:headSize},(_,j)=>q_head[i]*k_head[j])); const scale=Math.sqrt(headSize)||1; const scaled=scores.map(r=>r.map(s=>s/scale)); const attn=scaled.map(r=>{ if(r.length===0) return []; const max=Math.max(...r,-Infinity); const exps=r.map(s=>Math.exp(s-max)); const sum=exps.reduce((a,b)=>a+b,1e-9); return exps.map(e=>e/sum); }); allAttentionWeights.push(attn); for(let i=0;i<headSize;i++){ output[start+i]=attn[i].reduce((sum,a,j)=>sum+a*v_head[j],0); } } if(this.forwardCache) this.forwardCache.attentionIntermediates[this.forwardCache.activations.length-1] = { input, numHeads, headSize, attentionWeights: allAttentionWeights }; return output; }
+      layerNormalization(input, gamma, beta, epsilon = 1e-5) { if(input.length===0) return {output:[],mean:0,variance:0,stddev:epsilon,normalizedInput:[]}; const mean=input.reduce((s,v)=>s+v,0)/input.length; const variance=input.reduce((s,v)=>s+Math.pow(v-mean,2),0)/input.length; const stddev=Math.sqrt(variance+epsilon); const normalized=input.map(v=>(v-mean)/stddev); if(gamma.length!==input.length||beta.length!==input.length) console.error(`LN size mismatch`); const output=normalized.map((v,i)=>(gamma[i]??1)*v+(beta[i]??0)); const cacheData={output,mean,variance,stddev,normalizedInput:normalized,input,gamma}; if(this.forwardCache) this.forwardCache.layerNormIntermediates[this.forwardCache.activations.length-1]=cacheData; return cacheData; }
+      dropout(input, rate) { const idx = (this.forwardCache?.activations?.length || 1) - 1; if(!this.isTraining||rate===0){ this.masks[idx]=null; return input; } if(rate<0||rate>=1){ console.warn(`Dropout rate ${rate} invalid`); this.masks[idx]=null; return input; } const scale=1/(1-rate); const mask=input.map(()=>(Math.random()>rate?scale:0)); this.masks[idx]=mask; return input.map((v,i)=>v*mask[i]); }
+      softmax(input) { if(input.length===0) return []; const maxVal=Math.max(...input); const exps=input.map(x=>Math.exp(x-maxVal)); const sumExps=exps.reduce((a,b)=>a+b,1e-9); const output=exps.map(e=>e/sumExps); if(this.forwardCache) this.forwardCache.softmaxOutputs[this.forwardCache.activations.length-1]=output; return output; }
+      backwardLayerNormalization(dOutput, cache) { if(!cache||!cache.input||!cache.normInput||!cache.gamma||!dOutput){ const N_in=cache?.input?.length||dOutput?.length||0; return {dInput:Array(N_in).fill(0),dGamma:Array(N_in).fill(0),dBeta:Array(N_in).fill(0)}; } const {input,normalizedInput,mean,variance,stddev,gamma}=cache; const N=input.length; if(N===0) return {dInput:[],dGamma:[],dBeta:[]}; if(dOutput.length!==N||normalizedInput.length!==N||gamma.length!==N){ return {dInput:Array(N).fill(0),dGamma:Array(N).fill(0),dBeta:Array(N).fill(0)}; } const epsilon=1e-5; const dGamma=normalizedInput.map((n,i)=>dOutput[i]*n); const dBeta=dOutput.slice(); const dNorm=dOutput.map((d,i)=>d*(gamma[i]??1)); const dVar=dNorm.reduce((s,dn,i)=>s+dn*(input[i]-mean)*(-0.5)*Math.pow(variance+epsilon,-1.5),0); const invStd=1/stddev; const dMean1=dNorm.reduce((s,dn)=>s-dn*invStd,0); const dMean2=dVar*input.reduce((s,x)=>s-2*(x-mean),0)/N; const dMean=dMean1+dMean2; const dInput=dNorm.map((dn,i)=>{ const t1=dn*invStd; const t2=dVar*2*(input[i]-mean)/N; const t3=dMean/N; return t1+t2+t3; }); return {dInput,dGamma,dBeta}; }
+      backwardMultiHeadSelfAttention(dOutput, cache) { if(!cache||!cache.input||!cache.attnWgts){ const N=dOutput?.length||0; return {dInput:Array(N).fill(0)}; } const {input,numHeads,headSize,attentionWeights}=cache; const inputDim=input.length; if(dOutput.length!==inputDim){ return {dInput:Array(inputDim).fill(0)}; } const dInput=Array(inputDim).fill(0); const scale=Math.sqrt(headSize)||1; for(let h=0;h<numHeads;h++){ const start=h*headSize; const end=start+headSize; const q_h=input.slice(start,end); const v_h=q_h; const k_h=q_h; const dO_h=dOutput.slice(start,end); const alpha_h=attentionWeights[h]; if(!alpha_h||alpha_h.length!==headSize||alpha_h[0]?.length!==headSize){ console.error(`Attn Bkwd Err: Head ${h} weights invalid.`); continue; } const dQ_h=Array(headSize).fill(0); const dK_h=Array(headSize).fill(0); const dV_h=Array(headSize).fill(0); const dScores_h=Array.from({length:headSize},()=>Array(headSize).fill(0)); const dAlpha_h=Array.from({length:headSize},()=>Array(headSize).fill(0)); for(let j=0;j<headSize;j++){ for(let i=0;i<headSize;i++){ if(typeof dO_h[i]!=='number'||typeof v_h[j]!=='number'||typeof alpha_h[i][j]!=='number') continue; dV_h[j]+=alpha_h[i][j]*dO_h[i]; dAlpha_h[i][j]=dO_h[i]*v_h[j]; } } for(let i=0;i<headSize;i++){ let row_sum=0; for(let k=0;k<headSize;k++){ if(typeof dAlpha_h[i][k]!=='number'||typeof alpha_h[i][k]!=='number') continue; row_sum+=dAlpha_h[i][k]*alpha_h[i][k]; } for(let j=0;j<headSize;j++){ if(typeof alpha_h[i][j]!=='number'||typeof dAlpha_h[i][j]!=='number') continue; const dS_ij=alpha_h[i][j]*(dAlpha_h[i][j]-row_sum); dScores_h[i][j]=dS_ij/scale; } } for(let i=0;i<headSize;i++){ for(let j=0;j<headSize;j++){ if(typeof dScores_h[i][j]!=='number'||typeof k_h[j]!=='number'||typeof q_h[i]!=='number') continue; dQ_h[i]+=dScores_h[i][j]*k_h[j]; dK_h[j]+=dScores_h[i][j]*q_h[i]; } } for(let i=0;i<headSize;i++){ dInput[start+i]=(dQ_h[i]||0)+(dK_h[i]||0)+(dV_h[i]||0); } } return {dInput}; }
+      backwardDropout(dOutput, layerIndex) { const mask=this.masks[layerIndex]; if(!mask){ return dOutput; } if(!dOutput||dOutput.length!==mask.length){ return dOutput; } return dOutput.map((g,i)=>g*mask[i]); }
+      backwardSoftmax(dOutput, layerIndex) { console.warn("Softmax backward pass used directly."); return dOutput; }
+      initializeOptimizerState(optimizer) { const numLayers=this.layers.length; if(this.debug) console.log(`Init optimizer state: ${optimizer}, ${numLayers} layers.`); this.t=0; this.m_dw=Array(numLayers).fill(null); this.v_dw=Array(numLayers).fill(null); this.m_db=Array(numLayers).fill(null); this.v_db=Array(numLayers).fill(null); this.m_dgamma=Array(numLayers).fill(null); this.v_dgamma=Array(numLayers).fill(null); this.m_dbeta=Array(numLayers).fill(null); this.v_dbeta=Array(numLayers).fill(null); this.s_dw=Array(numLayers).fill(null); this.s_db=Array(numLayers).fill(null); this.s_dgamma=Array(numLayers).fill(null); this.s_dbeta=Array(numLayers).fill(null); for(let i=0;i<numLayers;i++){ const cfg=this.layers[i]; if(!cfg) continue; const w=this.weights[i]; const reqW=cfg.type==='dense'&&Array.isArray(w)&&w.length>0&&Array.isArray(w[0]); const b=this.biases[i]; const reqB=cfg.type==='dense'&&cfg.useBias&&Array.isArray(b)&&b.length>0; const g=this.gammas[i]; const beta=this.betas[i]; const reqLN=cfg.type==='layernorm'&&Array.isArray(g)&&Array.isArray(beta)&&g.length===beta.length&&g.length>0; if(optimizer==='adam'||optimizer==='rmsprop'){ if(reqW){ try{ const z=()=>w.map(r=>r.map(()=>0)); if(optimizer==='adam'){this.m_dw[i]=z();this.v_dw[i]=z();} if(optimizer==='rmsprop'){this.s_dw[i]=z();} }catch(e){ console.error(`InitOpt L${i} W err: ${e.message}`);this.m_dw[i]=null;this.v_dw[i]=null;this.s_dw[i]=null;}} if(reqB){ try{ const z=()=>b.map(()=>0); if(optimizer==='adam'){this.m_db[i]=z();this.v_db[i]=z();} if(optimizer==='rmsprop'){this.s_db[i]=z();} }catch(e){ console.error(`InitOpt L${i} B err: ${e.message}`);this.m_db[i]=null;this.v_db[i]=null;this.s_db[i]=null;}} if(reqLN){ try{ const z=()=>g.map(()=>0); if(optimizer==='adam'){this.m_dgamma[i]=z();this.v_dgamma[i]=z();this.m_dbeta[i]=z();this.v_dbeta[i]=z();} if(optimizer==='rmsprop'){this.s_dgamma[i]=z();this.s_dbeta[i]=z();} }catch(e){ console.error(`InitOpt L${i} LN err: ${e.message}`);this.m_dgamma[i]=null;this.v_dgamma[i]=null;this.m_dbeta[i]=null;this.v_dbeta[i]=null;this.s_dgamma[i]=null;this.s_dbeta[i]=null;}} } } if(this.debug) console.log(`Optimizer state init finished.`); }
 
+      // --- ADD getTotalParameters Method ---
+      getTotalParameters() { let total=0; if(!this.layers||this.layers.length===0)return 0; this.layers.forEach((l,i)=>{if(l.type==='dense'){total+=this.weights[i]?this.weights[i].flat().length:0;total+=(l.useBias&&this.biases[i])?this.biases[i].length:0;}else if(l.type==='layernorm'){total+=this.gammas[i]?this.gammas[i].length:0;total+=this.betas[i]?this.betas[i].length:0;}}); return total; }
+      // --- END getTotalParameters Method ---
 
-      // --- Layer Forward Implementations ---
-
-        // Simplified Multi-Head Self-Attention (Forward)
-        multiHeadSelfAttention(input, numHeads = 2) {
-            const inputDim = input.length;
-            if (inputDim === 0) return [];
-            if (numHeads <= 0 || !Number.isInteger(numHeads) || inputDim % numHeads !== 0) {
-                console.error(`Attention Error: Input dim ${inputDim} not divisible by ${numHeads} heads.`);
-                return input;
-            }
-            const headSize = inputDim / numHeads;
-            const output = new Array(inputDim).fill(0);
-            const allAttentionWeights = []; // Cache for backprop
-
-            for (let h = 0; h < numHeads; h++) {
-                const startIndex = h * headSize;
-                const endIndex = startIndex + headSize;
-                // Q = K = V = slice of input for this head
-                const q_head = input.slice(startIndex, endIndex);
-                const k_head = input.slice(startIndex, endIndex);
-                const v_head = input.slice(startIndex, endIndex);
-
-                // Calculate Scores
-                const scores = Array.from({ length: headSize }, (_, i) =>
-                    Array.from({ length: headSize }, (_, j) => q_head[i] * k_head[j])
-                );
-
-                // Scale Scores
-                const scaleFactor = Math.sqrt(headSize) || 1;
-                const scaledScores = scores.map(row => row.map(s => s / scaleFactor));
-
-                // Softmax (stable, row-wise)
-                const attentionWeights = scaledScores.map(row => {
-                    if (row.length === 0) return [];
-                    const maxScore = Math.max(...row, -Infinity);
-                    const exps = row.map(s => Math.exp(s - maxScore));
-                    const sumExps = exps.reduce((a, b) => a + b, 1e-9);
-                    return exps.map(e => e / sumExps);
-                });
-                allAttentionWeights.push(attentionWeights); // Cache weights
-
-                // Weighted Value sum
-                for (let i = 0; i < headSize; i++) {
-                    output[startIndex + i] = attentionWeights[i].reduce((sum, alpha_ij, j) => sum + alpha_ij * v_head[j], 0);
-                }
-            }
-             // Cache necessary items for backprop
-             // Find the correct index for the cache based on how many attention layers encountered so far
-            const attentionLayerIndex = this.forwardCache.attentionIntermediates.filter(x => x !== null).length;
-            this.forwardCache.attentionIntermediates[attentionLayerIndex] = {
-                input: input, numHeads: numHeads, headSize: headSize, attentionWeights: allAttentionWeights
-            };
-            return output;
-        }
-
-        // Layer Normalization (Forward)
-        layerNormalization(input, gamma, beta, epsilon = 1e-5) {
-            if (input.length === 0) return { output: [], mean: 0, variance: 0, stddev: epsilon, normalizedInput: [] };
-            const mean = input.reduce((sum, val) => sum + val, 0) / input.length;
-            const variance = input.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / input.length;
-            const stddev = Math.sqrt(variance + epsilon);
-            const normalized = input.map(val => (val - mean) / stddev);
-            if (gamma.length !== input.length || beta.length !== input.length) {
-                 console.error(`LayerNorm size mismatch: Input (${input.length}), Gamma (${gamma.length}), Beta (${beta.length})`);
-             }
-            const output = normalized.map((val, i) => (gamma[i] ?? 1) * val + (beta[i] ?? 0));
-
-             // Cache necessary items for backprop
-             const cacheData = { output, mean, variance, stddev, normalizedInput: normalized, input, gamma };
-             // Find the correct index for the cache based on how many LN layers encountered so far
-             const lnLayerIndex = this.forwardCache.layerNormIntermediates.filter(x => x !== null).length;
-             this.forwardCache.layerNormIntermediates[lnLayerIndex] = cacheData;
-             return cacheData; // Return the whole cache object
-        }
-
-        // Dropout (Forward)
-        dropout(input, rate) {
-             // Determine current layer index based on filled forward cache activations
-             const currentLayerIdx = this.forwardCache.activations.length - 1; // Index of the layer about to run
-             if (!this.isTraining || rate === 0) {
-                 this.masks[currentLayerIdx] = null;
-                 return input;
-             }
-             if (rate < 0 || rate >= 1) {
-                console.warn(`Dropout rate ${rate} invalid, disabling dropout for this layer ${currentLayerIdx}.`);
-                 this.masks[currentLayerIdx] = null;
-                 return input;
-             }
-
-             const scale = 1 / (1 - rate);
-             const mask = input.map(() => (Math.random() > rate ? scale : 0));
-             this.masks[currentLayerIdx] = mask; // Store mask using layer index
-             return input.map((val, i) => val * mask[i]);
-        }
-
-         // Softmax (Forward)
-         softmax(input) {
-            if (input.length === 0) return [];
-            const maxVal = Math.max(...input);
-            const exps = input.map(x => Math.exp(x - maxVal));
-            const sumExps = exps.reduce((a, b) => a + b, 1e-9);
-             const output = exps.map(e => e / sumExps);
-             // Cache output for potential use in cross-entropy gradient
-             // Find the correct index for the cache based on how many Softmax layers encountered so far
-             const softmaxLayerIndex = this.forwardCache.softmaxOutputs.filter(x => x !== null).length;
-             this.forwardCache.softmaxOutputs[softmaxLayerIndex] = output;
-            return output;
-         }
-
-
-      // --- Backward Pass Implementations ---
-
-        // Layer Normalization (Backward)
-        backwardLayerNormalization(dOutput, cache) {
-            if (!cache || !cache.input || !cache.normalizedInput || !cache.gamma || !dOutput) {
-                 console.error("LayerNorm Backward Error: Invalid cache or dOutput.", { dOutputLen: dOutput?.length, cacheKeys: cache ? Object.keys(cache) : null });
-                 const N_in = cache?.input?.length || dOutput?.length || 0;
-                 return { dInput: Array(N_in).fill(0), dGamma: Array(N_in).fill(0), dBeta: Array(N_in).fill(0) };
-             }
-
-            const { input, normalizedInput, mean, variance, stddev, gamma } = cache;
-            const N = input.length;
-            if (N === 0) return { dInput: [], dGamma: [], dBeta: [] };
-
-            if (dOutput.length !== N || normalizedInput.length !== N || gamma.length !== N) {
-                 console.error("LayerNorm Backward Error: Dimension mismatch.", {
-                     dOutputLen: dOutput.length, normInputLen: normalizedInput.length, gammaLen: gamma.length, expectedLen: N
-                 });
-                 return { dInput: Array(N).fill(0), dGamma: Array(N).fill(0), dBeta: Array(N).fill(0) };
-             }
-
-            const epsilon = 1e-5;
-            const dGamma = normalizedInput.map((normVal, i) => dOutput[i] * normVal);
-            const dBeta = dOutput.slice();
-            const dNormalized = dOutput.map((dout, i) => dout * (gamma[i] ?? 1));
-
-            const dVariance = dNormalized.reduce((sum, dnorm, i) => {
-                return sum + dnorm * (input[i] - mean) * (-0.5) * Math.pow(variance + epsilon, -1.5);
-            }, 0);
-
-            const invStddev = 1 / stddev;
-            const dMeanTerm1 = dNormalized.reduce((sum, dnorm) => sum - dnorm * invStddev, 0);
-            const dMeanTerm2 = dVariance * input.reduce((sum, x) => sum - 2 * (x - mean), 0) / N;
-            const dMean = dMeanTerm1 + dMeanTerm2;
-
-            const dInput = dNormalized.map((dnorm, i) => {
-                const term1 = dnorm * invStddev;
-                const term2 = dVariance * 2 * (input[i] - mean) / N;
-                const term3 = dMean / N;
-                return term1 + term2 + term3;
-            });
-
-            return { dInput, dGamma, dBeta };
-        }
-
-        // Backward pass for Multi-Head Self-Attention
-        backwardMultiHeadSelfAttention(dOutput, cache) {
-             if (!cache || !cache.input || !cache.attentionWeights) {
-                console.error("Attention Backward Error: Invalid cache.", { cacheKeys: cache ? Object.keys(cache) : null });
-                const N = dOutput?.length || 0;
-                return { dInput: Array(N).fill(0) };
-            }
-
-            const { input, numHeads, headSize, attentionWeights } = cache;
-            const inputDim = input.length;
-             if (dOutput.length !== inputDim) {
-                 console.error("Attention Backward Error: dOutput dimension mismatch.", { dOutputLen: dOutput.length, expected: inputDim });
-                 return { dInput: Array(inputDim).fill(0) };
-             }
-
-            const dInput = Array(inputDim).fill(0);
-            const scaleFactor = Math.sqrt(headSize) || 1;
-
-            for (let h = 0; h < numHeads; h++) {
-                const startIndex = h * headSize;
-                const endIndex = startIndex + headSize;
-
-                const q_head = input.slice(startIndex, endIndex);
-                const v_head = q_head;
-                const k_head = q_head;
-                const dO_h = dOutput.slice(startIndex, endIndex);
-                const alpha_h = attentionWeights[h];
-
-                 if (!alpha_h || alpha_h.length !== headSize || alpha_h[0]?.length !== headSize) {
-                     console.error(`Attention Backward Error: Invalid attention weights cache for head ${h}.`);
-                     continue;
-                 }
-
-                const dQ_h = Array(headSize).fill(0);
-                const dK_h = Array(headSize).fill(0);
-                const dV_h = Array(headSize).fill(0);
-                const dScores_h = Array.from({ length: headSize }, () => Array(headSize).fill(0));
-                const dAlpha_h = Array.from({ length: headSize }, () => Array(headSize).fill(0));
-
-                // Calculate dV and dAlpha
-                for (let j = 0; j < headSize; j++) {
-                    for (let i = 0; i < headSize; i++) {
-                         if (typeof dO_h[i] !== 'number' || typeof v_head[j] !== 'number' || typeof alpha_h[i][j] !== 'number') {
-                            console.warn(`Attention Backward Warning: Non-numeric value encountered in head ${h}, index (${i},${j}). Skipping gradient contribution.`);
-                            continue;
-                        }
-                        dV_h[j] += alpha_h[i][j] * dO_h[i];
-                        dAlpha_h[i][j] = dO_h[i] * v_head[j];
-                    }
-                }
-
-                // Calculate dScores from dAlpha
-                 for (let i = 0; i < headSize; i++) {
-                     let row_sum = 0;
-                     for (let k = 0; k < headSize; k++) {
-                        if (typeof dAlpha_h[i][k] !== 'number' || typeof alpha_h[i][k] !== 'number') continue;
-                         row_sum += dAlpha_h[i][k] * alpha_h[i][k];
-                     }
-                     for (let j = 0; j < headSize; j++) {
-                        if (typeof alpha_h[i][j] !== 'number' || typeof dAlpha_h[i][j] !== 'number') continue;
-                         const dS_ij = alpha_h[i][j] * (dAlpha_h[i][j] - row_sum);
-                         dScores_h[i][j] = dS_ij / scaleFactor;
-                     }
-                 }
-
-                // Calculate dQ, dK from dScores
-                for (let i = 0; i < headSize; i++) {
-                    for (let j = 0; j < headSize; j++) {
-                         if (typeof dScores_h[i][j] !== 'number' || typeof k_head[j] !== 'number' || typeof q_head[i] !== 'number') continue;
-                        dQ_h[i] += dScores_h[i][j] * k_head[j];
-                        dK_h[j] += dScores_h[i][j] * q_head[i];
-                    }
-                }
-
-                // Accumulate gradients into dInput
-                for (let i = 0; i < headSize; i++) {
-                    dInput[startIndex + i] = (dQ_h[i] || 0) + (dK_h[i] || 0) + (dV_h[i] || 0);
-                }
-            }
-            return { dInput };
-        }
-
-        // Backward pass for Dropout
-        backwardDropout(dOutput, layerIndex) {
-             const mask = this.masks[layerIndex];
-             if (!mask) {
-                 return dOutput;
-             }
-             if (!dOutput || dOutput.length !== mask.length) {
-                  console.error("Dropout Backward Error: dOutput/mask mismatch.", {dOutputLen: dOutput?.length, maskLen: mask?.length});
-                  return dOutput; // Pass through gradient on error
-             }
-             return dOutput.map((grad, i) => grad * mask[i]);
-        }
-
-        // Backward pass for Softmax (placeholder, usually combined with loss)
-         backwardSoftmax(dOutput, layerIndex) {
-            console.warn("Softmax backward pass used directly. This is usually incorrect unless the loss gradient (dOutput) is already the combined Softmax+Loss gradient (e.g., prediction - target).");
-             return dOutput; // Pass through gradient
-         }
-
-      // --- Optimizer Initialization ---
-      initializeOptimizerState(optimizer) {
-          const numLayers = this.layers.length;
-          if (this.debug) console.log(`Initializing optimizer state for ${optimizer} with ${numLayers} layers.`);
-          this.t = 0; // Reset timestep
-
-          // Reset state arrays to correct length, filled with null initially
-          this.m_dw = Array(numLayers).fill(null); this.v_dw = Array(numLayers).fill(null);
-          this.m_db = Array(numLayers).fill(null); this.v_db = Array(numLayers).fill(null);
-          this.m_dgamma = Array(numLayers).fill(null); this.v_dgamma = Array(numLayers).fill(null);
-          this.m_dbeta = Array(numLayers).fill(null); this.v_dbeta = Array(numLayers).fill(null);
-          this.s_dw = Array(numLayers).fill(null); this.s_db = Array(numLayers).fill(null);
-          this.s_dgamma = Array(numLayers).fill(null); this.s_dbeta = Array(numLayers).fill(null);
-
-          for (let i = 0; i < numLayers; i++) {
-              const layerConfig = this.layers[i];
-              if (!layerConfig) {
-                  console.warn(`InitOptState: Layer ${i} config is missing! Skipping.`);
-                  continue;
-              }
-              const layerWeights = this.weights[i];
-              const requiresWeightState = layerConfig.type === 'dense' && Array.isArray(layerWeights) && layerWeights.length > 0 && Array.isArray(layerWeights[0]); // Ensure 2D
-
-              const layerBiases = this.biases[i];
-              const requiresBiasState = layerConfig.type === 'dense' && layerConfig.useBias && Array.isArray(layerBiases) && layerBiases.length > 0;
-
-              const layerGammas = this.gammas[i];
-              const layerBetas = this.betas[i]; // Need betas too for LN state check
-              const requiresLNState = layerConfig.type === 'layernorm' && Array.isArray(layerGammas) && Array.isArray(layerBetas) && layerGammas.length === layerBetas.length && layerGammas.length > 0;
-
-              if (this.debug) console.log(`InitOptState L${i} (${layerConfig.type}): reqW=${requiresWeightState}, reqB=${requiresBiasState}, reqLN=${requiresLNState}`);
-
-              if (optimizer === 'adam' || optimizer === 'rmsprop') {
-                  // Initialize Weight State
-                  if (requiresWeightState) {
-                      try {
-                          const initZeroW = () => layerWeights.map(row => row.map(() => 0));
-                          if (optimizer === 'adam') {
-                              this.m_dw[i] = initZeroW();
-                              this.v_dw[i] = initZeroW();
-                              // if(this.debug) console.log(`   -> L${i} Initialized Adam Weight state. m_dw[${i}] dims: ${this.m_dw[i]?.length}x${this.m_dw[i]?.[0]?.length}`);
-                          }
-                          if (optimizer === 'rmsprop') {
-                              this.s_dw[i] = initZeroW();
-                              // if(this.debug) console.log(`   -> L${i} Initialized RMSprop Weight state. s_dw[${i}] dims: ${this.s_dw[i]?.length}x${this.s_dw[i]?.[0]?.length}`);
-                          }
-                      } catch (e) {
-                          console.error(`InitOptState L${i}: Error during initZeroW for weights: ${e.message}`, layerWeights);
-                          this.m_dw[i] = null; this.v_dw[i] = null; this.s_dw[i] = null; // Ensure reset on error
-                      }
-                  } else if (layerConfig.type === 'dense') {
-                      if(this.debug) console.warn(`InitOptState L${i}: Skipping Dense weight state init (weights invalid or not applicable)`);
-                  }
-
-                  // Initialize Bias State
-                  if (requiresBiasState) {
-                      try {
-                          const initZeroB = () => layerBiases.map(() => 0);
-                          if (optimizer === 'adam') {
-                              this.m_db[i] = initZeroB(); this.v_db[i] = initZeroB();
-                              // if(this.debug) console.log(`   -> L${i} Initialized Adam Bias state. Len: ${this.m_db[i]?.length}`);
-                          }
-                          if (optimizer === 'rmsprop') {
-                              this.s_db[i] = initZeroB();
-                              // if(this.debug) console.log(`   -> L${i} Initialized RMSprop Bias state. Len: ${this.s_db[i]?.length}`);
-                          }
-                      } catch (e) {
-                          console.error(`InitOptState L${i}: Error during initZeroB for biases: ${e.message}`, layerBiases);
-                           this.m_db[i] = null; this.v_db[i] = null; this.s_db[i] = null; // Ensure reset on error
-                      }
-                  } else if (layerConfig.type === 'dense' && layerConfig.useBias) {
-                      if(this.debug) console.warn(`InitOptState L${i}: Skipping Dense bias state init (biases invalid or not applicable)`);
-                  }
-
-                  // Initialize LayerNorm State
-                  if (requiresLNState) {
-                       try {
-                           const initZeroLN = () => layerGammas.map(() => 0);
-                           if (optimizer === 'adam') {
-                               this.m_dgamma[i] = initZeroLN(); this.v_dgamma[i] = initZeroLN();
-                               this.m_dbeta[i] = initZeroLN(); this.v_dbeta[i] = initZeroLN();
-                               // if(this.debug) console.log(`   -> L${i} Initialized Adam LN state. Len: ${this.m_dgamma[i]?.length}`);
-                           }
-                           if (optimizer === 'rmsprop') {
-                              this.s_dgamma[i] = initZeroLN(); this.s_dbeta[i] = initZeroLN();
-                               // if(this.debug) console.log(`   -> L${i} Initialized RMSprop LN state. Len: ${this.s_dgamma[i]?.length}`);
-                           }
-                       } catch (e) {
-                           console.error(`InitOptState L${i}: Error during initZeroLN for LN params: ${e.message}`, layerGammas);
-                           this.m_dgamma[i] = null; this.v_dgamma[i] = null; this.m_dbeta[i] = null; this.v_dbeta[i] = null;
-                           this.s_dgamma[i] = null; this.s_dbeta[i] = null; // Ensure reset on error
-                       }
-                  } else if (layerConfig.type === 'layernorm') {
-                      if(this.debug) console.warn(`InitOptState L${i}: Skipping LayerNorm state init (gamma/beta invalid or not applicable)`);
-                  }
-              }
-          }
-           if (this.debug) console.log(`Optimizer state initialization finished.`);
-      }
-
-
-      // --- Training Loop ---
       async train(trainSet, options = {}) {
-        this.isTraining = true; // Set training mode for dropout
-        const start = Date.now();
+        this.isTraining = true; const start = Date.now();
+        let { epochs = 100, learningRate = 0.01, batchSize = 16, printEveryEpochs = 10, earlyStopThreshold = 1e-7, testSet = null, callback = null, optimizer = 'adam', lossFunction = 'mse', l2Lambda = 0, decayRate = 0.9, usePositionalEncoding = this.usePositionalEncoding, gradientClipValue = 0 } = options;
+        if (!trainSet || trainSet.length === 0) throw new Error("Training set empty."); if (this.layers.length === 0) throw new Error("No layers."); const effectiveBatchSize = Math.max(1, Math.min(batchSize, trainSet.length)); this.usePositionalEncoding = usePositionalEncoding; this.decayRate = decayRate;
+        let needsOptimizerInit = this.m_dw?.length !== this.layers.length || this.v_dw?.length !== this.layers.length || this.s_dw?.length !== this.layers.length || this.m_db?.length !== this.layers.length || this.v_db?.length !== this.layers.length || this.s_db?.length !== this.layers.length; for (let i=0; i < this.layers.length && !needsOptimizerInit; i++) { if (this.layers[i].type === 'dense') { if (this.weights[i] && this.m_dw[i] === null) needsOptimizerInit = true; if (this.biases[i] && this.m_db[i] === null) needsOptimizerInit = true; } else if (this.layers[i].type === 'layernorm') { if (this.gammas[i] && this.m_dgamma[i] === null) needsOptimizerInit = true; if (this.betas[i] && this.m_dbeta[i] === null) needsOptimizerInit = true; } } if (needsOptimizerInit) { if (this.debug) console.log("Optimizer state needs init."); this.initializeOptimizerState(optimizer); }
+        let lastTrainLoss = Infinity; let lastTestLoss = null; const finalLayerAct = this.layers[this.layers.length - 1].activation; if (lossFunction==='crossentropy' && finalLayerAct!=='softmax' && finalLayerAct!=='sigmoid') console.warn(`Cross-entropy needs final softmax/sigmoid`); if (lossFunction==='mse' && (finalLayerAct==='softmax'||finalLayerAct==='sigmoid')) console.warn(`MSE with final softmax/sigmoid`);
 
-        let {
-          epochs = 100, learningRate = 0.01, batchSize = 16,
-          printEveryEpochs = 10, earlyStopThreshold = 1e-7, testSet = null,
-          callback = null, optimizer = 'adam', lossFunction = 'mse',
-          l2Lambda = 0, decayRate = 0.9, usePositionalEncoding = this.usePositionalEncoding
-        } = options;
-
-        if (!trainSet || trainSet.length === 0) throw new Error("Training set is empty.");
-        if (this.layers.length === 0) throw new Error("Network has no layers.");
-        const effectiveBatchSize = Math.max(1, Math.min(batchSize, trainSet.length));
-        this.usePositionalEncoding = usePositionalEncoding;
-        this.decayRate = decayRate;
-
-        // --- Optimizer State Initialization ---
-        // Check if state length matches layer length or if any state is unexpectedly null
-        let needsOptimizerInit = this.m_dw?.length !== this.layers.length ||
-                                 this.v_dw?.length !== this.layers.length ||
-                                 this.s_dw?.length !== this.layers.length || // Add checks for all relevant optimizers
-                                 this.m_db?.length !== this.layers.length ||
-                                 this.v_db?.length !== this.layers.length ||
-                                 this.s_db?.length !== this.layers.length;
-        // Additional check: Ensure state for parameters that exist isn't null
-        for (let i=0; i < this.layers.length && !needsOptimizerInit; i++) {
-            if (this.layers[i].type === 'dense') {
-                if (this.weights[i] && this.m_dw[i] === null) needsOptimizerInit = true;
-                if (this.biases[i] && this.m_db[i] === null) needsOptimizerInit = true;
-            } else if (this.layers[i].type === 'layernorm') {
-                if (this.gammas[i] && this.m_dgamma[i] === null) needsOptimizerInit = true;
-                 if (this.betas[i] && this.m_dbeta[i] === null) needsOptimizerInit = true;
-            }
-        }
-
-        if (needsOptimizerInit) {
-             if (this.debug) console.log("Optimizer state needs initialization (length mismatch or null state found).");
-             this.initializeOptimizerState(optimizer);
-        }
-
-        let lastTrainLoss = Infinity;
-        let lastTestLoss = null;
-        const finalLayerActivation = this.layers[this.layers.length - 1].activation;
-
-         if (lossFunction === 'crossentropy' && finalLayerActivation !== 'softmax' && finalLayerActivation !== 'sigmoid') {
-             console.warn(`Cross-entropy loss typically requires a final 'softmax' (multi-class) or 'sigmoid' (binary) activation. Current: '${finalLayerActivation}'.`);
-         }
-          if (lossFunction === 'mse' && (finalLayerActivation === 'softmax' || finalLayerActivation === 'sigmoid')) {
-             console.warn(`MSE loss with final 'softmax' or 'sigmoid' activation might limit output range.`);
-         }
-
-
-        // --- Epoch Loop ---
         for (let epoch = 0; epoch < epochs; epoch++) {
-          let totalEpochTrainError = 0;
-           for (let i = trainSet.length - 1; i > 0; i--) { // Shuffle
-               const j = Math.floor(Math.random() * (i + 1));
-               [trainSet[i], trainSet[j]] = [trainSet[j], trainSet[i]];
-           }
-
-          // --- Batch Loop ---
+          let totalEpochTrainError = 0; for (let i = trainSet.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [trainSet[i], trainSet[j]] = [trainSet[j], trainSet[i]]; }
           for (let b = 0; b < trainSet.length; b += effectiveBatchSize) {
-            const batch = trainSet.slice(b, b + effectiveBatchSize);
-            if (batch.length === 0) continue;
-
-            // Init batch gradients
-            const batch_gradients_w = this.weights.map(L => L ? L.map(r => r.map(() => 0)) : null);
-            const batch_gradients_b = this.biases.map(L => L ? L.map(() => 0) : null);
-            const batch_gradients_gamma = this.gammas.map(L => L ? L.map(() => 0) : null);
-            const batch_gradients_beta = this.betas.map(L => L ? L.map(() => 0) : null);
-            let batchLossSum = 0;
-
-            // --- Process Each Sample in Batch ---
+            const batch = trainSet.slice(b, b + effectiveBatchSize); if (batch.length === 0) continue;
+            const gradsW = this.weights.map(L => L ? L.map(r => r.map(() => 0)) : null); const gradsB = this.biases.map(L => L ? L.map(() => 0) : null); const gradsGamma = this.gammas.map(L => L ? L.map(() => 0) : null); const gradsBeta = this.betas.map(L => L ? L.map(() => 0) : null); let batchLossSum = 0;
             for (const data of batch) {
-                // --- Forward Pass ---
-                let currentInput = data.input;
-                if (!Array.isArray(currentInput) || !Array.isArray(data.output)) {
-                    console.warn("Skipping invalid data sample:", data); continue;
-                }
-                if (this.usePositionalEncoding) {
-                    currentInput = this.positionalEncoding(currentInput);
-                }
-
-                 this.forwardCache = { // Reset cache per sample
-                     activations: [currentInput], rawValues: [],
-                     layerNormIntermediates: [], attentionIntermediates: [], softmaxOutputs: []
-                 };
-
-                let layerInput = currentInput;
-                for (let i = 0; i < this.layers.length; i++) {
-                    const layerConfig = this.layers[i];
-                    let layerOutput;
-                    // Initialize cache entries for this layer before processing
-                    this.forwardCache.rawValues[i] = null;
-                    this.forwardCache.layerNormIntermediates[i] = null;
-                    this.forwardCache.attentionIntermediates[i] = null;
-                    this.forwardCache.softmaxOutputs[i] = null;
-
-                    try {
-                        if (layerInput.length !== layerConfig.inputSize) {
-                             throw new Error(`L${i}(${layerConfig.type}): Input size ${layerInput.length} != expected ${layerConfig.inputSize}`);
-                        }
-
-                        switch(layerConfig.type) {
-                            case 'dense':
-                                const weights = this.weights[i];
-                                const biases = this.biases[i];
-                                const rawOutput = Array(layerConfig.outputSize).fill(0);
-                                for(let j=0; j<layerConfig.outputSize; ++j) {
-                                    let sum = biases ? biases[j] : 0;
-                                    for(let k=0; k<layerConfig.inputSize; ++k) {
-                                        sum += layerInput[k] * weights[j][k];
-                                    }
-                                    rawOutput[j] = sum;
-                                }
-                                this.forwardCache.rawValues[i] = rawOutput; // Store raw sum BEFORE activation
-                                layerOutput = rawOutput.map(sum => this.activationFunction(sum, layerConfig.activation));
-                                break;
-                            case 'layernorm':
-                                // layerNormalization caches internally now
-                                const lnData = this.layerNormalization(layerInput, this.gammas[i], this.betas[i], this.epsilon);
-                                layerOutput = lnData.output;
-                                break;
-                            case 'attention':
-                                // multiHeadSelfAttention caches internally now
-                                layerOutput = this.multiHeadSelfAttention(layerInput, layerConfig.numHeads);
-                                break;
-                            case 'dropout':
-                                layerOutput = this.dropout(layerInput, layerConfig.rate);
-                                break;
-                             case 'softmax':
-                                // softmax caches internally now
-                                layerOutput = this.softmax(layerInput);
-                                break;
-                            default:
-                                throw new Error(`Unknown layer type in forward pass: ${layerConfig.type}`);
-                        }
-
-                        this.forwardCache.activations.push(layerOutput); // Store activation AFTER processing
-                        layerInput = layerOutput;
-
-                    } catch (error) {
-                        console.error(`Forward pass error at Layer ${i} (${layerConfig.type}):`, error);
-                        this.isTraining = false;
-                        throw error;
-                    }
-                } // End forward pass
-
-                // --- Calculate Loss and Initial Gradient ---
-                const finalOutput = layerInput;
-                const targetOutput = data.output;
-
-                if (finalOutput.length !== targetOutput.length) {
-                    throw new Error(`Output/Target length mismatch: ${finalOutput.length} vs ${targetOutput.length}. Check final layer/data.`);
-                }
-
-                let dLastError;
-                const epsilon_ce = 1e-9;
-
-                if (lossFunction === 'crossentropy') {
-                    let sampleLoss = 0;
-                    const lastLayerIdx = this.layers.length - 1;
-                    const lastLayer = this.layers[lastLayerIdx];
-                    const wasSoftmax = lastLayer.type === 'softmax' || (lastLayer.type === 'dense' && lastLayer.activation === 'softmax');
-                    const wasSigmoid = lastLayer.type === 'dense' && lastLayer.activation === 'sigmoid';
-
-                    if (wasSoftmax) {
-                         const oneHotTarget = Array(finalOutput.length).fill(0);
-                         if (targetOutput.length === 1 && Number.isInteger(targetOutput[0]) && targetOutput[0] >= 0 && targetOutput[0] < finalOutput.length) {
-                             oneHotTarget[targetOutput[0]] = 1;
-                             sampleLoss = -Math.log(finalOutput[targetOutput[0]] + epsilon_ce);
-                         } else if (targetOutput.length === finalOutput.length) {
-                              targetOutput.forEach((val, idx) => oneHotTarget[idx] = val);
-                              sampleLoss = -targetOutput.reduce((sum, t, i) => sum + t * Math.log(finalOutput[i] + epsilon_ce), 0);
-                         } else {
-                              throw new Error("Cross-Entropy target format unclear (expected index or one-hot).");
-                         }
-                         // Combined gradient (prediction - target)
-                         dLastError = finalOutput.map((p, i) => p - oneHotTarget[i]);
-
-                    } else if (wasSigmoid) {
-                        if (finalOutput.length !== 1 || targetOutput.length !== 1) throw new Error("Binary Cross-Entropy requires single output/target.");
-                        const p = finalOutput[0]; const t = targetOutput[0];
-                         sampleLoss = - (t * Math.log(p + epsilon_ce) + (1 - t) * Math.log(1 - p + epsilon_ce));
-                         // Combined gradient (prediction - target)
-                         dLastError = [p - t];
-                    } else {
-                         console.warn("Using Cross-Entropy without final Softmax/Sigmoid. Gradient calculation might be suboptimal.");
-                         dLastError = finalOutput.map((p, i) => p - targetOutput[i]); // Fallback gradient
-                         sampleLoss = -targetOutput.reduce((sum, t, i) => sum + t * Math.log(finalOutput[i] + epsilon_ce), 0); // Use CE loss formula
-                    }
-                    if (!isNaN(sampleLoss)) batchLossSum += sampleLoss;
-
-                } else { // Default: MSE loss
-                    dLastError = finalOutput.map((out, i) => out - targetOutput[i]);
-                    let sampleLoss = 0.5 * dLastError.reduce((sum, err) => sum + err * err, 0);
-                     if (!isNaN(sampleLoss)) batchLossSum += sampleLoss;
-                }
-
-
-                // --- Backward Pass ---
-                let dActivation = dLastError;
-
-                for (let i = this.layers.length - 1; i >= 0; i--) {
-                    const layerConfig = this.layers[i];
-                    const activation_prev = this.forwardCache.activations[i]; // Output of layer i-1 (Input to layer i)
-                    let dInput; // Gradient w.r.t input of current layer
-
-                   // Robust check for incoming gradient
-                   if (!Array.isArray(dActivation) || dActivation.length !== layerConfig.outputSize) {
-                        console.warn(`Backward L${i} (${layerConfig.type}): Invalid incoming gradient (dActivation). Type: ${typeof dActivation}, IsArray: ${Array.isArray(dActivation)}, Length: ${dActivation?.length}, Expected: ${layerConfig.outputSize}. Propagating zeros backward.`);
-                        dInput = Array(layerConfig.inputSize).fill(0);
-                        dActivation = dInput;
-                        continue; // Skip this layer's backward calculation
-                    }
-
-                    try {
-                        switch(layerConfig.type) {
-                            case 'dense':
-                                const weights = this.weights[i];
-                                const biases = this.biases[i];
-                                const rawValues = this.forwardCache.rawValues[i];
-                                const activation = layerConfig.activation;
-                                const inputSize = layerConfig.inputSize;
-                                const outputSize = layerConfig.outputSize;
-
-                                if (!Array.isArray(rawValues)) throw new Error(`L${i} Dense: Missing rawValues in forward cache.`);
-
-                                // Calculate delta (gradient w.r.t pre-activation sum)
-                                const delta = rawValues.map((raw, j) => {
-                                    const dAct_j = (typeof dActivation[j] === 'number' && isFinite(dActivation[j])) ? dActivation[j] : 0;
-                                    const deriv = this.activationDerivative(raw, activation);
-                                    if (typeof deriv !== 'number' || !isFinite(deriv)) {
-                                        console.warn(`L${i} Dense, j=${j}: Derivative is NaN/Infinity. Using 0.`); return 0;
-                                    }
-                                    return dAct_j * deriv;
-                                });
-
-                                // Calculate gradient w.r.t previous layer's activation (dInput)
-                                dInput = Array(inputSize).fill(0);
-                                for (let k = 0; k < inputSize; k++) {
-                                    for (let j = 0; j < outputSize; j++) {
-                                        if (weights?.[j]?.[k] !== undefined) { // Check weight exists
-                                           dInput[k] += (delta[j] || 0) * weights[j][k];
-                                        }
-                                    }
-                                }
-
-                                // Accumulate gradients for weights and biases
-                                for (let j = 0; j < outputSize; j++) {
-                                    if (batch_gradients_w?.[i]?.[j]) { // Check accumulator exists
-                                        for (let k = 0; k < inputSize; k++) {
-                                            if (typeof activation_prev?.[k] === 'number') { // Check previous activation exists
-                                               batch_gradients_w[i][j][k] += (delta[j] || 0) * activation_prev[k];
-                                            }
-                                        }
-                                    }
-                                    if (biases && batch_gradients_b?.[i]) {
-                                        batch_gradients_b[i][j] += (delta[j] || 0);
-                                    }
-                                }
-                                break; // End Dense case
-
-                             case 'layernorm':
-                                const lnCache = this.forwardCache.layerNormIntermediates.find(c => c && c.input.length === layerConfig.inputSize && c.output.length === layerConfig.outputSize); // Find correct cache
-                                if (!lnCache) throw new Error (`L${i} LN: Missing LayerNorm cache.`);
-                                const lnGrads = this.backwardLayerNormalization(dActivation, lnCache);
-                                dInput = lnGrads.dInput;
-                                if (batch_gradients_gamma?.[i] && batch_gradients_beta?.[i]) {
-                                     for (let j = 0; j < lnGrads.dGamma.length; j++) {
-                                         batch_gradients_gamma[i][j] += lnGrads.dGamma[j] || 0;
-                                         batch_gradients_beta[i][j] += lnGrads.dBeta[j] || 0;
-                                     }
-                                }
-                                break; // End LayerNorm case
-
-                             case 'attention':
-                                const attCache = this.forwardCache.attentionIntermediates.find(c => c && c.input.length === layerConfig.inputSize); // Find correct cache
-                                if (!attCache) throw new Error (`L${i} Attention: Missing Attention cache.`);
-                                const attGrads = this.backwardMultiHeadSelfAttention(dActivation, attCache);
-                                dInput = attGrads.dInput;
-                                break; // End Attention case
-
-                             case 'dropout':
-                                 dInput = this.backwardDropout(dActivation, i);
-                                 break; // End Dropout case
-
-                            case 'softmax':
-                                // Pass through gradient (assuming combined loss gradient)
-                                dInput = this.backwardSoftmax(dActivation, i);
-                                break; // End Softmax case
-
-                            default:
-                                throw new Error(`Unknown layer type in backward pass: ${layerConfig.type}`);
-                        } // End switch
-
-                        dActivation = dInput; // Gradient for the next layer (i-1)
-
-                    } catch (error) {
-                         console.error(`Backward pass error at Layer ${i} (${layerConfig.type}):`, error);
-                         this.isTraining = false; throw error;
-                    }
-                } // End layer loop (backward pass)
-
+                let currentInput = data.input; if (!Array.isArray(currentInput) || !Array.isArray(data.output)) { console.warn("Skip invalid data"); continue; } if (this.usePositionalEncoding) currentInput = this.positionalEncoding(currentInput);
+                this.forwardCache = { activations: [currentInput], rawValues: [], layerNormIntermediates: [], attentionIntermediates: [], softmaxOutputs: [] }; let layerInput = currentInput;
+                for (let i = 0; i < this.layers.length; i++) { const cfg=this.layers[i]; let out; this.forwardCache.rawValues[i]=null; this.forwardCache.layerNormIntermediates[i]=null; this.forwardCache.attentionIntermediates[i]=null; this.forwardCache.softmaxOutputs[i]=null; try { if(layerInput.length!==cfg.inputSize) throw new Error(`L${i}(${cfg.type}): Sz mismatch ${layerInput.length}!=${cfg.inputSize}`); switch(cfg.type){ case 'dense': const w=this.weights[i], bias=this.biases[i]; const raw=Array(cfg.outputSize).fill(0); for(let j=0;j<cfg.outputSize;++j){ let sum=bias?bias[j]:0; for(let k=0;k<cfg.inputSize;++k){sum+=layerInput[k]*w[j][k];} raw[j]=sum;} this.forwardCache.rawValues[i]=raw; out=raw.map(s=>this.activationFunction(s,cfg.activation)); break; case 'layernorm': out=this.layerNormalization(layerInput,this.gammas[i],this.betas[i],this.epsilon).output; break; case 'attention': out=this.multiHeadSelfAttention(layerInput,cfg.numHeads); break; case 'dropout': out=this.dropout(layerInput,cfg.rate); break; case 'softmax': out=this.softmax(layerInput); break; default: throw new Error(`Fwd Pass: Unknown type ${cfg.type}`); } this.forwardCache.activations.push(out); layerInput=out; } catch(e){ console.error(`Fwd L${i}(${cfg.type}) Err:`,e); this.isTraining=false; throw e; }}
+                const finalOut=layerInput; const targetOut=data.output; if(finalOut.length!==targetOut.length) throw new Error(`Output/Target len mismatch`); let dLastErr; const eps_ce=1e-9;
+                if(lossFunction==='crossentropy'){ let loss=0; const lastLyr=this.layers[this.layers.length-1]; const wasSoftmax=lastLyr.type==='softmax'||(lastLyr.type==='dense'&&lastLyr.activation==='softmax'); const wasSigmoid=lastLyr.type==='dense'&&lastLyr.activation==='sigmoid'; if(wasSoftmax){ const oneHot=Array(finalOut.length).fill(0); if(targetOut.length===1&&Number.isInteger(targetOut[0])&&targetOut[0]>=0&&targetOut[0]<finalOut.length){oneHot[targetOut[0]]=1;loss=-Math.log(finalOut[targetOut[0]]+eps_ce);}else if(targetOut.length===finalOut.length){targetOut.forEach((v,idx)=>oneHot[idx]=v);loss=-targetOut.reduce((s,t,i)=>s+t*Math.log(finalOut[i]+eps_ce),0);}else{throw new Error("CE target unclear");} dLastErr=finalOut.map((p,i)=>p-oneHot[i]);}else if(wasSigmoid){if(finalOut.length!==1||targetOut.length!==1)throw new Error("BCE needs single out/target");const p=finalOut[0],t=targetOut[0];loss=-(t*Math.log(p+eps_ce)+(1-t)*Math.log(1-p+eps_ce));dLastErr=[p-t];}else{console.warn("CE w/o final softmax/sigmoid");dLastErr=finalOut.map((p,i)=>p-targetOut[i]);loss=-targetOut.reduce((s,t,i)=>s+t*Math.log(finalOut[i]+eps_ce),0);} if(!isNaN(loss))batchLossSum+=loss; }else{dLastErr=finalOut.map((o,i)=>o-targetOut[i]);let loss=0.5*dLastErr.reduce((s,e)=>s+e*e,0); if(!isNaN(loss))batchLossSum+=loss;}
+                let dAct = dLastErr;
+                for(let i=this.layers.length-1; i>=0; i--){ const cfg=this.layers[i]; const act_prev=this.forwardCache.activations[i]; let dIn; if(!Array.isArray(dAct)||dAct.length!==cfg.outputSize){console.warn(`Bkwd L${i}(${cfg.type}): Invalid dAct. Zeros.`);dIn=Array(cfg.inputSize).fill(0);dAct=dIn;continue;} try{ switch(cfg.type){ case 'dense': const w=this.weights[i], bias=this.biases[i], raw=this.forwardCache.rawValues[i], act=cfg.activation, inSz=cfg.inputSize, outSz=cfg.outputSize; if(!Array.isArray(raw))throw new Error(`L${i} Dense: Missing raw`); const delta=raw.map((r,j)=>{const dA=(typeof dAct[j]==='number'&&isFinite(dAct[j]))?dAct[j]:0; const deriv=this.activationDerivative(r,act); if(typeof deriv!=='number'||!isFinite(deriv)){console.warn(`L${i} Dense, j=${j}: Deriv NaN/Inf.`); return 0;} return dA*deriv;}); dIn=Array(inSz).fill(0); for(let k=0;k<inSz;k++){for(let j=0;j<outSz;j++){if(w?.[j]?.[k]!==undefined){dIn[k]+=(delta[j]||0)*w[j][k];}}} for(let j=0;j<outSz;j++){if(gradsW?.[i]?.[j]){for(let k=0;k<inSz;k++){if(typeof act_prev?.[k]==='number'){gradsW[i][j][k]+=(delta[j]||0)*act_prev[k];}}} if(bias&&gradsB?.[i]){gradsB[i][j]+=(delta[j]||0);}} break; case 'layernorm': const lnC=(this.forwardCache.layerNormIntermediates||[]).find(c=>c&&c.input.length===cfg.inputSize); if(!lnC)throw new Error(`L${i} LN: Missing cache`); const lnG=this.backwardLayerNormalization(dAct,lnC); dIn=lnG.dInput; if(gradsGamma?.[i]&&gradsBeta?.[i]){for(let j=0;j<lnG.dGamma.length;j++){gradsGamma[i][j]+=lnG.dGamma[j]||0;gradsBeta[i][j]+=lnG.dBeta[j]||0;}} break; case 'attention': const attC=(this.forwardCache.attentionIntermediates||[]).find(c=>c&&c.input.length===cfg.inputSize); if(!attC)throw new Error(`L${i} Attn: Missing cache`); const attG=this.backwardMultiHeadSelfAttention(dAct,attC); dIn=attG.dInput; break; case 'dropout': dIn=this.backwardDropout(dAct,i); break; case 'softmax': dIn=this.backwardSoftmax(dAct,i); break; default: throw new Error(`Bkwd Pass: Unknown type ${cfg.type}`); } dAct=dIn;}catch(e){console.error(`Bkwd L${i}(${cfg.type}) Err:`,e); this.isTraining=false; throw e;} } // End bkwd layer loop
             } // End batch sample loop
 
-            // --- Update Parameters (after batch, with robust checks) ---
-            const batchMultiplier = 1.0 / batch.length;
-            this.t++; // Increment timestep
-
-            for (let i = 0; i < this.layers.length; i++) {
-                const layerConfig = this.layers[i];
-                const isDense = layerConfig.type === 'dense';
-                const isLN = layerConfig.type === 'layernorm';
-
-                const requiresWeightUpdate = isDense && Array.isArray(this.weights[i]) && this.weights[i].length > 0;
-                const requiresBiasUpdate = isDense && layerConfig.useBias && Array.isArray(this.biases[i]) && this.biases[i].length > 0;
-                const requiresLNUpdate = isLN && Array.isArray(this.gammas[i]) && Array.isArray(this.betas[i]) && this.gammas[i].length > 0;
-
-                let currentLR = learningRate;
-
-                // Common update function
-                 const applyUpdate = (param, grad, m, v, s, isWeight = false) => {
-                     if (typeof param !== 'number' || typeof grad !== 'number') {
-                         // console.warn("ApplyUpdate received non-numeric param or grad", {param, grad});
-                         // Decide how to handle: maybe return param unchanged or throw error
-                         return { updatedParam: param, m, v, s }; // Return unchanged if invalid input
-                     }
-                     const avg_grad = grad * batchMultiplier;
-                     let updateVal = 0;
-
-                     if (optimizer === 'adam') {
-                         // Ensure m, v are numbers, default to 0 if missing/invalid (should be initialized)
-                         m = (typeof m === 'number' && isFinite(m)) ? m : 0;
-                         v = (typeof v === 'number' && isFinite(v)) ? v : 0;
-
-                         m = this.beta1 * m + (1 - this.beta1) * avg_grad;
-                         v = this.beta2 * v + (1 - this.beta2) * avg_grad**2;
-                         const m_hat = m / (1 - this.beta1**this.t);
-                         const v_hat = v / (1 - this.beta2**this.t);
-                         currentLR = learningRate * Math.sqrt(1 - this.beta2**this.t) / (1 - this.beta1**this.t);
-                         updateVal = currentLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
-                         if (isWeight && l2Lambda > 0) {
-                             updateVal += currentLR * l2Lambda * param;
-                         }
-                         return { updatedParam: param - updateVal, m, v };
-                     } else if (optimizer === 'rmsprop') {
-                          s = (typeof s === 'number' && isFinite(s)) ? s : 0;
-                          s = this.decayRate * s + (1 - this.decayRate) * avg_grad**2;
-                          updateVal = learningRate * avg_grad / (Math.sqrt(s) + this.epsilon);
-                          if (isWeight && l2Lambda > 0) {
-                             updateVal += learningRate * l2Lambda * param;
-                          }
-                          return { updatedParam: param - updateVal, s };
-                     } else { // SGD
-                          let grad_reg = avg_grad;
-                          if (isWeight && l2Lambda > 0) {
-                              grad_reg += l2Lambda * param;
-                          }
-                         updateVal = learningRate * grad_reg;
-                         return { updatedParam: param - updateVal };
-                     }
-                 };
-
-
-                // --- Update Weights ---
-                 if (requiresWeightUpdate) {
-                     if (!batch_gradients_w || !Array.isArray(batch_gradients_w[i]) || !Array.isArray(batch_gradients_w[i][0])) {
-                         console.error(`Update L${i}: Batch weight gradients structure invalid! Skipping weight update.`);
-                         continue;
-                     }
-                     for (let j = 0; j < layerConfig.outputSize; j++) {
-                         for (let k = 0; k < layerConfig.inputSize; k++) {
-                             if (!batch_gradients_w[i][j] || typeof batch_gradients_w[i][j][k] !== 'number') {
-                                //   console.warn(`Update L${i}, N${j}, K${k}: Invalid batch weight gradient. Skipping.`);
-                                  continue;
-                             }
-                             const grad_w = batch_gradients_w[i][j][k];
-                             if (!this.weights[i]?.[j] || typeof this.weights[i][j][k] !== 'number') {
-                                 console.error(`Update L${i}, N${j}, K${k}: Weight value invalid! Skipping.`);
-                                 continue;
-                             }
-                             const currentWeight = this.weights[i][j][k];
-                             const m_val = this.m_dw?.[i]?.[j]?.[k];
-                             const v_val = this.v_dw?.[i]?.[j]?.[k];
-                             const s_val = this.s_dw?.[i]?.[j]?.[k];
-
-                             const res = applyUpdate(currentWeight, grad_w, m_val, v_val, s_val, true);
-                             this.weights[i][j][k] = res.updatedParam;
-
-                             if (optimizer === 'adam') {
-                                 if (typeof res.m !== 'number' || typeof res.v !== 'number') { /* Error log handled in applyUpdate */ continue; }
-                                 if (!this.m_dw?.[i]?.[j] || !this.v_dw?.[i]?.[j]) { console.error(`Update L${i},N${j},K${k}: Target m/v structure invalid.`); continue; }
-                                 this.m_dw[i][j][k] = res.m; this.v_dw[i][j][k] = res.v;
-                             }
-                             if (optimizer === 'rmsprop') {
-                                 if (typeof res.s !== 'number') { /* Error log handled in applyUpdate */ continue; }
-                                 if (!this.s_dw?.[i]?.[j]) { console.error(`Update L${i},N${j},K${k}: Target s structure invalid.`); continue; }
-                                 this.s_dw[i][j][k] = res.s;
-                             }
-                         }
-                     }
-                 }
-                 // --- Update Biases ---
-                if (requiresBiasUpdate) {
-                     if (!batch_gradients_b || !Array.isArray(batch_gradients_b[i])) { console.error(`Update L${i}: Batch bias gradients invalid.`); continue; }
-                     if (!this.biases || !Array.isArray(this.biases[i])) { console.error(`Update L${i}: Bias array invalid.`); continue; }
-
-                    for (let j = 0; j < layerConfig.outputSize; j++) {
-                        if (typeof batch_gradients_b[i][j] !== 'number') { /* console.warn(`Update L${i}, N${j}: Invalid bias gradient.`); */ continue; }
-                        const grad_b = batch_gradients_b[i][j];
-                        if (typeof this.biases[i][j] !== 'number') { console.error(`Update L${i}, N${j}: Bias value invalid!`); continue; }
-                        const currentBias = this.biases[i][j];
-                        const m_val_b = this.m_db?.[i]?.[j];
-                        const v_val_b = this.v_db?.[i]?.[j];
-                        const s_val_b = this.s_db?.[i]?.[j];
-
-                        const res = applyUpdate(currentBias, grad_b, m_val_b, v_val_b, s_val_b, false);
-                        this.biases[i][j] = res.updatedParam;
-
-                        if (optimizer === 'adam') {
-                            if (typeof res.m !== 'number' || typeof res.v !== 'number') continue;
-                            if (!this.m_db?.[i] || !this.v_db?.[i]) { console.error(`Update L${i},N${j}: Target bias m/v structure invalid.`); continue; }
-                            this.m_db[i][j] = res.m; this.v_db[i][j] = res.v;
-                        }
-                        if (optimizer === 'rmsprop') {
-                             if (typeof res.s !== 'number') continue;
-                             if (!this.s_db?.[i]) { console.error(`Update L${i},N${j}: Target bias s structure invalid.`); continue; }
-                            this.s_db[i][j] = res.s;
-                        }
-                    }
-                }
-                 // --- Update LayerNorm Gammas and Betas ---
-                 if (requiresLNUpdate) {
-                    if (!batch_gradients_gamma?.[i] || !batch_gradients_beta?.[i] || !this.gammas?.[i] || !this.betas?.[i]) {
-                        console.error(`Update L${i}: LN gradient or param structure invalid!`); continue;
-                    }
-                     for (let j = 0; j < layerConfig.outputSize; j++) {
-                         // Update Gamma
-                         if (typeof batch_gradients_gamma[i][j] !== 'number') continue;
-                         const grad_g = batch_gradients_gamma[i][j];
-                         if (typeof this.gammas[i][j] !== 'number') continue;
-                         const currentGamma = this.gammas[i][j];
-                         const m_val_g = this.m_dgamma?.[i]?.[j]; const v_val_g = this.v_dgamma?.[i]?.[j]; const s_val_g = this.s_dgamma?.[i]?.[j];
-                         const res_g = applyUpdate(currentGamma, grad_g, m_val_g, v_val_g, s_val_g, false);
-                         this.gammas[i][j] = res_g.updatedParam;
-                         if (optimizer === 'adam') {
-                             if (typeof res_g.m !== 'number' || typeof res_g.v !== 'number') continue;
-                             if (!this.m_dgamma?.[i] || !this.v_dgamma?.[i]) continue;
-                             this.m_dgamma[i][j] = res_g.m; this.v_dgamma[i][j] = res_g.v;
-                         }
-                         if (optimizer === 'rmsprop') {
-                             if (typeof res_g.s !== 'number') continue;
-                             if (!this.s_dgamma?.[i]) continue;
-                             this.s_dgamma[i][j] = res_g.s;
-                         }
-
-                         // Update Beta
-                         if (typeof batch_gradients_beta[i][j] !== 'number') continue;
-                         const grad_bet = batch_gradients_beta[i][j];
-                         if (typeof this.betas[i][j] !== 'number') continue;
-                         const currentBeta = this.betas[i][j];
-                         const m_val_bet = this.m_dbeta?.[i]?.[j]; const v_val_bet = this.v_dbeta?.[i]?.[j]; const s_val_bet = this.s_dbeta?.[i]?.[j];
-                         const res_b = applyUpdate(currentBeta, grad_bet, m_val_bet, v_val_bet, s_val_bet, false);
-                         this.betas[i][j] = res_b.updatedParam;
-                         if (optimizer === 'adam') {
-                             if (typeof res_b.m !== 'number' || typeof res_b.v !== 'number') continue;
-                             if (!this.m_dbeta?.[i] || !this.v_dbeta?.[i]) continue;
-                             this.m_dbeta[i][j] = res_b.m; this.v_dbeta[i][j] = res_b.v;
-                         }
-                         if (optimizer === 'rmsprop') {
-                             if (typeof res_b.s !== 'number') continue;
-                             if (!this.s_dbeta?.[i]) continue;
-                             this.s_dbeta[i][j] = res_b.s;
-                         }
-                     }
-                 }
-            } // End layer loop (param update)
+            const batchMult=1.0/batch.length; this.t++;
+            for(let i=0;i<this.layers.length;i++){ const cfg=this.layers[i]; const isDense=cfg.type==='dense'; const isLN=cfg.type==='layernorm'; const reqW=isDense&&Array.isArray(this.weights[i])&&this.weights[i].length>0; const reqB=isDense&&cfg.useBias&&Array.isArray(this.biases[i])&&this.biases[i].length>0; const reqLN=isLN&&Array.isArray(this.gammas[i])&&Array.isArray(this.betas[i])&&this.gammas[i].length>0; let curLR=learningRate; const applyUpd=(p,g,m,v,s,isW=false)=>{if(typeof p!=='number'||typeof g!=='number')return{updatedParam:p,m,v,s}; let clip_g=g; if(gradientClipValue>0){clip_g=Math.max(-gradientClipValue,Math.min(gradientClipValue,g));} const avg_g=clip_g*batchMult; let upd=0; if(optimizer==='adam'){m=(typeof m==='number'&&isFinite(m))?m:0; v=(typeof v==='number'&&isFinite(v))?v:0; m=this.beta1*m+(1-this.beta1)*avg_g; v=this.beta2*v+(1-this.beta2)*avg_g**2; const m_h=m/(1-this.beta1**this.t); const v_h=v/(1-this.beta2**this.t); curLR=learningRate*Math.sqrt(1-this.beta2**this.t)/(1-this.beta1**this.t); upd=curLR*m_h/(Math.sqrt(v_h)+this.epsilon); if(isW&&l2Lambda>0){upd+=curLR*l2Lambda*p;} return{updatedParam:p-upd,m,v};}else if(optimizer==='rmsprop'){s=(typeof s==='number'&&isFinite(s))?s:0; s=this.decayRate*s+(1-this.decayRate)*avg_g**2; upd=learningRate*avg_g/(Math.sqrt(s)+this.epsilon); if(isW&&l2Lambda>0){upd+=learningRate*l2Lambda*p;} return{updatedParam:p-upd,s};}else{let grad_r=avg_g; if(isW&&l2Lambda>0){grad_r+=l2Lambda*p;} upd=learningRate*grad_r; return{updatedParam:p-upd};}};
+            if(reqW){if(!gradsW||!Array.isArray(gradsW[i])||!Array.isArray(gradsW[i][0])){console.error(`Upd L${i} W grad invalid`); continue;} for(let j=0;j<cfg.outputSize;j++){for(let k=0;k<cfg.inputSize;k++){if(!gradsW[i][j]||typeof gradsW[i][j][k]!=='number')continue; const gW=gradsW[i][j][k]; if(!this.weights[i]?.[j]||typeof this.weights[i][j][k]!=='number')continue; const cW=this.weights[i][j][k]; const mV=this.m_dw?.[i]?.[j]?.[k]; const vV=this.v_dw?.[i]?.[j]?.[k]; const sV=this.s_dw?.[i]?.[j]?.[k]; const res=applyUpd(cW,gW,mV,vV,sV,true); this.weights[i][j][k]=res.updatedParam; if(optimizer==='adam'){if(typeof res.m!=='number'||typeof res.v!=='number')continue; if(!this.m_dw?.[i]?.[j]||!this.v_dw?.[i]?.[j])continue; this.m_dw[i][j][k]=res.m; this.v_dw[i][j][k]=res.v;} if(optimizer==='rmsprop'){if(typeof res.s!=='number')continue; if(!this.s_dw?.[i]?.[j])continue; this.s_dw[i][j][k]=res.s;}}}}
+            if(reqB){if(!gradsB||!Array.isArray(gradsB[i])){console.error(`Upd L${i} B grad invalid`);continue;} if(!this.biases||!Array.isArray(this.biases[i])){console.error(`Upd L${i} B array invalid`);continue;} for(let j=0;j<cfg.outputSize;j++){if(typeof gradsB[i][j]!=='number')continue; const gB=gradsB[i][j]; if(typeof this.biases[i][j]!=='number')continue; const cB=this.biases[i][j]; const mVB=this.m_db?.[i]?.[j]; const vVB=this.v_db?.[i]?.[j]; const sVB=this.s_db?.[i]?.[j]; const res=applyUpd(cB,gB,mVB,vVB,sVB,false); this.biases[i][j]=res.updatedParam; if(optimizer==='adam'){if(typeof res.m!=='number'||typeof res.v!=='number')continue; if(!this.m_db?.[i]||!this.v_db?.[i])continue; this.m_db[i][j]=res.m; this.v_db[i][j]=res.v;} if(optimizer==='rmsprop'){if(typeof res.s!=='number')continue; if(!this.s_db?.[i])continue; this.s_db[i][j]=res.s;}}}
+            if(reqLN){if(!gradsGamma?.[i]||!gradsBeta?.[i]||!this.gammas?.[i]||!this.betas?.[i]){console.error(`Upd L${i} LN state invalid`);continue;} for(let j=0;j<cfg.outputSize;j++){ if(typeof gradsGamma[i][j]!=='number')continue; const gG=gradsGamma[i][j]; if(typeof this.gammas[i][j]!=='number')continue; const cG=this.gammas[i][j]; const mVG=this.m_dgamma?.[i]?.[j]; const vVG=this.v_dgamma?.[i]?.[j]; const sVG=this.s_dgamma?.[i]?.[j]; const resG=applyUpd(cG,gG,mVG,vVG,sVG,false); this.gammas[i][j]=resG.updatedParam; if(optimizer==='adam'){if(typeof resG.m!=='number'||typeof resG.v!=='number')continue; if(!this.m_dgamma?.[i]||!this.v_dgamma?.[i])continue; this.m_dgamma[i][j]=resG.m; this.v_dgamma[i][j]=resG.v;} if(optimizer==='rmsprop'){if(typeof resG.s!=='number')continue; if(!this.s_dgamma?.[i])continue; this.s_dgamma[i][j]=resG.s;} if(typeof gradsBeta[i][j]!=='number')continue; const gBeta=gradsBeta[i][j]; if(typeof this.betas[i][j]!=='number')continue; const cBeta=this.betas[i][j]; const mVBeta=this.m_dbeta?.[i]?.[j]; const vVBeta=this.v_dbeta?.[i]?.[j]; const sVBeta=this.s_dbeta?.[i]?.[j]; const resB=applyUpd(cBeta,gBeta,mVBeta,vVBeta,sVBeta,false); this.betas[i][j]=resB.updatedParam; if(optimizer==='adam'){if(typeof resB.m!=='number'||typeof resB.v!=='number')continue; if(!this.m_dbeta?.[i]||!this.v_dbeta?.[i])continue; this.m_dbeta[i][j]=resB.m; this.v_dbeta[i][j]=resB.v;} if(optimizer==='rmsprop'){if(typeof resB.s!=='number')continue; if(!this.s_dbeta?.[i])continue; this.s_dbeta[i][j]=resB.s;}}}
+            } // End param update layer loop
             totalEpochTrainError += batchLossSum;
           } // End batch loop
 
-          // --- Epoch End ---
           lastTrainLoss = totalEpochTrainError / trainSet.length;
-
-          // Validation Phase
-          if (testSet && testSet.length > 0) {
-            let testError = 0;
-            for (const data of testSet) {
-               const prediction = this.predict(data.input);
-               if (prediction && prediction.length === data.output.length) {
-                    const target = data.output;
-                    let sampleLoss = 0;
-                    if (lossFunction === 'crossentropy') {
-                         const lastLayer = this.layers[this.layers.length-1];
-                         const wasSoftmax = lastLayer.type === 'softmax' || (lastLayer.type === 'dense' && lastLayer.activation === 'softmax');
-                         const wasSigmoid = lastLayer.type === 'dense' && lastLayer.activation === 'sigmoid';
-                         if (wasSoftmax) {
-                             if (target.length === 1 && Number.isInteger(target[0])) {
-                                 sampleLoss = -Math.log(prediction[target[0]] + epsilon_ce);
-                             } else {
-                                  sampleLoss = -target.reduce((sum, t, i) => sum + t * Math.log(prediction[i] + epsilon_ce), 0);
-                             }
-                         } else if (wasSigmoid && prediction.length === 1) {
-                              sampleLoss = - (target[0] * Math.log(prediction[0] + epsilon_ce) + (1 - target[0]) * Math.log(1 - prediction[0] + epsilon_ce));
-                         } else {
-                              sampleLoss = 0.5 * prediction.reduce((sum, p, i) => sum + (p - target[i])**2, 0); // Fallback MSE
-                         }
-                    } else { // MSE
-                        sampleLoss = 0.5 * prediction.reduce((sum, p, i) => sum + (p - target[i])**2, 0);
-                    }
-                    if (!isNaN(sampleLoss) && isFinite(sampleLoss)) testError += sampleLoss;
-               } else { /* console.warn("Validation size mismatch or prediction error."); */ }
-            }
-            lastTestLoss = testError / testSet.length;
-          } else {
-            lastTestLoss = null;
-          }
-
-          // Logging and Callback
-          if ((epoch + 1) % printEveryEpochs === 0 && this.debug) {
-            console.log(`Epoch ${epoch + 1}/${epochs}, Train Loss: ${lastTrainLoss.toFixed(6)}${lastTestLoss !== null ? `, Val Loss: ${lastTestLoss.toFixed(6)}` : ''}`);
-          }
-          if (callback) {
-            await callback(epoch + 1, lastTrainLoss, lastTestLoss);
-          }
-          await new Promise(resolve => setTimeout(resolve, 0)); // Yield
-
-          // Early Stopping
-          if (lastTrainLoss < earlyStopThreshold) {
-            if (this.debug) console.log(`Early stopping @ Epoch ${epoch + 1}. Loss ${lastTrainLoss.toFixed(6)} < ${earlyStopThreshold}.`);
-            epochs = epoch + 1;
-            break;
-          }
+          if (testSet && testSet.length > 0) { let testError = 0; for (const data of testSet) { const prediction = this.predict(data.input); if (prediction && prediction.length === data.output.length) { const target = data.output; let sampleLoss = 0; if (lossFunction === 'crossentropy') { const lastLayer = this.layers[this.layers.length-1]; const wasSoftmax = lastLayer.type === 'softmax' || (lastLayer.type === 'dense' && lastLayer.activation === 'softmax'); const wasSigmoid = lastLayer.type === 'dense' && lastLayer.activation === 'sigmoid'; if (wasSoftmax) { if (target.length === 1 && Number.isInteger(target[0])) { sampleLoss = -Math.log(prediction[target[0]] + eps_ce); } else { sampleLoss = -target.reduce((sum, t, i) => sum + t * Math.log(prediction[i] + eps_ce), 0); } } else if (wasSigmoid && prediction.length === 1) { sampleLoss = - (target[0] * Math.log(prediction[0] + eps_ce) + (1 - target[0]) * Math.log(1 - prediction[0] + eps_ce)); } else { sampleLoss = 0.5 * prediction.reduce((sum, p, i) => sum + (p - target[i])**2, 0); } } else { sampleLoss = 0.5 * prediction.reduce((sum, p, i) => sum + (p - target[i])**2, 0); } if (!isNaN(sampleLoss) && isFinite(sampleLoss)) testError += sampleLoss; } } lastTestLoss = testError / testSet.length; } else { lastTestLoss = null; }
+          if ((epoch + 1) % printEveryEpochs === 0 && this.debug) { console.log(`Epoch ${epoch + 1}/${epochs}, Train Loss: ${lastTrainLoss.toFixed(6)}${lastTestLoss !== null ? `, Val Loss: ${lastTestLoss.toFixed(6)}` : ''}`); }
+          if (callback) { await callback(epoch + 1, lastTrainLoss, lastTestLoss); }
+          await new Promise(resolve => setTimeout(resolve, 0));
+          if (lastTrainLoss < earlyStopThreshold) { if (this.debug) console.log(`Early stopping @ Epoch ${epoch + 1}.`); epochs = epoch + 1; break; }
         } // End epoch loop
 
-        // --- Training Finish ---
-        const end = Date.now();
-        this.isTraining = false;
-
-        let totalParams = 0;
-         this.layers.forEach((layer, i) => {
-             if (layer.type === 'dense') {
-                 totalParams += this.weights[i] ? this.weights[i].flat().length : 0;
-                 totalParams += (layer.useBias && this.biases[i]) ? this.biases[i].length : 0;
-             } else if (layer.type === 'layernorm') {
-                 totalParams += this.gammas[i] ? this.gammas[i].length : 0;
-                 totalParams += this.betas[i] ? this.betas[i].length : 0;
-             }
-         });
-
-        const trainingSummary = {
-          trainLoss: lastTrainLoss, testLoss: lastTestLoss, parameters: totalParams,
-          training: {
-            time: end - start, epochs: epochs, learningRate: learningRate,
-            batchSize: effectiveBatchSize, optimizer: optimizer, lossFunction: lossFunction,
-            l2Lambda: l2Lambda, decayRate: this.decayRate, usePositionalEncoding: this.usePositionalEncoding
-          },
-          layers: this.layers.map(layer => ({
-            type: layer.type, inputSize: layer.inputSize, outputSize: layer.outputSize,
-            activation: layer.activation, numHeads: layer.numHeads, useBias: layer.useBias, rate: layer.rate
-          }))
-        };
-        this.details = trainingSummary;
-        if (this.debug) console.log("Training finished.", trainingSummary);
+        const end = Date.now(); this.isTraining = false;
+        const totalParams = this.getTotalParameters();
+        const trainingSummary = { trainLoss: lastTrainLoss, testLoss: lastTestLoss, parameters: totalParams, training: { time: end - start, epochs: epochs, learningRate: learningRate, batchSize: effectiveBatchSize, optimizer: optimizer, lossFunction: lossFunction, l2Lambda: l2Lambda, decayRate: this.decayRate, usePositionalEncoding: this.usePositionalEncoding, gradientClipValue: gradientClipValue }, layers: this.layers.map(l => ({ type: l.type, inputSize: l.inputSize, outputSize: l.outputSize, activation: l.activation, numHeads: l.numHeads, useBias: l.useBias, rate: l.rate })) };
+        this.details = trainingSummary; if (this.debug) console.log("Training finished.", trainingSummary);
         return trainingSummary;
       }
 
-      // --- Predict ---
-      predict(input) {
-          const wasTraining = this.isTraining;
-          this.isTraining = false; // Ensure prediction mode
-
-          if (!this.layers || this.layers.length === 0) { console.error("Predict: Network not initialized."); return null; }
-          if (!Array.isArray(input)) { console.error("Predict: Invalid input type."); return null; }
-
-          let currentInput = [...input];
-          if (this.usePositionalEncoding) {
-              currentInput = this.positionalEncoding(currentInput);
-          }
-
-          this.lastActivations = [currentInput]; // Store for visualization
-
-           try {
-               for (let i = 0; i < this.layers.length; i++) {
-                   const layerConfig = this.layers[i];
-                   const inputForLayer = this.lastActivations[this.lastActivations.length - 1];
-
-                   if (inputForLayer.length !== layerConfig.inputSize) {
-                       throw new Error(`L${i}(${layerConfig.type}): Input size ${inputForLayer.length} != expected ${layerConfig.inputSize}`);
-                   }
-
-                    let output;
-                    switch(layerConfig.type) {
-                         case 'dense':
-                             const weights = this.weights[i];
-                             const biases = this.biases[i];
-                             if (!weights) throw new Error(`L${i} Dense: Weights not initialized.`);
-                             output = Array(layerConfig.outputSize).fill(0);
-                             for(let j=0; j<layerConfig.outputSize; ++j) {
-                                 let sum = biases ? biases[j] : 0;
-                                 for(let k=0; k<layerConfig.inputSize; ++k) {
-                                     sum += inputForLayer[k] * weights[j][k];
-                                 }
-                                 output[j] = this.activationFunction(sum, layerConfig.activation);
-                             }
-                             break;
-                         case 'layernorm':
-                            if (!this.gammas[i] || !this.betas[i]) throw new Error(`L${i} LayerNorm: Gamma/Beta not initialized.`);
-                             const { output: lnOutput } = this.layerNormalization(inputForLayer, this.gammas[i], this.betas[i], this.epsilon);
-                             output = lnOutput;
-                             break;
-                         case 'attention':
-                             output = this.multiHeadSelfAttention(inputForLayer, layerConfig.numHeads);
-                             break;
-                         case 'dropout':
-                              output = this.dropout(inputForLayer, layerConfig.rate); // isTraining=false here
-                              break;
-                         case 'softmax':
-                              output = this.softmax(inputForLayer);
-                              break;
-                         default:
-                             throw new Error(`Unknown layer type in predict: ${layerConfig.type}`);
-                     }
-                   this.lastActivations.push(output);
-               }
-                this.isTraining = wasTraining; // Restore state
-                return this.lastActivations[this.lastActivations.length - 1];
-           } catch (error) {
-                console.error("Prediction Error:", error);
-                this.lastActivations = null;
-                this.isTraining = wasTraining;
-                return null;
-           }
-      }
-
-      // --- Save Model ---
-      save(name = 'model') {
-            if (!this.layers || this.layers.length === 0) { console.warn("Attempting to save an empty model."); }
-            // Ensure optimizer state arrays have the correct length before saving
-            const numLayers = this.layers.length;
-            const ensureLength = (arr, defaultVal = null) => {
-                if (!Array.isArray(arr) || arr.length !== numLayers) {
-                    console.warn(`Optimizer state array length mismatch during save. Resetting to ${numLayers} nulls.`);
-                    return Array(numLayers).fill(defaultVal);
-                }
-                return arr;
-            }
-            const data = {
-                weights: this.weights, biases: this.biases, gammas: this.gammas, betas: this.betas,
-                layers: this.layers, details: this.details, usePositionalEncoding: this.usePositionalEncoding,
-                optimizerState: {
-                    t: this.t,
-                    m_dw: ensureLength(this.m_dw), v_dw: ensureLength(this.v_dw),
-                    m_db: ensureLength(this.m_db), v_db: ensureLength(this.v_db),
-                    m_dgamma: ensureLength(this.m_dgamma), v_dgamma: ensureLength(this.v_dgamma),
-                    m_dbeta: ensureLength(this.m_dbeta), v_dbeta: ensureLength(this.v_dbeta),
-                    s_dw: ensureLength(this.s_dw), s_db: ensureLength(this.s_db),
-                    s_dgamma: ensureLength(this.s_dgamma), s_dbeta: ensureLength(this.s_dbeta)
-                }
-            };
-            try {
-                const jsonString = JSON.stringify(data);
-                const blob = new Blob([jsonString], { type: 'application/json' });
-                const url = URL.createObjectURL(blob);
-                const a = document.createElement('a');
-                a.href = url; a.download = `${name}.json`;
-                document.body.appendChild(a); a.click(); document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-                if (this.debug) console.log(`Model saved as ${name}.json`);
-            } catch (e) { console.error("Failed to serialize or save model data.", e); }
-      }
-
-      // --- Load Model ---
-       load(callback) {
-            const input = document.createElement('input');
-            input.type = 'file'; input.accept = '.json'; input.style.display = 'none';
-
-            const handleListener = (event) => {
-                const file = event.target.files[0]; if (!file) { cleanup(); return; }
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    const text = e.target.result;
-                    try {
-                        const data = JSON.parse(text);
-                        if (!data.layers || !Array.isArray(data.layers)) throw new Error("Invalid model: 'layers' missing.");
-
-                        this.layers = data.layers;
-                        this.details = data.details || {};
-                        this.usePositionalEncoding = data.usePositionalEncoding || false;
-                        const numLayers = this.layers.length;
-
-                        const loadAndCheckParams = (paramName, sourceObj, expectedLength, defaultValue = null) => {
-                            let loadedParam = sourceObj?.[paramName] || [];
-                            if (!Array.isArray(loadedParam)) {
-                                console.warn(`Loaded model invalid '${paramName}'. Resetting.`); loadedParam = [];
-                            }
-                            if (loadedParam.length !== expectedLength) {
-                                console.warn(`Loaded '${paramName}' length mismatch (${loadedParam.length} vs ${expectedLength}). Adjusting...`);
-                                const resized = Array(expectedLength).fill(defaultValue);
-                                for (let i = 0; i < Math.min(expectedLength, loadedParam.length); i++) { resized[i] = loadedParam[i]; }
-                                return resized;
-                            }
-                            // Basic structural check for weights (assuming 2D)
-                            if (paramName === 'weights') {
-                                loadedParam = loadedParam.map((w, i) => {
-                                    if (!Array.isArray(w)) {
-                                        console.warn(`Loaded weights[${i}] is not an array. Resetting.`);
-                                        return null; // Or create empty array of correct size if possible
-                                    }
-                                    return w;
-                                });
-                            }
-                             // Basic structural check for optimizer state (e.g., m_dw should be array of arrays)
-                             if (['m_dw', 'v_dw', 's_dw'].includes(paramName)) {
-                                 loadedParam = loadedParam.map((state, i) => {
-                                     if (this.weights[i] && !Array.isArray(state)) { // Only check if weights exist for this layer
-                                        console.warn(`Loaded ${paramName}[${i}] is not an array. Resetting.`);
-                                        return null;
-                                     }
-                                     return state;
-                                 });
-                             }
-                             // Similar checks for bias/LN state (should be 1D array)
-                             if (['m_db', 'v_db', 's_db', 'm_dgamma', 'v_dgamma', 's_dgamma', 'm_dbeta', 'v_dbeta', 's_dbeta'].includes(paramName)) {
-                                 loadedParam = loadedParam.map((state, i) => {
-                                     const needsState = (this.layers[i]?.type === 'dense' && this.layers[i]?.useBias && this.biases[i]) ||
-                                                      (this.layers[i]?.type === 'layernorm' && this.gammas[i]);
-                                     if (needsState && !Array.isArray(state)) {
-                                         console.warn(`Loaded ${paramName}[${i}] is not an array. Resetting.`);
-                                         return null;
-                                     }
-                                     return state;
-                                 });
-                             }
-                            return loadedParam;
-                        };
-
-                        // Load base parameters
-                        this.weights = loadAndCheckParams('weights', data, numLayers, null);
-                        this.biases = loadAndCheckParams('biases', data, numLayers, null);
-                        this.gammas = loadAndCheckParams('gammas', data, numLayers, null);
-                        this.betas = loadAndCheckParams('betas', data, numLayers, null);
-                        this.masks = Array(numLayers).fill(null); // Reset masks
-
-                        // Load optimizer state
-                        const loadedOptState = data.optimizerState || {};
-                        this.t = loadedOptState.t || 0;
-                        this.m_dw = loadAndCheckParams('m_dw', loadedOptState, numLayers, null);
-                        this.v_dw = loadAndCheckParams('v_dw', loadedOptState, numLayers, null);
-                        this.m_db = loadAndCheckParams('m_db', loadedOptState, numLayers, null);
-                        this.v_db = loadAndCheckParams('v_db', loadedOptState, numLayers, null);
-                        this.m_dgamma = loadAndCheckParams('m_dgamma', loadedOptState, numLayers, null);
-                        this.v_dgamma = loadAndCheckParams('v_dgamma', loadedOptState, numLayers, null);
-                        this.m_dbeta = loadAndCheckParams('m_dbeta', loadedOptState, numLayers, null);
-                        this.v_dbeta = loadAndCheckParams('v_dbeta', loadedOptState, numLayers, null);
-                        this.s_dw = loadAndCheckParams('s_dw', loadedOptState, numLayers, null);
-                        this.s_db = loadAndCheckParams('s_db', loadedOptState, numLayers, null);
-                        this.s_dgamma = loadAndCheckParams('s_dgamma', loadedOptState, numLayers, null);
-                        this.s_dbeta = loadAndCheckParams('s_dbeta', loadedOptState, numLayers, null);
-
-                        this.lastActivations = null;
-                        this.forwardCache = null;
-                        this.isTraining = false;
-
-                        if (callback) callback();
-                        if (this.debug) console.log('Model loaded successfully!');
-
-                    } catch (err) {
-                        console.error('Failed to load/parse model:', err); alert(`Error loading model: ${err.message}`);
-                        if (callback) callback(err);
-                    } finally { cleanup(); }
-                };
-                reader.onerror = (err) => { console.error('File read error:', err); alert('Error reading file.'); cleanup(); if (callback) callback(err); };
-                reader.readAsText(file);
-            };
-            const cleanup = () => { input.removeEventListener('change', handleListener); document.body.removeChild(input); };
-            input.addEventListener('change', handleListener); document.body.appendChild(input); input.click();
-       }
+      predict(input) { const wasTraining = this.isTraining; this.isTraining = false; if (!this.layers || this.layers.length === 0) { console.error("Predict: Not initialized."); return null; } if (!Array.isArray(input)) { console.error("Predict: Invalid input."); return null; } let currentInput = [...input]; if (this.usePositionalEncoding) currentInput = this.positionalEncoding(currentInput); this.lastActivations = [currentInput]; try { for (let i = 0; i < this.layers.length; i++) { const cfg=this.layers[i]; const inputLayer=this.lastActivations[this.lastActivations.length - 1]; if (inputLayer.length !== cfg.inputSize) throw new Error(`L${i}(${cfg.type}): Sz mismatch ${inputLayer.length}!=${cfg.inputSize}`); let output; switch(cfg.type) { case 'dense': const w=this.weights[i], b=this.biases[i]; if (!w) throw new Error(`L${i} Dense: W not init.`); output = Array(cfg.outputSize).fill(0); for(let j=0; j<cfg.outputSize; ++j) { let sum = b ? b[j] : 0; for(let k=0; k<cfg.inputSize; ++k) { sum += inputLayer[k] * w[j][k]; } output[j] = this.activationFunction(sum, cfg.activation); } break; case 'layernorm': if (!this.gammas[i] || !this.betas[i]) throw new Error(`L${i} LN: G/B not init.`); const { output: lnOut } = this.layerNormalization(inputLayer, this.gammas[i], this.betas[i], this.epsilon); output = lnOut; break; case 'attention': output = this.multiHeadSelfAttention(inputLayer, cfg.numHeads); break; case 'dropout': output = this.dropout(inputLayer, cfg.rate); break; case 'softmax': output = this.softmax(inputLayer); break; default: throw new Error(`Predict: Unknown type ${cfg.type}`); } this.lastActivations.push(output); } this.isTraining = wasTraining; return this.lastActivations[this.lastActivations.length - 1]; } catch (error) { console.error("Prediction Error:", error); this.lastActivations = null; this.isTraining = wasTraining; return null; } }
+      save(name = 'model') { if (!this.layers || this.layers.length === 0) { console.warn("Save: Empty model."); } const numLayers = this.layers.length; const ensureLen = (arr, dv = null) => (!Array.isArray(arr) || arr.length !== numLayers) ? Array(numLayers).fill(dv) : arr; const data = { weights: this.weights, biases: this.biases, gammas: this.gammas, betas: this.betas, layers: this.layers, details: this.details, usePositionalEncoding: this.usePositionalEncoding, optimizerState: { t: this.t, m_dw: ensureLen(this.m_dw), v_dw: ensureLen(this.v_dw), m_db: ensureLen(this.m_db), v_db: ensureLen(this.v_db), m_dgamma: ensureLen(this.m_dgamma), v_dgamma: ensureLen(this.v_dgamma), m_dbeta: ensureLen(this.m_dbeta), v_dbeta: ensureLen(this.v_dbeta), s_dw: ensureLen(this.s_dw), s_db: ensureLen(this.s_db), s_dgamma: ensureLen(this.s_dgamma), s_dbeta: ensureLen(this.s_dbeta) } }; try { const jsonStr = JSON.stringify(data); const blob = new Blob([jsonStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${name}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); if (this.debug) console.log(`Model saved: ${name}.json`); } catch (e) { console.error("Save failed.", e); } }
+       load(callback) { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.style.display = 'none'; const handleListener = (event) => { const file = event.target.files[0]; if (!file) { cleanup(); return; } const reader = new FileReader(); reader.onload = (e) => { const text = e.target.result; try { const data = JSON.parse(text); if (!data.layers || !Array.isArray(data.layers)) throw new Error("Invalid model: 'layers' missing."); this.layers = data.layers; this.details = data.details || {}; this.usePositionalEncoding = data.usePositionalEncoding || false; const numLayers = this.layers.length; const loadAndCheck = (name, src, len, dv = null) => { let p = src?.[name] || []; if (!Array.isArray(p)) p = []; if (p.length !== len) { const res = Array(len).fill(dv); for (let i = 0; i < Math.min(len, p.length); i++) res[i] = p[i]; return res; } if (name === 'weights') p = p.map(w => Array.isArray(w) ? w : null); if (['m_dw', 'v_dw', 's_dw'].includes(name)) p = p.map((s, i) => (this.weights[i] && !Array.isArray(s)) ? null : s); if (['m_db', 'v_db', 's_db', 'm_dgamma', 'v_dgamma', 's_dgamma', 'm_dbeta', 'v_dbeta', 's_dbeta'].includes(name)) p = p.map((s, i) => { const needs = (this.layers[i]?.type === 'dense' && this.layers[i]?.useBias && this.biases[i]) || (this.layers[i]?.type === 'layernorm' && this.gammas[i]); return (needs && !Array.isArray(s)) ? null : s; }); return p; }; this.weights = loadAndCheck('weights', data, numLayers); this.biases = loadAndCheck('biases', data, numLayers); this.gammas = loadAndCheck('gammas', data, numLayers); this.betas = loadAndCheck('betas', data, numLayers); this.masks = Array(numLayers).fill(null); const optState = data.optimizerState || {}; this.t = optState.t || 0; this.m_dw = loadAndCheck('m_dw', optState, numLayers); this.v_dw = loadAndCheck('v_dw', optState, numLayers); this.m_db = loadAndCheck('m_db', optState, numLayers); this.v_db = loadAndCheck('v_db', optState, numLayers); this.m_dgamma = loadAndCheck('m_dgamma', optState, numLayers); this.v_dgamma = loadAndCheck('v_dgamma', optState, numLayers); this.m_dbeta = loadAndCheck('m_dbeta', optState, numLayers); this.v_dbeta = loadAndCheck('v_dbeta', optState, numLayers); this.s_dw = loadAndCheck('s_dw', optState, numLayers); this.s_db = loadAndCheck('s_db', optState, numLayers); this.s_dgamma = loadAndCheck('s_dgamma', optState, numLayers); this.s_dbeta = loadAndCheck('s_dbeta', optState, numLayers); this.lastActivations = null; this.forwardCache = null; this.isTraining = false; if (callback) callback(); if (this.debug) console.log('Model loaded.'); } catch (err) { console.error('Load failed:', err); alert(`Error loading model: ${err.message}`); if (callback) callback(err); } finally { cleanup(); } }; reader.onerror = (err) => { console.error('File read error:', err); alert('Error reading file.'); cleanup(); if (callback) callback(err); }; reader.readAsText(file); }; const cleanup = () => { input.removeEventListener('change', handleListener); document.body.removeChild(input); }; input.addEventListener('change', handleListener); document.body.appendChild(input); input.click(); }
 
     } // End oblix class
 
 
     // --- UI Interaction Logic ---
     document.addEventListener('DOMContentLoaded', () => {
-        const nn = new oblix(true); // Enable debug logs
+        const nn = new oblix(true);
         let lossHistory = [];
-        // Canvas contexts
-        const lossCanvas = document.getElementById('lossGraph');
-        const networkCanvas = document.getElementById('networkGraph');
-        const lossCtx = lossCanvas.getContext('2d');
-        const networkCtx = networkCanvas.getContext('2d');
-        // UI Elements
-        const statsEl = document.getElementById('stats');
-        const trainButton = document.getElementById('trainButton');
-        const predictButton = document.getElementById('predictButton');
-        const saveButton = document.getElementById('saveButton');
-        const loadButton = document.getElementById('loadButton');
-        const unloadButton = document.getElementById('unloadButton');
-        const epochBar = document.getElementById('epochBar');
-        const predictionResultEl = document.getElementById('predictionResult');
-        const numHiddenLayersInput = document.getElementById('numHiddenLayers');
-        const hiddenLayersConfigContainer = document.getElementById('hiddenLayersConfig');
-        const optimizerSelect = document.getElementById('optimizer');
-        const usePositionalEncodingCheckbox = document.getElementById('usePositionalEncoding');
-        const lossFunctionSelect = document.getElementById('lossFunction');
-        const l2LambdaInput = document.getElementById('l2Lambda');
-        const decayRateGroup = document.getElementById('decayRateGroup');
-        const decayRateInput = document.getElementById('decayRate');
-         const trainingDataTextarea = document.getElementById('trainingData');
-         const testDataTextarea = document.getElementById('testData');
-         const epochsInput = document.getElementById('epochs');
-         const learningRateInput = document.getElementById('learningRate');
-         const batchSizeInput = document.getElementById('batchSize');
+        const lossCanvas = document.getElementById('lossGraph'); const networkCanvas = document.getElementById('networkGraph'); const lossCtx = lossCanvas?.getContext('2d'); const networkCtx = networkCanvas?.getContext('2d');
+        const statsEl = document.getElementById('stats'); const trainButton = document.getElementById('trainButton'); const predictButton = document.getElementById('predictButton'); const saveButton = document.getElementById('saveButton'); const loadButton = document.getElementById('loadButton'); const unloadButton = document.getElementById('unloadButton'); const epochBar = document.getElementById('epochBar'); const predictionResultEl = document.getElementById('predictionResult'); const numHiddenLayersInput = document.getElementById('numHiddenLayers'); const hiddenLayersConfigContainer = document.getElementById('hiddenLayersConfig'); const optimizerSelect = document.getElementById('optimizer'); const usePositionalEncodingCheckbox = document.getElementById('usePositionalEncoding'); const lossFunctionSelect = document.getElementById('lossFunction'); const l2LambdaInput = document.getElementById('l2Lambda'); const decayRateGroup = document.getElementById('decayRateGroup'); const decayRateInput = document.getElementById('decayRate'); const gradientClipValueInput = document.getElementById('gradientClipValue'); const trainingDataTextarea = document.getElementById('trainingData'); const testDataTextarea = document.getElementById('testData'); const epochsInput = document.getElementById('epochs'); const learningRateInput = document.getElementById('learningRate'); const batchSizeInput = document.getElementById('batchSize');
 
+        function generateRandomData(numSamples, numInputs, numOutputs = 1, noiseLevel = 0.05) { if (numInputs <= 0 || numOutputs <= 0) return ""; const data = []; for (let i = 0; i < numSamples; i++) { const input = []; for (let j = 0; j < numInputs; j++) input.push(Math.random()); const output = []; for (let j = 0; j < numOutputs; j++) { const base = Math.sin(input[0] * Math.PI * 2) * 0.4 + 0.5; const noise = (Math.random() - 0.5) * 2 * noiseLevel; let final = Math.max(0.01, Math.min(0.99, base + noise)); output.push(final); } data.push([...input, ...output].map(v => v.toFixed(3)).join(', ')); } return data.join('\n'); }
+        document.getElementById("loadDataBtn").onclick = () => { const numTrain=100, numTest=25, numIn=3, numOut=1; trainingDataTextarea.value = generateRandomData(numTrain, numIn, numOut); testDataTextarea.value = generateRandomData(numTest, numIn, numOut); statsEl.innerHTML = `Generated ${numTrain}/${numTest} random samples.`; try { const sample = parseCSV(trainingDataTextarea.value)[0]; if(sample && nn.layers && nn.layers.length > 0) nn.predict(sample.input); } catch (e) {} drawNetwork(); }
+        function parseCSV(csvString) { if (!csvString || typeof csvString !== 'string') return []; return csvString.trim().split('\n').map(r=>r.trim()).filter(r=>r.length>0).map((r,idx)=>{ const v=r.split(',').map(v=>parseFloat(v.trim())); if(v.some(isNaN)){console.warn(`R ${idx+1} NaN`);return null;} if(v.length<2){console.warn(`R ${idx+1} <2 vals`);return null;} const i=v.slice(0,-1), o=v.slice(-1); if(i.length===0){console.warn(`R ${idx+1} no input`);return null;} return {input:i,output:o}; }).filter(i=>i!==null); }
+        function drawLossGraph() { if (!lossCtx || !lossCanvas) return; lossCtx.clearRect(0, 0, lossCanvas.width, lossCanvas.height); if (lossHistory.length < 2) return; const trainL=lossHistory.map(h=>h.train).filter(l=>l!==null&&isFinite(l)); const testL=lossHistory.map(h=>h.test).filter(l=>l!==null&&isFinite(l)); let maxL=0.1; if(trainL.length>0)maxL=Math.max(maxL,...trainL); if(testL.length>0)maxL=Math.max(maxL,...testL); maxL=Math.max(maxL,0.1); const W=lossCanvas.width,H=lossCanvas.height,nPts=lossHistory.length,pH=H*0.9,yOff=H*0.05; const plot=(ctx,pts,c)=>{ ctx.strokeStyle=c; ctx.lineWidth=1.5; ctx.beginPath(); let first=true; pts.forEach((p,i)=>{if(p!==null&&isFinite(p)){const x=(i/Math.max(1,nPts-1))*W; const y=H-(p/maxL)*pH-yOff; if(first){ctx.moveTo(x,y);first=false;}else{ctx.lineTo(x,y);}}else{first=true;}}); ctx.stroke(); }; const trainC=getComputedStyle(document.body).getPropertyValue('--text')?.trim()||'#fff'; plot(lossCtx,lossHistory.map(h=>h.train),trainC); plot(lossCtx,lossHistory.map(h=>h.test),'#87CEEB'); }
 
-                // --- Random Dummy Data Generator ---
-                function generateRandomData(numSamples, numInputs, numOutputs = 1, noiseLevel = 0.05) {
-            if (numInputs <= 0 || numOutputs <= 0) {
-                console.error("Cannot generate data with zero inputs or outputs.");
-                return "";
-            }
-            const data = [];
-            for (let i = 0; i < numSamples; i++) {
-                const input = [];
-                for (let j = 0; j < numInputs; j++) {
-                    input.push(Math.random()); // Random number between 0 and 1
-                }
-
-                // --- Create a learnable pattern (e.g., output based on sin of first input) ---
-                const output = [];
-                for (let j = 0; j < numOutputs; j++) {
-                    // Example: Scaled Sine wave based on first input + noise
-                    const baseOutput = Math.sin(input[0] * Math.PI * 2) * 0.4 + 0.5; // Base pattern (0.1 to 0.9)
-                    const noise = (Math.random() - 0.5) * 2 * noiseLevel; // Noise between -noiseLevel and +noiseLevel
-                    let finalOutput = baseOutput + noise;
-                    // Clamp output to be strictly within (0, 1) or [0, 1] if preferred
-                    finalOutput = Math.max(0.01, Math.min(0.99, finalOutput));
-                    output.push(finalOutput);
-
-                    // --- Other pattern ideas (comment out the sine wave one if using these) ---
-                    // // Example 1: Simple XOR (for 2 inputs, 1 output)
-                    // if (numInputs === 2 && numOutputs === 1) {
-                    //     output.push( (input[0] > 0.5 ^ input[1] > 0.5) ? 0.9 : 0.1 );
-                    // } else { // Fallback for XOR example if not 2 inputs
-                    //     output.push(input[0] > 0.5 ? 0.9 : 0.1);
-                    // }
-
-                    // // Example 2: Simple Linear Relationship + Noise
-                    // let linOutput = input.reduce((sum, val) => sum + val, 0) / numInputs; // Average
-                    // linOutput += (Math.random() - 0.5) * 2 * noiseLevel;
-                    // output.push(Math.max(0.01, Math.min(0.99, linOutput)));
-                }
-                // --- End Pattern ---
-
-                const row = [...input, ...output];
-                data.push(row.map(val => val.toFixed(3)).join(', ')); // Format numbers
-            }
-            return data.join('\n');
-        }
-
-        // --- Dummy Data Loader (uses generator) ---
-        document.getElementById("loadDataBtn").onclick = () => {
-            const numTrainSamples = 100; // How many training examples
-            const numTestSamples = 25;   // How many validation examples
-            const numInputFeatures = 3;  // Number of input columns
-            const numOutputFeatures = 1; // Number of output columns
-
-            trainingDataTextarea.value = generateRandomData(
-                numTrainSamples,
-                numInputFeatures,
-                numOutputFeatures
-            );
-            testDataTextarea.value = generateRandomData(
-                numTestSamples,
-                numInputFeatures,
-                numOutputFeatures
-            );
-
-            statsEl.innerHTML = `Generated ${numTrainSamples} random train samples and ${numTestSamples} test samples.`;
-
-            // Attempt to visualize first sample if possible
-            try {
-                const firstTrainSample = parseCSV(trainingDataTextarea.value)[0];
-                if(firstTrainSample && nn.layers && nn.layers.length > 0) {
-                    nn.predict(firstTrainSample.input);
-                }
-            } catch (e) { /* ignore */ }
-            drawNetwork();
-        }
-
-        // --- CSV Parser ---
-        function parseCSV(csvString) {
-            if (!csvString || typeof csvString !== 'string') return [];
-            return csvString.trim().split('\n')
-                .map(row => row.trim()).filter(row => row.length > 0)
-                .map((row, rowIndex) => {
-                    const values = row.split(',').map(val => parseFloat(val.trim()));
-                    if (values.some(isNaN)) { console.warn(`Row ${rowIndex + 1} contains non-numeric: "${row}". Skipping.`); return null; }
-                    if (values.length < 2) { console.warn(`Row ${rowIndex + 1} needs >=2 values: "${row}". Skipping.`); return null; }
-                    const input = values.slice(0, -1);
-                    const output = values.slice(-1); // Output is always the last column
-                    if (input.length === 0) { console.warn(`Row ${rowIndex + 1} has no input values: "${row}". Skipping.`); return null; }
-                    return { input, output };
-                }).filter(item => item !== null);
-        }
-
-        // --- Loss Graph ---
-        function drawLossGraph() {
-             if (!lossCtx || !lossCanvas) return;
-             lossCtx.clearRect(0, 0, lossCanvas.width, lossCanvas.height);
-            if (lossHistory.length < 2) return;
-            const trainLosses = lossHistory.map(h => h.train).filter(l => l !== null && isFinite(l));
-            const testLosses = lossHistory.map(h => h.test).filter(l => l !== null && isFinite(l));
-            let maxLoss = 0.1;
-            if (trainLosses.length > 0) maxLoss = Math.max(maxLoss, ...trainLosses);
-            if (testLosses.length > 0) maxLoss = Math.max(maxLoss, ...testLosses);
-            maxLoss = Math.max(maxLoss, 0.1);
-
-            const width = lossCanvas.width; const height = lossCanvas.height;
-            const numPoints = lossHistory.length;
-            const plotHeight = height * 0.9; const yOffset = height * 0.05;
-
-            const plotPoint = (ctx, points, color) => {
-                 ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.beginPath();
-                 let firstPoint = true;
-                 points.forEach((p, i) => {
-                     if (p !== null && isFinite(p)) {
-                         const x = (i / Math.max(1, numPoints - 1)) * width;
-                         const y = height - (p / maxLoss) * plotHeight - yOffset;
-                         if (firstPoint) { ctx.moveTo(x, y); firstPoint = false; }
-                         else { ctx.lineTo(x, y); }
-                     } else {
-                         firstPoint = true; // Discontinuity if null/NaN/Infinity
-                     }
-                 });
-                 ctx.stroke();
-            };
-            plotPoint(lossCtx, lossHistory.map(h => h.train), '#fff');
-            plotPoint(lossCtx, lossHistory.map(h => h.test), '#87CEEB');
-        }
-
-        // --- Dynamic Layer UI ---
          function createLayerConfigUI(numLayers) {
             hiddenLayersConfigContainer.innerHTML = '';
-            const activationTypes = ['tanh', 'sigmoid', 'relu', 'leakyrelu', 'gelu', 'selu', 'softmax', 'none'];
+            const activationTypes = ['tanh', 'sigmoid', 'relu', 'leakyrelu', 'gelu', 'selu', 'swish', 'mish', 'softmax', 'none'];
             const layerTypes = ['dense', 'layernorm', 'attention', 'dropout', 'softmax'];
-
-            if (numLayers === 0) {
-                hiddenLayersConfigContainer.innerHTML = '<p class="layer-note">No hidden layers. Direct input-to-output connection (final layer added automatically).</p>';
-                return;
-            }
-
-            for (let i = 0; i < numLayers; i++) {
-                const layerGroup = document.createElement('div');
-                layerGroup.className = 'input-group settings-grid';
-
-                const typeDiv = document.createElement('div'); typeDiv.className = 'input-group';
-                const typeLabel = document.createElement('label'); typeLabel.textContent = `Layer ${i + 1} Type:`; typeLabel.htmlFor = `layerType_${i}`;
-                const typeSelect = document.createElement('select'); typeSelect.id = `layerType_${i}`; typeSelect.dataset.layerIndex = i; typeSelect.dataset.configType = 'type';
-                layerTypes.forEach(type => {
-                    const option = document.createElement('option'); option.value = type; option.textContent = type; if (type === 'dense') option.selected = true; typeSelect.appendChild(option);
-                });
-                typeDiv.appendChild(typeLabel); typeDiv.appendChild(typeSelect); layerGroup.appendChild(typeDiv);
-
-                const optionsDiv = document.createElement('div'); optionsDiv.className = 'layer-options-container'; optionsDiv.dataset.layerIndex = i;
-                layerGroup.appendChild(optionsDiv);
-
-                const updateOptionsUI = (layerIndex, selectedType) => {
-                    const optsDiv = hiddenLayersConfigContainer.querySelector(`.layer-options-container[data-layer-index='${layerIndex}']`);
-                    if (!optsDiv) return; optsDiv.innerHTML = '';
-
-                    const createInput = (label, id, type, value, min, step, configType, note = null) => { /* ... */ }; // Keep helpers
-                    const createSelect = (label, id, options, selectedVal, configType) => { /* ... */ };
-                    const createCheckbox = (label, id, checked, configType) => { /* ... */ };
-                    const createNote = (text) => { /* ... */ };
-
-                     // Helper to create input fields
-                    const createInputInternal = (label, id, type, value, min, step, configType, note = null) => {
-                        const div = document.createElement('div'); div.className = 'input-group';
-                        const lbl = document.createElement('label'); lbl.textContent = label; lbl.htmlFor = id;
-                        const inp = document.createElement('input');
-                        inp.type = type; inp.id = id; inp.value = value;
-                        if (min !== null) inp.min = min; if (step !== null) inp.step = step;
-                        inp.dataset.layerIndex = layerIndex; inp.dataset.configType = configType;
-                        div.appendChild(lbl); div.appendChild(inp);
-                        if (note) { const p = document.createElement('p'); p.className = 'layer-note'; p.textContent = note; div.appendChild(p); }
-                        return div;
-                    };
-                    // Helper to create select fields
-                     const createSelectInternal = (label, id, options, selectedVal, configType) => {
-                         const div = document.createElement('div'); div.className = 'input-group';
-                         const lbl = document.createElement('label'); lbl.textContent = label; lbl.htmlFor = id;
-                         const sel = document.createElement('select');
-                         sel.id = id; sel.dataset.layerIndex = layerIndex; sel.dataset.configType = configType;
-                         options.forEach(opt => {
-                             const option = document.createElement('option'); option.value = opt; option.textContent = opt;
-                             if (opt === selectedVal) option.selected = true;
-                             sel.appendChild(option);
-                         });
-                         div.appendChild(lbl); div.appendChild(sel);
-                         return div;
-                     };
-                     // Helper for checkbox
-                      const createCheckboxInternal = (label, id, checked, configType) => {
-                         const div = document.createElement('div'); div.className = 'input-group';
-                         const lbl = document.createElement('label'); // Label wraps input for better click target
-                         const inp = document.createElement('input'); inp.type = 'checkbox'; inp.id = id; inp.checked = checked;
-                         inp.dataset.layerIndex = layerIndex; inp.dataset.configType = configType;
-                         const span = document.createElement('span'); span.textContent = label; // Text next to checkbox
-                         lbl.appendChild(inp); lbl.appendChild(span);
-                         div.appendChild(lbl);
-                         return div;
-                      };
-                       // Helper for notes
-                       const createNoteInternal = (text) => {
-                            const p = document.createElement('p'); p.className = 'layer-note'; p.textContent = text;
-                            const div = document.createElement('div'); // Wrap in div for grid placement
-                            div.style.gridColumn = '1 / -1';
-                             div.appendChild(p);
-                             return div;
-                        };
-
-
-                    if (selectedType === 'dense') {
-                        optsDiv.appendChild(createInputInternal('Nodes:', `layerNodes_${layerIndex}`, 'number', 10, 1, 1, 'size'));
-                        optsDiv.appendChild(createSelectInternal('Activation:', `layerAct_${layerIndex}`, activationTypes, 'tanh', 'activation'));
-                        optsDiv.appendChild(createCheckboxInternal('Use Bias:', `layerBias_${layerIndex}`, true, 'useBias'));
-                    } else if (selectedType === 'attention') {
-                        optsDiv.appendChild(createInputInternal('Num Heads:', `layerHeads_${layerIndex}`, 'number', 2, 1, 1, 'numHeads'));
-                        optsDiv.appendChild(createNoteInternal('Input size must be divisible by Num Heads. Output size matches input.'));
-                    } else if (selectedType === 'layernorm') {
-                        optsDiv.appendChild(createNoteInternal('Normalizes features. Output size matches input.'));
-                    } else if (selectedType === 'dropout') {
-                        optsDiv.appendChild(createInputInternal('Dropout Rate:', `layerRate_${layerIndex}`, 'number', 0.5, 0, 0.01, 'rate', 'Fraction of neurons to zero out (0 to <1). Active only during training.'));
-                    } else if (selectedType === 'softmax') {
-                        optsDiv.appendChild(createNoteInternal('Outputs probabilities summing to 1. Usually the final layer for multi-class classification with Cross-Entropy loss.'));
-                    }
-                };
-
-                typeSelect.addEventListener('change', (event) => updateOptionsUI(i, event.target.value));
-                hiddenLayersConfigContainer.appendChild(layerGroup);
-                updateOptionsUI(i, typeSelect.value); // Initial population
-            }
+            if (numLayers === 0) { hiddenLayersConfigContainer.innerHTML = '<p class="layer-note">No hidden layers. Direct input-to-output connection (final layer added automatically).</p>'; return; }
+            for (let i = 0; i < numLayers; i++) { const layerGroup = document.createElement('div'); layerGroup.className = 'input-group settings-grid'; const typeDiv = document.createElement('div'); typeDiv.className = 'input-group'; const typeLabel = document.createElement('label'); typeLabel.textContent = `Layer ${i+1} Type:`; typeLabel.htmlFor = `layerType_${i}`; typeLabel.title = "Choose the operation for this layer..."; const typeSelect = document.createElement('select'); typeSelect.id = `layerType_${i}`; typeSelect.dataset.layerIndex = i; typeSelect.dataset.configType = 'type'; layerTypes.forEach(t => { const o = document.createElement('option'); o.value = t; o.textContent = t; if (t === 'dense') o.selected = true; typeSelect.appendChild(o); }); typeDiv.appendChild(typeLabel); typeDiv.appendChild(typeSelect); layerGroup.appendChild(typeDiv); const optionsDiv = document.createElement('div'); optionsDiv.className = 'layer-options-container'; optionsDiv.dataset.layerIndex = i; layerGroup.appendChild(optionsDiv);
+            const updateOptionsUI = (idx, selType) => { const optsDiv = hiddenLayersConfigContainer.querySelector(`.layer-options-container[data-layer-index='${idx}']`); if (!optsDiv) return; optsDiv.innerHTML = ''; const createIn = (l,id,t,v,mn,st,cfg,nt=null,tt=null)=>{const dv=document.createElement('div'); dv.className='input-group'; const lb=document.createElement('label'); lb.textContent=l; lb.htmlFor=id; if(tt)lb.title=tt; const ip=document.createElement('input'); ip.type=t; ip.id=id; ip.value=v; if(mn!==null)ip.min=mn; if(st!==null)ip.step=st; ip.dataset.layerIndex=idx; ip.dataset.configType=cfg; dv.appendChild(lb); dv.appendChild(ip); if(nt){const p=document.createElement('p');p.className='layer-note';p.textContent=nt;dv.appendChild(p);} return dv;}; const createSel = (l,id,opts,selV,cfg,tt=null)=>{const dv=document.createElement('div'); dv.className='input-group'; const lb=document.createElement('label'); lb.textContent=l; lb.htmlFor=id; if(tt)lb.title=tt; const sel=document.createElement('select'); sel.id=id; sel.dataset.layerIndex=idx; sel.dataset.configType=cfg; opts.forEach(o=>{const op=document.createElement('option'); op.value=o; op.textContent=o; if(o===selV)op.selected=true; sel.appendChild(op);}); dv.appendChild(lb); dv.appendChild(sel); return dv;}; const createChk=(l,id,chkd,cfg,tt=null)=>{const dv=document.createElement('div'); dv.className='input-group'; const lb=document.createElement('label'); const ip=document.createElement('input'); ip.type='checkbox'; ip.id=id; ip.checked=chkd; ip.dataset.layerIndex=idx; ip.dataset.configType=cfg; const sp=document.createElement('span'); sp.textContent=l; if(tt)sp.title=tt; lb.appendChild(ip); lb.appendChild(sp); dv.appendChild(lb); return dv;}; const createNt=(txt)=>{const p=document.createElement('p'); p.className='layer-note'; p.textContent=txt; const dv=document.createElement('div'); dv.style.gridColumn='1/-1'; dv.appendChild(p); return dv;};
+            if(selType==='dense'){optsDiv.appendChild(createIn('Nodes:',`layerNodes_${idx}`, 'number', 10, 1, 1, 'size', null,"Num neurons.")); optsDiv.appendChild(createSel('Activation:',`layerAct_${idx}`, activationTypes, 'tanh', 'activation', "Neuron output function.")); optsDiv.appendChild(createChk('Use Bias:',`layerBias_${idx}`, true, 'useBias', "Add learnable bias term?"));} else if(selType==='attention'){optsDiv.appendChild(createIn('Num Heads:',`layerHeads_${idx}`, 'number', 2, 1, 1, 'numHeads', null,"Parallel attention mechanisms. Input size must be divisible by heads.")); optsDiv.appendChild(createNt('Input size must be divisible by Num Heads. Output size matches input.'));} else if(selType==='layernorm'){optsDiv.appendChild(createNt('Normalizes features across the feature dimension.'));} else if(selType==='dropout'){optsDiv.appendChild(createIn('Dropout Rate:',`layerRate_${idx}`, 'number', 0.5, 0, 0.01, 'rate', 'Fraction of neurons to zero out during training (0 to <1). Helps prevent overfitting.',"Higher value means more dropout."));} else if(selType==='softmax'){optsDiv.appendChild(createNt('Outputs probabilities summing to 1. For multi-class classification.'));}};
+            typeSelect.addEventListener('change', (event) => updateOptionsUI(i, event.target.value)); hiddenLayersConfigContainer.appendChild(layerGroup); updateOptionsUI(i, typeSelect.value); }
         }
+        numHiddenLayersInput.addEventListener('change', (event) => { const numLayers = Math.max(0, parseInt(event.target.value) || 0); event.target.value = numLayers; createLayerConfigUI(numLayers); }); createLayerConfigUI(parseInt(numHiddenLayersInput.value));
+        optimizerSelect.addEventListener('change', () => { decayRateGroup.style.display = optimizerSelect.value === 'rmsprop' ? 'block' : 'none'; }); decayRateGroup.style.display = optimizerSelect.value === 'rmsprop' ? 'block' : 'none';
 
-        numHiddenLayersInput.addEventListener('change', (event) => {
-            const numLayers = Math.max(0, parseInt(event.target.value) || 0);
-            event.target.value = numLayers; createLayerConfigUI(numLayers);
-        });
-        createLayerConfigUI(parseInt(numHiddenLayersInput.value));
-
-        optimizerSelect.addEventListener('change', () => {
-            decayRateGroup.style.display = optimizerSelect.value === 'rmsprop' ? 'block' : 'none';
-        });
-        decayRateGroup.style.display = optimizerSelect.value === 'rmsprop' ? 'block' : 'none';
-
-
-        // --- Train Button Handler (Robust Version) ---
         trainButton.addEventListener('click', async () => {
-            statsEl.innerHTML = 'Starting training...';
-            trainButton.disabled = true; trainButton.textContent = 'Training...';
-            predictButton.disabled = true; saveButton.disabled = true; loadButton.disabled = true;
-            epochBar.style.width = '0%'; lossHistory = []; drawLossGraph();
-
+            statsEl.innerHTML = 'Starting training...'; trainButton.disabled = true; trainButton.textContent = 'Training...'; predictButton.disabled = true; saveButton.disabled = true; loadButton.disabled = true; unloadButton.disabled = true; epochBar.style.width = '0%'; lossHistory = []; drawLossGraph();
             try {
-                const trainingData = parseCSV(trainingDataTextarea.value);
-                const testData = parseCSV(testDataTextarea.value);
-                if (trainingData.length === 0) throw new Error("Training data is empty or invalid.");
-                if (!trainingData[0]?.input || !trainingData[0]?.output) {
-                    throw new Error("Cannot determine input/output size from first training sample.");
-                }
-
-                // --- Reset network state COMPLETELY before configuring ---
-                nn.layers = []; nn.weights = []; nn.biases = []; nn.gammas = []; nn.betas = []; nn.masks = [];
-                nn.m_dw = []; nn.v_dw = []; nn.m_db = []; nn.v_db = [];
-                nn.m_dgamma = []; nn.v_dgamma = []; nn.m_dbeta = []; nn.v_dbeta = [];
-                nn.s_dw = []; nn.s_db = []; nn.s_dgamma = []; nn.s_dbeta = [];
-                nn.t = 0; // Reset optimizer timestep
-                nn.lastActivations = null; nn.forwardCache = null; // Clear caches
-                // --- End Reset ---
-
-                // Build Layer Configs from UI
-                const numHiddenLayers = parseInt(numHiddenLayersInput.value);
-                const layerConfigs = [];
-                const numInputs = trainingData[0].input.length;
-                let currentInputSize = numInputs;
-
-                for (let i = 0; i < numHiddenLayers; i++) {
-                    const getVal = (selector) => hiddenLayersConfigContainer.querySelector(selector)?.value;
-                    const getChecked = (selector) => hiddenLayersConfigContainer.querySelector(selector)?.checked;
-
-                    const layerType = getVal(`select[data-layer-index="${i}"][data-config-type="type"]`) || 'dense';
-                    let config = { type: layerType, inputSize: currentInputSize };
-
-                    switch(layerType) {
-                        case 'dense':
-                            config.outputSize = parseInt(getVal(`input[data-layer-index="${i}"][data-config-type="size"]`) || 1);
-                            if (config.outputSize <= 0) throw new Error(`Layer ${i+1} Dense: Invalid node count (${config.outputSize}).`);
-                            config.activation = getVal(`select[data-layer-index="${i}"][data-config-type="activation"]`) || 'tanh';
-                            config.useBias = getChecked(`input[data-layer-index="${i}"][data-config-type="useBias"]`) ?? true; // Default true if missing
-                            break;
-                        case 'attention':
-                            config.numHeads = parseInt(getVal(`input[data-layer-index="${i}"][data-config-type="numHeads"]`) || 1);
-                             if (config.numHeads <= 0) throw new Error(`Layer ${i+1} Attention: Invalid head count (${config.numHeads}).`);
-                             if (currentInputSize % config.numHeads !== 0) throw new Error(`Layer ${i+1} Attention: Input size ${currentInputSize} not divisible by ${config.numHeads} heads.`);
-                             config.outputSize = currentInputSize;
-                            break;
-                         case 'dropout':
-                             config.rate = parseFloat(getVal(`input[data-layer-index="${i}"][data-config-type="rate"]`) || 0);
-                             if (config.rate < 0 || config.rate >= 1) throw new Error(`Layer ${i+1} Dropout: Invalid rate (${config.rate}). Must be [0, 1).`);
-                             config.outputSize = currentInputSize;
-                             break;
-                        case 'layernorm':
-                        case 'softmax':
-                            config.outputSize = currentInputSize;
-                            break;
-                        default:
-                             throw new Error(`Layer ${i+1}: Unknown type selected "${layerType}".`);
-                    }
-                     if (!config.outputSize) throw new Error(`Layer ${i+1}: Could not determine output size.`);
-
-                    layerConfigs.push(config);
-                    currentInputSize = config.outputSize;
-                }
-
-                // Add Final Output Layer
-                const numOutputs = trainingData[0].output.length;
-                 if (numOutputs <= 0) throw new Error("Cannot train with zero output columns in data.");
-                const finalLayerNeedsSoftmax = lossFunctionSelect.value === 'crossentropy' && numOutputs > 1;
-                const finalActivation = finalLayerNeedsSoftmax ? 'softmax' : 'tanh'; // Default to tanh for regression/BCE
-                 console.log(`Automatically adding final dense layer: ${currentInputSize} -> ${numOutputs} (Activation: ${finalActivation})`);
-                layerConfigs.push({
-                    type: 'dense', inputSize: currentInputSize, outputSize: numOutputs,
-                    activation: finalActivation, useBias: true
-                });
-
-                // Configure Network Layers (nn.layers, nn.weights etc. are already empty)
-                layerConfigs.forEach((config, i) => {
-                    try { nn.layer(config); } // This populates nn.layers, nn.weights, nn.biases etc. AND placeholders for optimizer state
-                    catch (error) { throw new Error(`Error configuring L${i+1} (${config.type}): ${error.message}`); }
-                });
-                 if (nn.layers.length === 0) { throw new Error("Network configuration resulted in zero layers."); }
-                 if (nn.debug) console.log("Network structure configured:", nn.layers);
-
-                // Get Training Options
-                const options = {
-                    epochs: parseInt(epochsInput.value) || 50,
-                    learningRate: parseFloat(learningRateInput.value) || 0.01,
-                    batchSize: parseInt(batchSizeInput.value) || 8,
-                    testSet: testData.length > 0 ? testData : null,
-                    optimizer: optimizerSelect.value,
-                    lossFunction: lossFunctionSelect.value,
-                    l2Lambda: parseFloat(l2LambdaInput.value) || 0,
-                    decayRate: parseFloat(decayRateInput.value) || 0.9,
-                    usePositionalEncoding: usePositionalEncodingCheckbox.checked,
-                    callback: async (epoch, trainLoss, testLoss) => {
-                        lossHistory.push({ train: trainLoss, test: testLoss }); drawLossGraph();
-                        epochBar.style.width = `${(epoch / options.epochs) * 100}%`;
-                        statsEl.innerHTML = `Epoch: ${epoch}/${options.epochs} | Loss: ${trainLoss.toFixed(6)}`
-                                         + (testLoss !== null ? ` | Val Loss: ${testLoss.toFixed(6)}` : '');
-                         await new Promise(requestAnimationFrame); // Allow repaint
-                    }
-                }
-
-                // Start Training (nn.train will call initializeOptimizerState internally)
-                statsEl.innerHTML = `Training (${options.optimizer}, ${options.lossFunction})...`;
-                const summary = await nn.train(trainingData, options);
-
-                statsEl.innerHTML = `<strong>Training complete!</strong> Final Loss: ${summary.trainLoss.toFixed(6)}`
-                                   + (summary.testLoss !== null ? `, Val Loss: ${summary.testLoss.toFixed(6)}` : '');
-                console.log("Final Training Summary:", summary);
-                if (trainingData.length > 0) {
-                    nn.predict(trainingData[0].input); drawNetwork();
-                }
-
-            } catch (error) {
-                console.error('Training setup or execution error:', error);
-                statsEl.innerHTML = `<span class="error">Error: ${error.message}</span>`;
-            } finally {
-                trainButton.disabled = false; trainButton.textContent = 'Train Model';
-                predictButton.disabled = false; saveButton.disabled = false; loadButton.disabled = false;
-            }
+                const trainingData = parseCSV(trainingDataTextarea.value); const testData = parseCSV(testDataTextarea.value); if (trainingData.length === 0) throw new Error("Training data empty/invalid."); if (!trainingData[0]?.input || !trainingData[0]?.output) throw new Error("Cannot get input/output size from data.");
+                nn.reset(); const numHidden = parseInt(numHiddenLayersInput.value); const layerCfgs = []; const numIns = trainingData[0].input.length; let curInSize = numIns;
+                for (let i = 0; i < numHidden; i++) { const getV=(s)=>hiddenLayersConfigContainer.querySelector(s)?.value; const getC=(s)=>hiddenLayersConfigContainer.querySelector(s)?.checked; const lType=getV(`select[data-layer-index="${i}"][data-config-type="type"]`) || 'dense'; let cfg={type:lType, inputSize:curInSize}; switch(lType){ case 'dense': cfg.outputSize=parseInt(getV(`input[data-layer-index="${i}"][data-config-type="size"]`)||1); if(cfg.outputSize<=0) throw new Error(`L${i+1} Dense: Invalid nodes.`); cfg.activation=getV(`select[data-layer-index="${i}"][data-config-type="activation"]`) || 'tanh'; cfg.useBias=getC(`input[data-layer-index="${i}"][data-config-type="useBias"]`)??true; break; case 'attention': cfg.numHeads=parseInt(getV(`input[data-layer-index="${i}"][data-config-type="numHeads"]`)||1); if(cfg.numHeads<=0) throw new Error(`L${i+1} Attn: Invalid heads.`); if(curInSize%cfg.numHeads!==0) throw new Error(`L${i+1} Attn: Input ${curInSize} not divisible by ${cfg.numHeads} heads.`); cfg.outputSize=curInSize; break; case 'dropout': cfg.rate=parseFloat(getV(`input[data-layer-index="${i}"][data-config-type="rate"]`)||0); if(cfg.rate<0||cfg.rate>=1) throw new Error(`L${i+1} Dropout: Invalid rate.`); cfg.outputSize=curInSize; break; case 'layernorm': case 'softmax': cfg.outputSize=curInSize; break; default: throw new Error(`L${i+1}: Unknown type "${lType}".`); } if(!cfg.outputSize) throw new Error(`L${i+1}: No output size.`); layerCfgs.push(cfg); curInSize=cfg.outputSize; }
+                const numOuts=trainingData[0].output.length; if(numOuts<=0)throw new Error("Zero output cols."); const finalNeedsSoftmax=lossFunctionSelect.value==='crossentropy'&&numOuts>1; const finalAct=finalNeedsSoftmax?'softmax':'tanh'; console.log(`Adding final dense: ${curInSize}->${numOuts} (Act:${finalAct})`); layerCfgs.push({type:'dense',inputSize:curInSize,outputSize:numOuts,activation:finalAct,useBias:true});
+                layerCfgs.forEach((cfg,i)=>{try{nn.layer(cfg);}catch(e){throw new Error(`Cfg L${i+1}(${cfg.type}): ${e.message}`);}}); if(nn.layers.length===0)throw new Error("Zero layers configured."); if(nn.debug)console.log("Net structure:",nn.layers);
+                const opts={epochs:parseInt(epochsInput.value)||50,learningRate:parseFloat(learningRateInput.value)||0.01,batchSize:parseInt(batchSizeInput.value)||8,testSet:testData.length>0?testData:null,optimizer:optimizerSelect.value,lossFunction:lossFunctionSelect.value,l2Lambda:parseFloat(l2LambdaInput.value)||0,decayRate:parseFloat(decayRateInput.value)||0.9,gradientClipValue:parseFloat(gradientClipValueInput.value)||0,usePositionalEncoding:usePositionalEncodingCheckbox.checked,callback:async(ep,trL,tstL)=>{lossHistory.push({train:trL,test:tstL}); drawLossGraph(); epochBar.style.width=`${(ep/opts.epochs)*100}%`; statsEl.innerHTML=`Ep:${ep}/${opts.epochs}|Loss:${trL.toFixed(6)}`+(tstL!==null?`|Val:${tstL.toFixed(6)}`:''); await new Promise(requestAnimationFrame);}};
+                statsEl.innerHTML=`Training (${opts.optimizer}, ${opts.lossFunction})...`; const summary=await nn.train(trainingData,opts); const totalParams=nn.getTotalParameters(); statsEl.innerHTML=`<strong>Done!</strong> Loss:${summary.trainLoss.toFixed(6)}`+(summary.testLoss!==null?`, Val:${summary.testLoss.toFixed(6)}`:'')+` | Params:${totalParams.toLocaleString()}`; console.log("Final Summary:",summary); if(trainingData.length>0){try{nn.predict(trainingData[0].input);drawNetwork();}catch(e){}}
+            } catch (error) { console.error('Train err:', error); statsEl.innerHTML = `<span class="error">Error: ${error.message}</span>`; }
+            finally { trainButton.disabled=false; trainButton.textContent='Train Model'; predictButton.disabled=false; saveButton.disabled=false; loadButton.disabled=false; unloadButton.disabled=false; }
         });
 
-        // --- Network Visualization ---
-        function drawNetwork() {
-             if (!networkCtx || !networkCanvas) return;
-             networkCtx.clearRect(0, 0, networkCanvas.width, networkCanvas.height);
-            if (!nn.lastActivations || nn.lastActivations.length === 0 || !nn.layers || nn.layers.length === 0) {
-                 networkCtx.fillStyle = "#555"; networkCtx.font = "12px monospace"; networkCtx.textAlign = "center";
-                 networkCtx.fillText("Train or Predict to visualize", networkCanvas.width / 2, networkCanvas.height / 2); return;
-            }
-            const padding = 30; const width = networkCanvas.width - padding * 2; const height = networkCanvas.height - padding * 2;
-            const layerPositions = []; const numVizLayers = nn.lastActivations.length;
-            const layerXs = Array.from({ length: numVizLayers }, (_, i) => padding + (numVizLayers === 1 ? width / 2 : (width * i) / (numVizLayers - 1)));
-            const maxNodesPerLayer = 20;
+        function drawNetwork() { if (!networkCtx || !networkCanvas) return; networkCtx.clearRect(0, 0, networkCanvas.width, networkCanvas.height); if (!nn.lastActivations || nn.lastActivations.length === 0 || !nn.layers || nn.layers.length === 0) { networkCtx.fillStyle="#555"; networkCtx.font="12px monospace"; networkCtx.textAlign="center"; networkCtx.fillText("Train/Predict to visualize", networkCanvas.width/2, networkCanvas.height/2); return; } const pad=30, W=networkCanvas.width-pad*2, H=networkCanvas.height-pad*2; const layerPos=[]; const nVizLyrs=nn.lastActivations.length; const layerXs=Array.from({length:nVizLyrs},(_,i)=>pad+(nVizLyrs===1?W/2:(W*i)/(nVizLyrs-1))); const maxNodes=20; nn.lastActivations.forEach((act,lIdx)=>{ if(!Array.isArray(act)){console.warn(`Vis: Act[${lIdx}] !arr.`); layerPos.push([]); return;} const lNodes=[]; const nNodes=act.length; const dNodes=Math.min(nNodes,maxNodes); const lX=layerXs[lIdx]; for(let j=0;j<dNodes;j++){ const origIdx=nNodes<=maxNodes?j:Math.floor(j*nNodes/dNodes); const nodeVal=act[origIdx]; const nY=pad+(dNodes===1?H/2:(H*j)/(dNodes-1)); lNodes.push({x:lX,y:nY,value:(typeof nodeVal==='number'?nodeVal:0)}); } if(nNodes>maxNodes){ lNodes.push({x:lX,y:pad+H+10,value:0,isEllipsis:true,originalCount:nNodes}); } layerPos.push(lNodes); }); networkCtx.lineWidth=1; for(let i=0;i<nVizLyrs-1;i++){ const curNodes=layerPos[i].filter(n=>!n.isEllipsis); const nextNodes=layerPos[i+1].filter(n=>!n.isEllipsis); const cfg=nn.layers[i]; if(!cfg)continue; const isDenseW=cfg.type==='dense'&&Array.isArray(nn.weights?.[i]); const w=isDenseW?nn.weights[i]:null; for(let j=0;j<curNodes.length;j++){ for(let k=0;k<nextNodes.length;k++){ let op=0.1, col='100,100,100', lw=0.5; if(isDenseW&&w?.[k]?.[j]!==undefined){ const weight=w[k][j]; const sig=Math.abs(curNodes[j].value*weight); op=Math.min(Math.max(Math.tanh(sig*2)*0.8+0.05,0.02),0.85); col=weight>0?'255,255,255':'180,180,255'; lw=Math.min(Math.max(0.5,op*2),2); } networkCtx.strokeStyle=`rgba(${col},${op})`; networkCtx.lineWidth=lw; networkCtx.beginPath(); networkCtx.moveTo(curNodes[j].x,curNodes[j].y); networkCtx.lineTo(nextNodes[k].x,nextNodes[k].y); networkCtx.stroke(); }}} layerPos.forEach(lNodes=>{lNodes.forEach(n=>{if(n.isEllipsis){networkCtx.fillStyle="#777"; networkCtx.font="10px monospace"; networkCtx.textAlign="center"; networkCtx.fillText(`(${n.originalCount} nodes)`, n.x, n.y);}else{const actStr=Math.tanh(Math.abs(n.value)); const r=2+actStr*3; const op=0.3+actStr*0.7; const col=n.value>=0?'255,255,255':'200,200,255'; networkCtx.fillStyle=`rgba(${col},${op})`; networkCtx.strokeStyle='rgba(255,255,255,0.6)'; networkCtx.lineWidth=1; networkCtx.beginPath(); networkCtx.arc(n.x,n.y,r,0,Math.PI*2); networkCtx.fill(); networkCtx.stroke();}}); }); }
+        function resizeCanvases() { const lossC = lossCanvas?.parentElement; const netC = networkCanvas?.parentElement; if (lossC?.clientWidth > 0 && lossCanvas) { lossCanvas.width = lossC.clientWidth; lossCanvas.height = lossC.clientHeight; drawLossGraph(); } if (netC?.clientWidth > 0 && networkCanvas) { networkCanvas.width = netC.clientWidth; networkCanvas.height = netC.clientHeight; drawNetwork(); } }
+        window.addEventListener('resize', resizeCanvases); setTimeout(resizeCanvases, 150);
 
-            nn.lastActivations.forEach((layerActivation, layerIndex) => {
-                 if (!Array.isArray(layerActivation)) {
-                    console.warn(`Visualization: Activation at layer index ${layerIndex} is not an array.`);
-                    layerPositions.push([]); // Push empty to maintain layer count
-                    return;
-                 }
-                const layerNodes = []; const numNodes = layerActivation.length; const displayNodes = Math.min(numNodes, maxNodesPerLayer);
-                const layerX = layerXs[layerIndex];
-                for (let j = 0; j < displayNodes; j++) {
-                     const originalIndex = numNodes <= maxNodesPerLayer ? j : Math.floor(j * numNodes / displayNodes);
-                     const nodeValue = layerActivation[originalIndex];
-                     const nodeY = padding + (displayNodes === 1 ? height / 2 : (height * j) / (displayNodes - 1));
-                     layerNodes.push({ x: layerX, y: nodeY, value: (typeof nodeValue === 'number' ? nodeValue : 0) }); // Default value 0 if not number
-                }
-                if (numNodes > maxNodesPerLayer) {
-                    layerNodes.push({ x: layerX, y: padding + height + 10, value: 0, isEllipsis: true, originalCount: numNodes });
-                }
-                layerPositions.push(layerNodes);
-            });
-
-             // Draw Connections
-            networkCtx.lineWidth = 1;
-            for (let i = 0; i < numVizLayers - 1; i++) {
-                const currentLayerNodes = layerPositions[i].filter(n => !n.isEllipsis);
-                const nextLayerNodes = layerPositions[i + 1].filter(n => !n.isEllipsis);
-                const layerConfig = nn.layers[i]; // Get config for the source layer
-                 if (!layerConfig) continue; // Skip if config missing
-
-                const isDenseWithWeights = layerConfig.type === 'dense' && Array.isArray(nn.weights?.[i]);
-                const weights = isDenseWithWeights ? nn.weights[i] : null;
-
-                for (let j = 0; j < currentLayerNodes.length; j++) {
-                    for (let k = 0; k < nextLayerNodes.length; k++) {
-                         let opacity = 0.1; let colorValue = '100, 100, 100'; let lineWidth = 0.5;
-                         if (isDenseWithWeights && weights?.[k]?.[j] !== undefined) { // Check indices valid for weights array
-                             const weight = weights[k][j];
-                             const signal = Math.abs(currentLayerNodes[j].value * weight);
-                             opacity = Math.min(Math.max(Math.tanh(signal * 2) * 0.8 + 0.05, 0.02), 0.85);
-                             colorValue = weight > 0 ? '255, 255, 255' : '180, 180, 255';
-                             lineWidth = Math.min(Math.max(0.5, opacity * 2), 2);
-                         }
-                         networkCtx.strokeStyle = `rgba(${colorValue}, ${opacity})`;
-                         networkCtx.lineWidth = lineWidth;
-                         networkCtx.beginPath(); networkCtx.moveTo(currentLayerNodes[j].x, currentLayerNodes[j].y); networkCtx.lineTo(nextLayerNodes[k].x, nextLayerNodes[k].y); networkCtx.stroke();
-                    }
-                }
-            }
-            // Draw Nodes
-            layerPositions.forEach(layerNodes => {
-                layerNodes.forEach(node => {
-                    if (node.isEllipsis) {
-                         networkCtx.fillStyle = "#777"; networkCtx.font = "10px monospace"; networkCtx.textAlign = "center";
-                         networkCtx.fillText(`(${node.originalCount} nodes)`, node.x, node.y);
-                    } else {
-                         const activationStrength = Math.tanh(Math.abs(node.value));
-                         const radius = 2 + activationStrength * 3; const opacity = 0.3 + activationStrength * 0.7;
-                         const color = node.value >= 0 ? '255, 255, 255' : '200, 200, 255';
-                         networkCtx.fillStyle = `rgba(${color}, ${opacity})`; networkCtx.strokeStyle = 'rgba(255, 255, 255, 0.6)'; networkCtx.lineWidth = 1;
-                         networkCtx.beginPath(); networkCtx.arc(node.x, node.y, radius, 0, Math.PI * 2); networkCtx.fill(); networkCtx.stroke();
-                    }
-                });
-            });
-        }
-
-        // --- Canvas Resizing ---
-        function resizeCanvases() {
-             const lossContainer = lossCanvas?.parentElement;
-             const networkContainer = networkCanvas?.parentElement;
-             if (lossContainer?.clientWidth > 0 && lossCanvas) {
-                 lossCanvas.width = lossContainer.clientWidth;
-                 lossCanvas.height = lossContainer.clientHeight;
-                 drawLossGraph();
-             }
-             if (networkContainer?.clientWidth > 0 && networkCanvas) {
-                 networkCanvas.width = networkContainer.clientWidth;
-                 networkCanvas.height = networkContainer.clientHeight;
-                 drawNetwork();
-             }
-        }
-        window.addEventListener('resize', resizeCanvases);
-        setTimeout(resizeCanvases, 150); // Increased delay slightly
-
-
-        // --- Save/Load/Predict Handlers ---
-        saveButton.addEventListener('click', () => {
-            // Add check if model exists before saving
-            if (!nn.layers || nn.layers.length === 0) {
-                 statsEl.innerHTML = '<span class="error">No model to save. Train or load one first.</span>';
-                 return;
-            }
-            nn.save('oblix_model');
-            statsEl.innerHTML = 'Model saved.';
-        });
-
-        loadButton.addEventListener('click', () => {
-            statsEl.innerHTML = 'Loading model...';
-            nn.load((error) => {
-                if (error) { statsEl.innerHTML = `<span class="error">Load failed: ${error.message}</span>`; return; }
-                statsEl.innerHTML = '<strong>Model loaded!</strong> Verify/adjust config & data if needed.';
-                try {
-                    // Update UI from loaded model details
-                    const loadedDetails = nn.details?.training;
-                    const loadedLayers = nn.layers || [];
-                    usePositionalEncodingCheckbox.checked = nn.usePositionalEncoding || false;
-                    if (loadedDetails) {
-                         epochsInput.value = loadedDetails.epochs || 50;
-                         learningRateInput.value = loadedDetails.learningRate || 0.01;
-                         batchSizeInput.value = loadedDetails.batchSize || 8;
-                         optimizerSelect.value = loadedDetails.optimizer || 'adam';
-                         lossFunctionSelect.value = loadedDetails.lossFunction || 'mse';
-                         l2LambdaInput.value = loadedDetails.l2Lambda || 0;
-                         decayRateInput.value = loadedDetails.decayRate || 0.9;
-                         optimizerSelect.dispatchEvent(new Event('change'));
-                    }
-                    // Update layer UI
-                    const numLoadedHidden = Math.max(0, loadedLayers.length - 1); // Assume last layer was auto-added
-                    numHiddenLayersInput.value = numLoadedHidden;
-                    createLayerConfigUI(numLoadedHidden); // Rebuild based on loaded count
-
-                     loadedLayers.slice(0, numLoadedHidden).forEach((layer, i) => {
-                          const setVal = (selector, value) => { const el = hiddenLayersConfigContainer.querySelector(selector); if(el && value !== undefined) el.value = value; };
-                          const setChecked = (selector, checked) => { const el = hiddenLayersConfigContainer.querySelector(selector); if(el && checked !== undefined) el.checked = checked; };
-
-                          setVal(`select[data-layer-index="${i}"][data-config-type="type"]`, layer.type || 'dense');
-                          const typeSelect = hiddenLayersConfigContainer.querySelector(`select[data-layer-index="${i}"][data-config-type="type"]`);
-                          if (typeSelect) typeSelect.dispatchEvent(new Event('change', { bubbles: true })); // Trigger sub-options update
-
-                          switch(layer.type) { // Set values *after* triggering change
-                               case 'dense':
-                                   setVal(`input[data-layer-index="${i}"][data-config-type="size"]`, layer.outputSize);
-                                   setVal(`select[data-layer-index="${i}"][data-config-type="activation"]`, layer.activation);
-                                   setChecked(`input[data-layer-index="${i}"][data-config-type="useBias"]`, layer.useBias);
-                                   break;
-                               case 'attention':
-                                    setVal(`input[data-layer-index="${i}"][data-config-type="numHeads"]`, layer.numHeads);
-                                    break;
-                               case 'dropout':
-                                    setVal(`input[data-layer-index="${i}"][data-config-type="rate"]`, layer.rate);
-                                    break;
-                           }
-                     });
-
-                    lossHistory = []; drawLossGraph(); predictionResultEl.innerHTML = 'Result: -';
-                    // Try to visualize loaded network with dummy data
-                    try {
-                        const firstTrainSample = parseCSV(trainingDataTextarea.value)[0];
-                        if(firstTrainSample) { nn.predict(firstTrainSample.input); }
-                    } catch(e) {/* ignore */}
-                    drawNetwork();
-
-                } catch (uiError) { console.error("UI update error after load:", uiError); statsEl.innerHTML = `<span class="error">Model loaded, UI update failed: ${uiError.message}</span>`; }
-            });
-        });
-
-        predictButton.addEventListener('click', () => {
-            predictionResultEl.innerHTML = `Predicting...`;
-            try {
-                const inputString = document.getElementById('predictionInput').value;
-                if (!inputString) throw new Error("Input is empty.");
-                const input = inputString.split(',').map(s => parseFloat(s.trim()));
-                if (input.some(isNaN)) throw new Error("Invalid input: Non-numeric values.");
-                if (!nn.layers || nn.layers.length === 0) throw new Error("Network not initialized. Train or Load a model.");
-
-                // Check input size consistency
-                const expectedInputSize = nn.layers[0]?.inputSize;
-                if (expectedInputSize === undefined) throw new Error("Cannot determine expected input size from model.");
-                if (input.length !== expectedInputSize) throw new Error(`Input size mismatch: Expected ${expectedInputSize}, got ${input.length}.`);
-
-                const prediction = nn.predict(input);
-                if (prediction === null) throw new Error("Prediction failed internally (check console).");
-
-                const predictionString = prediction.map(p => p.toFixed(5)).join(', ');
-                predictionResultEl.innerHTML = `Result: [${predictionString}]`;
-                drawNetwork(); // Update visualization
-
-            } catch (error) { console.error("Prediction error:", error); predictionResultEl.innerHTML = `<span class="error">Error: ${error.message}</span>`; }
-        });
-        // --- ADD UNLOAD BUTTON HANDLER ---
-        unloadButton.addEventListener('click', () => {
-            console.log("Unload button clicked.");
-            try {
-                nn.reset(); // Call the new reset method
-
-                // Reset UI elements
-                lossHistory = [];
-                drawLossGraph();
-                drawNetwork(); // Will show the placeholder text
-
-                epochBar.style.width = '0%';
-                statsEl.innerHTML = 'Status: Model unloaded. Ready.';
-                predictionResultEl.innerHTML = 'Result: -';
-
-                const defaultHiddenLayers = 2;
-                numHiddenLayersInput.value = defaultHiddenLayers;
-                createLayerConfigUI(defaultHiddenLayers);
-
-                console.log("Model and UI state reset.");
-                 //alert("Model unloaded successfully!"); // User feedback
-
-            } catch (error) {
-                console.error("Error unloading model:", error);
-                statsEl.innerHTML = `<span class="error">Error unloading model: ${error.message}</span>`;
-            }
-        });
-        // --- END UNLOAD BUTTON HANDLER ---
+        saveButton.addEventListener('click', () => { if (!nn.layers || nn.layers.length === 0) { statsEl.innerHTML = '<span class="error">No model to save.</span>'; return; } nn.save('oblix_model'); statsEl.innerHTML = 'Model saved.'; });
+        loadButton.addEventListener('click', () => { statsEl.innerHTML = 'Loading...'; nn.load((error) => { if (error) { statsEl.innerHTML = `<span class="error">Load failed: ${error.message}</span>`; return; } const params = nn.getTotalParameters(); statsEl.innerHTML = `<strong>Model loaded!</strong> Params: ${params.toLocaleString()}`; try { const d = nn.details?.training; const l = nn.layers || []; usePositionalEncodingCheckbox.checked = nn.usePositionalEncoding || false; if (d) { epochsInput.value=d.epochs||50; learningRateInput.value=d.learningRate||0.01; batchSizeInput.value=d.batchSize||8; optimizerSelect.value=d.optimizer||'adam'; lossFunctionSelect.value=d.lossFunction||'mse'; l2LambdaInput.value=d.l2Lambda||0; decayRateInput.value=d.decayRate||0.9; gradientClipValueInput.value=d.gradientClipValue||0; optimizerSelect.dispatchEvent(new Event('change')); } const numHid = Math.max(0, l.length - 1); numHiddenLayersInput.value = numHid; createLayerConfigUI(numHid); l.slice(0, numHid).forEach((layer, i) => { const setV=(s,v)=>{const e=hiddenLayersConfigContainer.querySelector(s); if(e&&v!==undefined)e.value=v;}; const setC=(s,c)=>{const e=hiddenLayersConfigContainer.querySelector(s); if(e&&c!==undefined)e.checked=c;}; setV(`select[data-layer-index="${i}"][data-config-type="type"]`, layer.type||'dense'); const ts=hiddenLayersConfigContainer.querySelector(`select[data-layer-index="${i}"][data-config-type="type"]`); if(ts)ts.dispatchEvent(new Event('change',{bubbles:true})); switch(layer.type){ case 'dense': setV(`input[data-layer-index="${i}"][data-config-type="size"]`, layer.outputSize); setV(`select[data-layer-index="${i}"][data-config-type="activation"]`, layer.activation); setC(`input[data-layer-index="${i}"][data-config-type="useBias"]`, layer.useBias); break; case 'attention': setV(`input[data-layer-index="${i}"][data-config-type="numHeads"]`, layer.numHeads); break; case 'dropout': setV(`input[data-layer-index="${i}"][data-config-type="rate"]`, layer.rate); break; } }); lossHistory=[]; drawLossGraph(); predictionResultEl.innerHTML='Result: -'; try { const sample = parseCSV(trainingDataTextarea.value)[0]; if(sample) nn.predict(sample.input); } catch(e) {} drawNetwork(); } catch (uiError) { console.error("UI update err after load:", uiError); statsEl.innerHTML += ` <span class="error">(UI update failed)</span>`; } }); });
+        predictButton.addEventListener('click', () => { predictionResultEl.innerHTML=`Predicting...`; try { const inputStr = document.getElementById('predictionInput').value; if(!inputStr)throw new Error("Input empty."); const input=inputStr.split(',').map(s=>parseFloat(s.trim())); if(input.some(isNaN))throw new Error("Invalid input."); if(!nn.layers||nn.layers.length===0)throw new Error("Network not init."); const expectSz=nn.layers[0]?.inputSize; if(expectSz===undefined)throw new Error("Cannot get input size."); if(input.length!==expectSz)throw new Error(`Input size mismatch: Exp ${expectSz}, got ${input.length}.`); const pred=nn.predict(input); if(pred===null)throw new Error("Prediction failed."); const predStr=pred.map(p=>p.toFixed(5)).join(', '); predictionResultEl.innerHTML=`Result: [${predStr}]`; drawNetwork(); } catch (error) { console.error("Predict error:", error); predictionResultEl.innerHTML = `<span class="error">Error: ${error.message}</span>`; } });
+        unloadButton.addEventListener('click', () => { console.log("Unload clicked."); try { nn.reset(); lossHistory = []; drawLossGraph(); drawNetwork(); epochBar.style.width = '0%'; statsEl.innerHTML = 'Status: Model unloaded.'; predictionResultEl.innerHTML = 'Result: -'; const defaultLayers = 2; numHiddenLayersInput.value = defaultLayers; createLayerConfigUI(defaultLayers); console.log("Model & UI reset."); } catch (error) { console.error("Unload error:", error); statsEl.innerHTML = `<span class="error">Unload error: ${error.message}</span>`; } });
 
     }); // End DOMContentLoaded
   </script>
