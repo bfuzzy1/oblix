@@ -239,6 +239,30 @@
           <label for="learningRate" title="How much the model weights are adjusted each update. Too high can diverge, too low is slow.">Learning Rate:</label>
           <input type="number" id="learningRate" value="0.01" step="0.001" min="0">
         </div>
+        <div class="input-group">
+            <label for="lrScheduler" title="How the learning rate changes over epochs.">LR Schedule:</label>
+            <select id="lrScheduler">
+                <option value="none" selected>None (Constant)</option>
+                <option value="step">Step Decay</option>
+                <option value="exponential">Exponential Decay</option>
+            </select>
+        </div>
+        <div id="lrStepParams" class="input-group settings-grid" style="display: none; grid-column: 1 / -1; border-top: 1px solid #444; margin-top: 5px; padding-top: 5px;">
+             <div class="input-group">
+                 <label for="lrStepDecayFactor" title="Multiply LR by this factor at each step. (e.g., 0.1)">Decay Factor:</label>
+                 <input type="number" id="lrStepDecayFactor" value="0.1" step="0.01" min="0" max="1">
+             </div>
+             <div class="input-group">
+                 <label for="lrStepDecaySize" title="Decrease LR every N epochs. (e.g., 10)">Step Size (Epochs):</label>
+                 <input type="number" id="lrStepDecaySize" value="10" step="1" min="1">
+             </div>
+        </div>
+         <div id="lrExpParams" class="input-group settings-grid" style="display: none; grid-column: 1 / -1; border-top: 1px solid #444; margin-top: 5px; padding-top: 5px;">
+             <div class="input-group">
+                 <label for="lrExpDecayRate" title="Multiply LR by this rate each epoch. (e.g., 0.95)">Decay Rate:</label>
+                 <input type="number" id="lrExpDecayRate" value="0.95" step="0.001" min="0" max="1">
+             </div>
+        </div>
         <div class="input-group" id="decayRateGroup" style="display: none;">
            <label for="decayRate" title="Decay factor for RMSprop optimizer's moving average.">Decay Rate (ρ):</label>
            <input type="number" id="decayRate" value="0.9" step="0.01" min="0" max="1">
@@ -410,9 +434,39 @@
       getTotalParameters() { let total=0; if(!this.layers||this.layers.length===0)return 0; this.layers.forEach((l,i)=>{if(l.type==='dense'){total+=this.weights[i]?this.weights[i].flat().length:0;total+=(l.useBias&&this.biases[i])?this.biases[i].length:0;}else if(l.type==='layernorm'){total+=this.gammas[i]?this.gammas[i].length:0;total+=this.betas[i]?this.betas[i].length:0;}}); return total; }
       // --- END getTotalParameters Method ---
 
+      // --- ADD getCurrentLearningRate Method ---
+      getCurrentLearningRate(epoch, initialLR, options) {
+          const { lrSchedule, lrStepDecayFactor, lrStepDecaySize, lrExpDecayRate } = options;
+          let currentLR = initialLR;
+
+          if (lrSchedule === 'step') {
+              // Ensure step size is at least 1
+              const stepSize = Math.max(1, Math.floor(lrStepDecaySize));
+              // Calculate how many decay steps have occurred
+              const decaySteps = Math.floor(epoch / stepSize);
+              currentLR = initialLR * Math.pow(lrStepDecayFactor, decaySteps);
+          } else if (lrSchedule === 'exponential') {
+              // Decay happens every epoch
+              currentLR = initialLR * Math.pow(lrExpDecayRate, epoch);
+          }
+          // 'none' schedule uses initialLR
+
+          return currentLR;
+      }
+      // -- END getCurrentLearningRate Method ---
+
       async train(trainSet, options = {}) {
         this.isTraining = true; const start = Date.now();
-        let { epochs = 100, learningRate = 0.01, batchSize = 16, printEveryEpochs = 10, earlyStopThreshold = 1e-7, testSet = null, callback = null, optimizer = 'adam', lossFunction = 'mse', l2Lambda = 0, decayRate = 0.9, usePositionalEncoding = this.usePositionalEncoding, gradientClipValue = 0 } = options;
+        let {
+            epochs = 100, learningRate = 0.01, batchSize = 16, printEveryEpochs = 10,
+            earlyStopThreshold = 1e-7, testSet = null, callback = null, optimizer = 'adam',
+            lossFunction = 'mse', l2Lambda = 0, decayRate = 0.9,
+            usePositionalEncoding = this.usePositionalEncoding, gradientClipValue = 0,
+            lrSchedule = 'none', lrStepDecayFactor = 0.1, lrStepDecaySize = 10, lrExpDecayRate = 0.95
+        } = options;
+        // Store the initial learning rate separately
+        const initialLearningRate = learningRate;
+
         if (!trainSet || trainSet.length === 0) throw new Error("Training set empty."); if (this.layers.length === 0) throw new Error("No layers."); const effectiveBatchSize = Math.max(1, Math.min(batchSize, trainSet.length)); this.usePositionalEncoding = usePositionalEncoding; this.decayRate = decayRate;
         let needsOptimizerInit = this.m_dw?.length !== this.layers.length || this.v_dw?.length !== this.layers.length || this.s_dw?.length !== this.layers.length || this.m_db?.length !== this.layers.length || this.v_db?.length !== this.layers.length || this.s_db?.length !== this.layers.length; for (let i=0; i < this.layers.length && !needsOptimizerInit; i++) { if (this.layers[i].type === 'dense') { if (this.weights[i] && this.m_dw[i] === null) needsOptimizerInit = true; if (this.biases[i] && this.m_db[i] === null) needsOptimizerInit = true; } else if (this.layers[i].type === 'layernorm') { if (this.gammas[i] && this.m_dgamma[i] === null) needsOptimizerInit = true; if (this.betas[i] && this.m_dbeta[i] === null) needsOptimizerInit = true; } } if (needsOptimizerInit) { if (this.debug) console.log("Optimizer state needs init."); this.initializeOptimizerState(optimizer); }
         let lastTrainLoss = Infinity; let lastTestLoss = null;
@@ -421,6 +475,10 @@
         // if (lossFunction==='mse' && (finalLayerAct==='softmax'||finalLayerAct==='sigmoid')) console.warn(`MSE with final softmax/sigmoid`); // Commented out
 
         for (let epoch = 0; epoch < epochs; epoch++) {
+          // ++ Calculate Learning Rate for the Current Epoch ++
+          const currentEpochLearningRate = this.getCurrentLearningRate(epoch, initialLearningRate, options);
+          // -- END LR Calculation --
+
           let totalEpochTrainError = 0; for (let i = trainSet.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [trainSet[i], trainSet[j]] = [trainSet[j], trainSet[i]]; }
           for (let b = 0; b < trainSet.length; b += effectiveBatchSize) {
             const batch = trainSet.slice(b, b + effectiveBatchSize); if (batch.length === 0) continue;
@@ -444,7 +502,9 @@
               const g = this.gammas[i]; const betaParam = this.betas[i]; // Renamed to avoid conflict
               const gW = gradsW[i]; const gB = gradsB[i];
               const gGamma = gradsGamma[i]; const gBeta = gradsBeta[i];
-              let curLR = learningRate; // Base LR for the step
+              let stepLR = currentEpochLearningRate; // LR for SGD/RMSprop step
+              let adamCorrectedBaseLR = initialLearningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
+              let adamStepLR = adamCorrectedBaseLR * (currentEpochLearningRate / initialLearningRate); // Apply schedule scaling to Adam's corrected LR
 
               // --- Weight Updates (Dense Layers) ---
               if (isDense && Array.isArray(w) && Array.isArray(gW)) {
@@ -468,11 +528,9 @@
                       v = this.beta2 * v + (1 - this.beta2) * clippedGrad ** 2;
                       const m_hat = m / (1 - this.beta1 ** this.t);
                       const v_hat = v / (1 - this.beta2 ** this.t);
-                      // Use bias-corrected LR for Adam/AdamW step size consistency
-                      curLR = learningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
-                      update = curLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
+                      update = adamStepLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
                       if (optimizer === 'adam' && l2Lambda > 0) { // Original Adam L2
-                        update += curLR * l2Lambda * param;
+                        update += adamStepLR * l2Lambda * param;
                       }
                       // Store updated momentum
                       if (this.m_dw?.[i]?.[j]) this.m_dw[i][j][k] = m;
@@ -480,16 +538,16 @@
                     } else if (optimizer === 'rmsprop') {
                       s = (typeof s === 'number' && isFinite(s)) ? s : 0;
                       s = this.decayRate * s + (1 - this.decayRate) * clippedGrad ** 2;
-                      update = learningRate * clippedGrad / (Math.sqrt(s) + this.epsilon);
+                      update = stepLR * clippedGrad / (Math.sqrt(s) + this.epsilon);
                       if (l2Lambda > 0) { // RMSprop L2
-                          update += learningRate * l2Lambda * param;
+                          update += stepLR * l2Lambda * param;
                       }
                       // Store updated state
                       if (this.s_dw?.[i]?.[j]) this.s_dw[i][j][k] = s;
                     } else { // SGD
-                      update = learningRate * clippedGrad;
+                      update = stepLR * clippedGrad;
                       if (l2Lambda > 0) { // SGD L2
-                        update += learningRate * l2Lambda * param;
+                        update += stepLR * l2Lambda * param;
                       }
                     }
 
@@ -497,9 +555,8 @@
 
                     // --- Decoupled Weight Decay (AdamW) ---
                     if (optimizer === 'adamw' && l2Lambda > 0) {
-                      // Note: Using curLR (bias-corrected LR) here matches common libraries
-                      param -= curLR * l2Lambda * param;
-                      // Alternative often seen: param *= (1 - learningRate * l2Lambda); // Uses base LR
+                      // Note: Use adamStepLR for weight decay here to be consistent with the update step size
+                      param -= adamStepLR * l2Lambda * param;
                     }
 
                     this.weights[i][j][k] = param; // Store updated parameter
@@ -527,19 +584,18 @@
                       v = this.beta2 * v + (1 - this.beta2) * clippedGrad ** 2;
                       const m_hat = m / (1 - this.beta1 ** this.t);
                       const v_hat = v / (1 - this.beta2 ** this.t);
-                      curLR = learningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
-                      update = curLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
+                      update = adamStepLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
                       // No L2/Weight Decay for biases
                       if (this.m_db?.[i]) this.m_db[i][j] = m;
                       if (this.v_db?.[i]) this.v_db[i][j] = v;
                     } else if (optimizer === 'rmsprop') {
                       s = (typeof s === 'number' && isFinite(s)) ? s : 0;
                       s = this.decayRate * s + (1 - this.decayRate) * clippedGrad ** 2;
-                      update = learningRate * clippedGrad / (Math.sqrt(s) + this.epsilon);
+                      update = stepLR * clippedGrad / (Math.sqrt(s) + this.epsilon);
                       // No L2/Weight Decay for biases
                       if (this.s_db?.[i]) this.s_db[i][j] = s;
                     } else { // SGD
-                      update = learningRate * clippedGrad;
+                      update = stepLR * clippedGrad;
                       // No L2/Weight Decay for biases
                     }
                     param -= update;
@@ -568,17 +624,16 @@
                       vGamma = this.beta2 * vGamma + (1 - this.beta2) * clippedGradGamma ** 2;
                       const m_hat = mGamma / (1 - this.beta1 ** this.t);
                       const v_hat = vGamma / (1 - this.beta2 ** this.t);
-                      curLR = learningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
-                      updateGamma = curLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
+                      updateGamma = adamStepLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
                       if (this.m_dgamma?.[i]) this.m_dgamma[i][j] = mGamma;
                       if (this.v_dgamma?.[i]) this.v_dgamma[i][j] = vGamma;
                     } else if (optimizer === 'rmsprop') {
                        sGamma = (typeof sGamma === 'number' && isFinite(sGamma)) ? sGamma : 0;
                        sGamma = this.decayRate * sGamma + (1 - this.decayRate) * clippedGradGamma ** 2;
-                       updateGamma = learningRate * clippedGradGamma / (Math.sqrt(sGamma) + this.epsilon);
+                       updateGamma = stepLR * clippedGradGamma / (Math.sqrt(sGamma) + this.epsilon);
                        if (this.s_dgamma?.[i]) this.s_dgamma[i][j] = sGamma;
                     } else { // SGD
-                       updateGamma = learningRate * clippedGradGamma;
+                       updateGamma = stepLR * clippedGradGamma;
                     }
                     paramGamma -= updateGamma;
                     this.gammas[i][j] = paramGamma;
@@ -602,17 +657,16 @@
                       vBeta = this.beta2 * vBeta + (1 - this.beta2) * clippedGradBeta ** 2;
                       const m_hat = mBeta / (1 - this.beta1 ** this.t);
                       const v_hat = vBeta / (1 - this.beta2 ** this.t);
-                      curLR = learningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
-                      updateBeta = curLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
+                      updateBeta = adamStepLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
                       if (this.m_dbeta?.[i]) this.m_dbeta[i][j] = mBeta;
                       if (this.v_dbeta?.[i]) this.v_dbeta[i][j] = vBeta;
                     } else if (optimizer === 'rmsprop') {
                        sBeta = (typeof sBeta === 'number' && isFinite(sBeta)) ? sBeta : 0;
                        sBeta = this.decayRate * sBeta + (1 - this.decayRate) * clippedGradBeta ** 2;
-                       updateBeta = learningRate * clippedGradBeta / (Math.sqrt(sBeta) + this.epsilon);
+                       updateBeta = stepLR * clippedGradBeta / (Math.sqrt(sBeta) + this.epsilon);
                        if (this.s_dbeta?.[i]) this.s_dbeta[i][j] = sBeta;
                     } else { // SGD
-                       updateBeta = learningRate * clippedGradBeta;
+                       updateBeta = stepLR * clippedGradBeta;
                     }
                     paramBeta -= updateBeta;
                     this.betas[i][j] = paramBeta; // Note: uses the renamed variable betaParam
@@ -627,7 +681,7 @@
 
           lastTrainLoss = totalEpochTrainError / trainSet.length;
           if (testSet && testSet.length > 0) { let testError = 0; for (const data of testSet) { const prediction = this.predict(data.input); if (prediction && prediction.length === data.output.length) { const target = data.output; let sampleLoss = 0; if (lossFunction === 'crossentropy') { const lastLayer = this.layers[this.layers.length-1]; const wasSoftmax = lastLayer.type === 'softmax' || (lastLayer.type === 'dense' && lastLayer.activation === 'softmax'); const wasSigmoid = lastLayer.type === 'dense' && lastLayer.activation === 'sigmoid'; if (wasSoftmax) { if (target.length === 1 && Number.isInteger(target[0])) { sampleLoss = -Math.log(prediction[target[0]] + eps_ce); } else { sampleLoss = -target.reduce((sum, t, i) => sum + t * Math.log(prediction[i] + eps_ce), 0); } } else if (wasSigmoid && prediction.length === 1) { sampleLoss = - (target[0] * Math.log(prediction[0] + eps_ce) + (1 - target[0]) * Math.log(1 - prediction[0] + eps_ce)); } else { sampleLoss = 0.5 * prediction.reduce((sum, p, i) => sum + (p - target[i])**2, 0); } } else { sampleLoss = 0.5 * prediction.reduce((sum, p, i) => sum + (p - target[i])**2, 0); } if (!isNaN(sampleLoss) && isFinite(sampleLoss)) testError += sampleLoss; } } lastTestLoss = testError / testSet.length; } else { lastTestLoss = null; }
-          if ((epoch + 1) % printEveryEpochs === 0 && this.debug) { console.log(`Epoch ${epoch + 1}/${epochs}, Train Loss: ${lastTrainLoss.toFixed(6)}${lastTestLoss !== null ? `, Val Loss: ${lastTestLoss.toFixed(6)}` : ''}`); }
+          if ((epoch + 1) % printEveryEpochs === 0 && this.debug) { const lrStr = lrSchedule !== 'none' ? `, LR: ${currentEpochLearningRate.toExponential(2)}` : ''; console.log(`Epoch ${epoch + 1}/${epochs}, Train Loss: ${lastTrainLoss.toFixed(6)}${lastTestLoss !== null ? `, Val Loss: ${lastTestLoss.toFixed(6)}` : ''}${lrStr}`); }
           if (callback) { await callback(epoch + 1, lastTrainLoss, lastTestLoss); }
           await new Promise(resolve => setTimeout(resolve, 0));
           if (lastTrainLoss < earlyStopThreshold) { if (this.debug) console.log(`Early stopping @ Epoch ${epoch + 1}.`); epochs = epoch + 1; break; }
@@ -635,7 +689,21 @@
 
         const end = Date.now(); this.isTraining = false;
         const totalParams = this.getTotalParameters();
-        const trainingSummary = { trainLoss: lastTrainLoss, testLoss: lastTestLoss, parameters: totalParams, training: { time: end - start, epochs: epochs, learningRate: learningRate, batchSize: effectiveBatchSize, optimizer: optimizer, lossFunction: lossFunction, l2Lambda: l2Lambda, decayRate: this.decayRate, usePositionalEncoding: this.usePositionalEncoding, gradientClipValue: gradientClipValue }, layers: this.layers.map(l => ({ type: l.type, inputSize: l.inputSize, outputSize: l.outputSize, activation: l.activation, numHeads: l.numHeads, useBias: l.useBias, rate: l.rate })) };
+        const trainingSummary = {
+            trainLoss: lastTrainLoss, testLoss: lastTestLoss, parameters: totalParams,
+            training: {
+                time: end - start, epochs: epochs,
+                learningRate: initialLearningRate, // Report initial LR
+                batchSize: effectiveBatchSize, optimizer: optimizer, lossFunction: lossFunction,
+                l2Lambda: l2Lambda, decayRate: this.decayRate,
+                usePositionalEncoding: this.usePositionalEncoding, gradientClipValue: gradientClipValue,
+                lrSchedule: lrSchedule,
+                lrStepDecayFactor: lrSchedule === 'step' ? lrStepDecayFactor : undefined,
+                lrStepDecaySize: lrSchedule === 'step' ? lrStepDecaySize : undefined,
+                lrExpDecayRate: lrSchedule === 'exponential' ? lrExpDecayRate : undefined
+            },
+            layers: this.layers.map(l => ({ type: l.type, inputSize: l.inputSize, outputSize: l.outputSize, activation: l.activation, numHeads: l.numHeads, useBias: l.useBias, rate: l.rate }))
+        };
         this.details = trainingSummary; if (this.debug) console.log("Training finished.", trainingSummary);
         return trainingSummary;
       }
@@ -653,6 +721,9 @@
         let lossHistory = [];
         const lossCanvas = document.getElementById('lossGraph'); const networkCanvas = document.getElementById('networkGraph'); const lossCtx = lossCanvas?.getContext('2d'); const networkCtx = networkCanvas?.getContext('2d');
         const statsEl = document.getElementById('stats'); const trainButton = document.getElementById('trainButton'); const predictButton = document.getElementById('predictButton'); const saveButton = document.getElementById('saveButton'); const loadButton = document.getElementById('loadButton'); const unloadButton = document.getElementById('unloadButton'); const epochBar = document.getElementById('epochBar'); const predictionResultEl = document.getElementById('predictionResult'); const numHiddenLayersInput = document.getElementById('numHiddenLayers'); const hiddenLayersConfigContainer = document.getElementById('hiddenLayersConfig'); const optimizerSelect = document.getElementById('optimizer'); const usePositionalEncodingCheckbox = document.getElementById('usePositionalEncoding'); const lossFunctionSelect = document.getElementById('lossFunction'); const l2LambdaInput = document.getElementById('l2Lambda'); const decayRateGroup = document.getElementById('decayRateGroup'); const decayRateInput = document.getElementById('decayRate'); const gradientClipValueInput = document.getElementById('gradientClipValue'); const trainingDataTextarea = document.getElementById('trainingData'); const testDataTextarea = document.getElementById('testData'); const epochsInput = document.getElementById('epochs'); const learningRateInput = document.getElementById('learningRate'); const batchSizeInput = document.getElementById('batchSize');
+        const lrSchedulerSelect = document.getElementById('lrScheduler');
+        const lrStepParamsDiv = document.getElementById('lrStepParams');
+        const lrExpParamsDiv = document.getElementById('lrExpParams');
 
         function generateRandomData(numSamples, numInputs, numOutputs = 1, noiseLevel = 0.05) { if (numInputs <= 0 || numOutputs <= 0) return ""; const data = []; for (let i = 0; i < numSamples; i++) { const input = []; for (let j = 0; j < numInputs; j++) input.push(Math.random()); const output = []; for (let j = 0; j < numOutputs; j++) { const base = Math.sin(input[0] * Math.PI * 2) * 0.4 + 0.5; const noise = (Math.random() - 0.5) * 2 * noiseLevel; let final = Math.max(0.01, Math.min(0.99, base + noise)); output.push(final); } data.push([...input, ...output].map(v => v.toFixed(3)).join(', ')); } return data.join('\n'); }
         document.getElementById("loadDataBtn").onclick = () => { const numTrain=100, numTest=25, numIn=3, numOut=1; trainingDataTextarea.value = generateRandomData(numTrain, numIn, numOut); testDataTextarea.value = generateRandomData(numTest, numIn, numOut); statsEl.innerHTML = `Generated ${numTrain}/${numTest} random samples.`; try { const sample = parseCSV(trainingDataTextarea.value)[0]; if(sample && nn.layers && nn.layers.length > 0) nn.predict(sample.input); } catch (e) {} drawNetwork(); }
@@ -672,6 +743,14 @@
         numHiddenLayersInput.addEventListener('change', (event) => { const numLayers = Math.max(0, parseInt(event.target.value) || 0); event.target.value = numLayers; createLayerConfigUI(numLayers); }); createLayerConfigUI(parseInt(numHiddenLayersInput.value));
         optimizerSelect.addEventListener('change', () => { decayRateGroup.style.display = optimizerSelect.value === 'rmsprop' ? 'block' : 'none'; }); decayRateGroup.style.display = optimizerSelect.value === 'rmsprop' ? 'block' : 'none';
 
+        lrSchedulerSelect.addEventListener('change', () => {
+            const selectedSchedule = lrSchedulerSelect.value;
+            lrStepParamsDiv.style.display = selectedSchedule === 'step' ? 'grid' : 'none'; // Use grid for settings-grid
+            lrExpParamsDiv.style.display = selectedSchedule === 'exponential' ? 'grid' : 'none'; // Use grid for settings-grid
+        });
+        // Initial check in case the page loads with a schedule selected (e.g., after model load)
+        lrSchedulerSelect.dispatchEvent(new Event('change'));
+
         trainButton.addEventListener('click', async () => {
             statsEl.innerHTML = 'Starting training...'; trainButton.disabled = true; trainButton.textContent = 'Training...'; predictButton.disabled = true; saveButton.disabled = true; loadButton.disabled = true; unloadButton.disabled = true; epochBar.style.width = '0%'; lossHistory = []; drawLossGraph();
             try {
@@ -680,8 +759,38 @@
                 for (let i = 0; i < numHidden; i++) { const getV=(s)=>hiddenLayersConfigContainer.querySelector(s)?.value; const getC=(s)=>hiddenLayersConfigContainer.querySelector(s)?.checked; const lType=getV(`select[data-layer-index="${i}"][data-config-type="type"]`) || 'dense'; let cfg={type:lType, inputSize:curInSize}; switch(lType){ case 'dense': cfg.outputSize=parseInt(getV(`input[data-layer-index="${i}"][data-config-type="size"]`)||1); if(cfg.outputSize<=0) throw new Error(`L${i+1} Dense: Invalid nodes.`); cfg.activation=getV(`select[data-layer-index="${i}"][data-config-type="activation"]`) || 'tanh'; cfg.useBias=getC(`input[data-layer-index="${i}"][data-config-type="useBias"]`)??true; break; case 'attention': cfg.numHeads=parseInt(getV(`input[data-layer-index="${i}"][data-config-type="numHeads"]`)||1); if(cfg.numHeads<=0) throw new Error(`L${i+1} Attn: Invalid heads.`); if(curInSize%cfg.numHeads!==0) throw new Error(`L${i+1} Attn: Input ${curInSize} not divisible by ${cfg.numHeads} heads.`); cfg.outputSize=curInSize; break; case 'dropout': cfg.rate=parseFloat(getV(`input[data-layer-index="${i}"][data-config-type="rate"]`)||0); if(cfg.rate<0||cfg.rate>=1) throw new Error(`L${i+1} Dropout: Invalid rate.`); cfg.outputSize=curInSize; break; case 'layernorm': case 'softmax': cfg.outputSize=curInSize; break; default: throw new Error(`L${i+1}: Unknown type "${lType}".`); } if(!cfg.outputSize) throw new Error(`L${i+1}: No output size.`); layerCfgs.push(cfg); curInSize=cfg.outputSize; }
                 const numOuts=trainingData[0].output.length; if(numOuts<=0)throw new Error("Zero output cols."); const finalNeedsSoftmax=lossFunctionSelect.value==='crossentropy'&&numOuts>1; const finalAct=finalNeedsSoftmax?'softmax':'tanh'; console.log(`Adding final dense: ${curInSize}->${numOuts} (Act:${finalAct})`); layerCfgs.push({type:'dense',inputSize:curInSize,outputSize:numOuts,activation:finalAct,useBias:true});
                 layerCfgs.forEach((cfg,i)=>{try{nn.layer(cfg);}catch(e){throw new Error(`Cfg L${i+1}(${cfg.type}): ${e.message}`);}}); if(nn.layers.length===0)throw new Error("Zero layers configured."); if(nn.debug)console.log("Net structure:",nn.layers);
-                const opts={epochs:parseInt(epochsInput.value)||50,learningRate:parseFloat(learningRateInput.value)||0.01,batchSize:parseInt(batchSizeInput.value)||8,testSet:testData.length>0?testData:null,optimizer:optimizerSelect.value,lossFunction:lossFunctionSelect.value,l2Lambda:parseFloat(l2LambdaInput.value)||0,decayRate:parseFloat(decayRateInput.value)||0.9,gradientClipValue:parseFloat(gradientClipValueInput.value)||0,usePositionalEncoding:usePositionalEncodingCheckbox.checked,callback:async(ep,trL,tstL)=>{lossHistory.push({train:trL,test:tstL}); drawLossGraph(); epochBar.style.width=`${(ep/opts.epochs)*100}%`; statsEl.innerHTML=`Ep:${ep}/${opts.epochs}|Loss:${trL.toFixed(6)}`+(tstL!==null?`|Val:${tstL.toFixed(6)}`:''); await new Promise(requestAnimationFrame);}};
-                statsEl.innerHTML=`Training (${opts.optimizer}, ${opts.lossFunction})...`; const summary=await nn.train(trainingData,opts); const totalParams=nn.getTotalParameters(); statsEl.innerHTML=`<strong>Done!</strong> Loss:${summary.trainLoss.toFixed(6)}`+(summary.testLoss!==null?`, Val:${summary.testLoss.toFixed(6)}`:'')+` | Params:${totalParams.toLocaleString()}`; console.log("Final Summary:",summary); if(trainingData.length>0){try{nn.predict(trainingData[0].input);drawNetwork();}catch(e){}}
+                const opts={
+                    epochs:parseInt(epochsInput.value)||50,
+                    learningRate:parseFloat(learningRateInput.value)||0.01, // Initial LR
+                    batchSize:parseInt(batchSizeInput.value)||8,
+                    testSet:testData.length>0?testData:null,
+                    optimizer:optimizerSelect.value,
+                    lossFunction:lossFunctionSelect.value,
+                    l2Lambda:parseFloat(l2LambdaInput.value)||0,
+                    decayRate:parseFloat(decayRateInput.value)||0.9,
+                    gradientClipValue:parseFloat(gradientClipValueInput.value)||0,
+                    usePositionalEncoding:usePositionalEncodingCheckbox.checked,
+                    lrSchedule: lrSchedulerSelect.value,
+                    lrStepDecayFactor: parseFloat(document.getElementById('lrStepDecayFactor').value) || 0.1,
+                    lrStepDecaySize: parseInt(document.getElementById('lrStepDecaySize').value) || 10,
+                    lrExpDecayRate: parseFloat(document.getElementById('lrExpDecayRate').value) || 0.95,
+                    callback:async(ep,trL,tstL)=>{
+                        lossHistory.push({train:trL,test:tstL});
+                        drawLossGraph();
+                        epochBar.style.width=`${(ep/opts.epochs)*100}%`;
+                        // Display current LR in stats if scheduler is active
+                        const currentLR = nn.getCurrentLearningRate(ep, opts.learningRate, opts); // Need to add getCurrentLearningRate method
+                        const lrString = opts.lrSchedule !== 'none' ? ` | LR: ${currentLR.toExponential(2)}` : '';
+                        statsEl.innerHTML=`Ep:${ep}/${opts.epochs}|Loss:${trL.toFixed(6)}`+(tstL!==null?`|Val:${tstL.toFixed(6)}`:'') + lrString;
+                        await new Promise(requestAnimationFrame);
+                    }
+                };
+                statsEl.innerHTML=`Training (${opts.optimizer}, ${opts.lossFunction}` + (opts.lrSchedule !== 'none' ? `, ${opts.lrSchedule} LR` : '') + `)...`;
+                const summary=await nn.train(trainingData,opts);
+                const totalParams=nn.getTotalParameters();
+                statsEl.innerHTML=`<strong>Done!</strong> Loss:${summary.trainLoss.toFixed(6)}`+(summary.testLoss!==null?`, Val:${summary.testLoss.toFixed(6)}`:'')+` | Params:${totalParams.toLocaleString()}`;
+                console.log("Final Summary:",summary);
+                if(trainingData.length>0){try{nn.predict(trainingData[0].input);drawNetwork();}catch(e){}}
             } catch (error) { console.error('Train err:', error); statsEl.innerHTML = `<span class="error">Error: ${error.message}</span>`; }
             finally { trainButton.disabled=false; trainButton.textContent='Train Model'; predictButton.disabled=false; saveButton.disabled=false; loadButton.disabled=false; unloadButton.disabled=false; }
         });
