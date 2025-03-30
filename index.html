@@ -111,6 +111,36 @@
     .loss-graph, .network-graph {
       position: absolute; top: 0; left: 0; width: 100%; height: 100%;
     }
+
+    /* --- Network Viz Container Scrolling --- */
+    #network-viz-container {
+        overflow-x: auto; /* Allow horizontal scroll */
+        overflow-y: hidden; /* Hide vertical scroll */
+        /* Optional: Style scrollbar */
+        scrollbar-width: thin; /* Firefox */
+        scrollbar-color: #555 #222; /* Firefox: thumb track */
+    }
+    #network-viz-container::-webkit-scrollbar {
+        height: 8px;
+    }
+    #network-viz-container::-webkit-scrollbar-track {
+        background: #222;
+        border-radius: 4px;
+    }
+    #network-viz-container::-webkit-scrollbar-thumb {
+        background-color: #555;
+        border-radius: 4px;
+        border: 2px solid #222;
+    }
+    #network-viz-container::-webkit-scrollbar-thumb:hover {
+        background-color: #777;
+    }
+    /* --- END Network Viz Scrolling --- */
+
+    .loss-graph, .network-graph {
+        display: block; /* Prevents extra space below canvas */
+    }
+    
     .flex-container {
       display: flex; flex-wrap: wrap; /* Allow wrapping */
       gap: 20px; opacity: 0; transform: translateY(10px);
@@ -241,34 +271,43 @@
 
     </div> <!-- End Widget 1 -->
 
-    <!-- Group 2: Training Control, Progress & Visualization -->
-    <div class="widget">
-        <div class="widget model-management-widget">
-            <div class="widget-title">Model Management</div>
-            <div class="button-group">
-                <button id="trainButton">Train Model</button>
-                <button id="saveButton">Save Model</button>
-                <button id="loadButton">Load Model</button>
-                <button id="unloadButton">Unload Model</button>
+        <!-- Group 2: Training Control, Progress & Visualization -->
+        <div class="widget">
+            <div class="widget model-management-widget">
+                <div class="widget-title">Model Management</div>
+                <div class="button-group">
+                    <button id="trainButton">Train Model</button>
+                    <button id="saveButton">Save Model</button>
+                    <button id="loadButton">Load Model</button>
+                    <button id="unloadButton">Unload Model</button>
+                </div>
+           </div>
+    
+            <div class="widget-title">Training Progress</div>
+            <div id="progress">
+                <div class="progress-container">
+                    <canvas id="lossGraph" class="loss-graph"></canvas>
+                </div>
+                <p style="text-align: center;">Train Loss (White), Validation Loss (Blue)</p> <!-- Updated Color Name -->
+                <div class="epoch-progress">
+                    <div id="epochBar" class="epoch-bar"></div>
+                </div>
+                <div id="stats">Status: Ready</div>
+            </div> <!-- End #progress -->
+    
+            <!-- Network Visualization Card (Moved out of flex-container, placed first) -->
+            <div class="visualization-container widget" style="margin-top: 20px;">
+                <div class="widget-title">Network Visualization</div>
+                <div id="network-viz-container" class="progress-container">
+                    <canvas id="networkGraph" class="network-graph"></canvas>
+                </div>
+                <p style="text-align: center;">Structure & Last Activations</p>
             </div>
-       </div>
-
-        <div class="widget-title">Training Progress</div>
-        <div id="progress">
-            <div class="progress-container">
-                <canvas id="lossGraph" class="loss-graph"></canvas>
-            </div>
-            <p style="text-align: center;">Train Loss (White), Validation Loss (Blue)</p>
-            <div class="epoch-progress">
-                <div id="epochBar" class="epoch-bar"></div>
-            </div>
-            <div id="stats">Status: Ready</div>
-        </div>
-
-        <div class="flex-container" style="margin-top: 20px;"> <!-- Wrap Prediction & Viz -->
-            <div class="prediction-section widget">
+    
+            <!-- Manual Prediction Card (Moved out of flex-container, placed second) -->
+            <div class="prediction-section widget" style="margin-top: 20px;">
                 <div class="widget-title">Manual Prediction</div>
-                <p>Predict output for new input.</p>
+                <p>Predict output for new input</p>
                 <div class="input-group">
                     <label for="predictionInput">Input (CSV):</label>
                     <input type="text" id="predictionInput" placeholder="0.4, 0.2, 0.6">
@@ -276,18 +315,11 @@
                 <button id="predictButton">Predict</button>
                 <div id="predictionResult" style="margin-top: 10px; font-weight: bold;">Result: -</div>
             </div>
-
-            <div class="visualization-container widget">
-                <div class="widget-title">Network Visualization</div>
-                <div class="progress-container">
-                    <canvas id="networkGraph" class="network-graph"></canvas>
-                </div>
-                <p style="text-align: center;">Structure & Last Activations</p>
-            </div>
-        </div>
-
-    </div> <!-- End Widget 2 -->
-  </div> <!-- End Grid -->
+    
+            <!-- Removed the flex-container div that wrapped prediction and visualization -->
+    
+        </div> <!-- End Widget 2 -->
+      </div> <!-- End Grid -->
 
   <script>
     class oblix {
@@ -469,8 +501,135 @@
             finally { trainButton.disabled=false; trainButton.textContent='Train Model'; predictButton.disabled=false; saveButton.disabled=false; loadButton.disabled=false; unloadButton.disabled=false; }
         });
 
-        function drawNetwork() { if (!networkCtx || !networkCanvas) return; networkCtx.clearRect(0, 0, networkCanvas.width, networkCanvas.height); if (!nn.lastActivations || nn.lastActivations.length === 0 || !nn.layers || nn.layers.length === 0) { networkCtx.fillStyle="#555"; networkCtx.font="12px monospace"; networkCtx.textAlign="center"; networkCtx.fillText("Train/Predict to visualize", networkCanvas.width/2, networkCanvas.height/2); return; } const pad=30, W=networkCanvas.width-pad*2, H=networkCanvas.height-pad*2; const layerPos=[]; const nVizLyrs=nn.lastActivations.length; const layerXs=Array.from({length:nVizLyrs},(_,i)=>pad+(nVizLyrs===1?W/2:(W*i)/(nVizLyrs-1))); const maxNodes=20; nn.lastActivations.forEach((act,lIdx)=>{ if(!Array.isArray(act)){console.warn(`Vis: Act[${lIdx}] !arr.`); layerPos.push([]); return;} const lNodes=[]; const nNodes=act.length; const dNodes=Math.min(nNodes,maxNodes); const lX=layerXs[lIdx]; for(let j=0;j<dNodes;j++){ const origIdx=nNodes<=maxNodes?j:Math.floor(j*nNodes/dNodes); const nodeVal=act[origIdx]; const nY=pad+(dNodes===1?H/2:(H*j)/(dNodes-1)); lNodes.push({x:lX,y:nY,value:(typeof nodeVal==='number'?nodeVal:0)}); } if(nNodes>maxNodes){ lNodes.push({x:lX,y:pad+H+10,value:0,isEllipsis:true,originalCount:nNodes}); } layerPos.push(lNodes); }); networkCtx.lineWidth=1; for(let i=0;i<nVizLyrs-1;i++){ const curNodes=layerPos[i].filter(n=>!n.isEllipsis); const nextNodes=layerPos[i+1].filter(n=>!n.isEllipsis); const cfg=nn.layers[i]; if(!cfg)continue; const isDenseW=cfg.type==='dense'&&Array.isArray(nn.weights?.[i]); const w=isDenseW?nn.weights[i]:null; for(let j=0;j<curNodes.length;j++){ for(let k=0;k<nextNodes.length;k++){ let op=0.1, col='100,100,100', lw=0.5; if(isDenseW&&w?.[k]?.[j]!==undefined){ const weight=w[k][j]; const sig=Math.abs(curNodes[j].value*weight); op=Math.min(Math.max(Math.tanh(sig*2)*0.8+0.05,0.02),0.85); col=weight>0?'255,255,255':'180,180,255'; lw=Math.min(Math.max(0.5,op*2),2); } networkCtx.strokeStyle=`rgba(${col},${op})`; networkCtx.lineWidth=lw; networkCtx.beginPath(); networkCtx.moveTo(curNodes[j].x,curNodes[j].y); networkCtx.lineTo(nextNodes[k].x,nextNodes[k].y); networkCtx.stroke(); }}} layerPos.forEach(lNodes=>{lNodes.forEach(n=>{if(n.isEllipsis){networkCtx.fillStyle="#777"; networkCtx.font="10px monospace"; networkCtx.textAlign="center"; networkCtx.fillText(`(${n.originalCount} nodes)`, n.x, n.y);}else{const actStr=Math.tanh(Math.abs(n.value)); const r=2+actStr*3; const op=0.3+actStr*0.7; const col=n.value>=0?'255,255,255':'200,200,255'; networkCtx.fillStyle=`rgba(${col},${op})`; networkCtx.strokeStyle='rgba(255,255,255,0.6)'; networkCtx.lineWidth=1; networkCtx.beginPath(); networkCtx.arc(n.x,n.y,r,0,Math.PI*2); networkCtx.fill(); networkCtx.stroke();}}); }); }
-        function resizeCanvases() { const lossC = lossCanvas?.parentElement; const netC = networkCanvas?.parentElement; if (lossC?.clientWidth > 0 && lossCanvas) { lossCanvas.width = lossC.clientWidth; lossCanvas.height = lossC.clientHeight; drawLossGraph(); } if (netC?.clientWidth > 0 && networkCanvas) { networkCanvas.width = netC.clientWidth; networkCanvas.height = netC.clientHeight; drawNetwork(); } }
+        function drawNetwork() {
+            if (!networkCtx || !networkCanvas) return;
+            const networkContainer = networkCanvas.parentElement; // Should be #network-viz-container
+            if (!networkContainer) return;
+            const containerWidth = networkContainer.clientWidth; const containerHeight = networkContainer.clientHeight;
+            networkCtx.clearRect(0, 0, networkCanvas.width, networkCanvas.height); // Clear previous drawing
+            const hasModel = nn.lastActivations && nn.lastActivations.length > 0 && nn.layers && nn.layers.length > 0;
+
+            if (!hasModel) {
+                networkCtx.fillStyle = "#555"; networkCtx.font = "10px monospace"; networkCtx.textAlign = "center"; networkCtx.textBaseline = "middle";
+                // Set canvas size to container size if no model to draw
+                if (networkCanvas.width !== containerWidth) networkCanvas.width = containerWidth;
+                if (networkCanvas.height !== containerHeight) networkCanvas.height = containerHeight;
+                networkCtx.fillText("Train/Predict to visualize", containerWidth / 2, containerHeight / 2);
+                return;
+            }
+
+            // Configs
+            const pad=35, maxNds=20, nRBase=2, nRScale=3, cBOp=0.02, cMOp=0.85, cWScale=2, ellOff=10, lblOff=20, lblFnt="10px monospace", lblClr="#aaa";
+            const nVizLyrs=nn.lastActivations.length;
+            
+            // Adjust spacing based on number of layers
+            // More spacing for fewer layers, minimum spacing for many layers
+            const baseSpacing = 150; // Base spacing between layers (increased from 70)
+            const minLayerSpacing = Math.max(120, Math.min(baseSpacing, containerWidth / (nVizLyrs > 1 ? nVizLyrs : 1)));
+            
+            // Calculate required width with improved spacing
+            const requiredWidth = (nVizLyrs <= 1) 
+                ? containerWidth 
+                : pad * 2 + (nVizLyrs - 1) * minLayerSpacing;
+            
+            // Ensure we have at least 20% more space than the minimal calculated width
+            // This creates more visual breathing room
+            const canvasDrawWidth = Math.max(containerWidth, requiredWidth * 1.2);
+
+            // Set Canvas Attributes
+            networkCanvas.width = canvasDrawWidth; networkCanvas.height = containerHeight;
+
+            // Drawing dimensions
+            const drawAreaWidth = canvasDrawWidth - pad * 2; const drawAreaHeight = containerHeight - pad * 2;
+            const layerXs = Array.from({ length: nVizLyrs }, (_, i) => pad + (nVizLyrs === 1 ? drawAreaWidth / 2 : (drawAreaWidth * i) / (nVizLyrs - 1)));
+
+            // 1. Calculate Node Positions
+            const layerPos = [];
+            nn.lastActivations.forEach((act, lIdx) => {
+                if (!Array.isArray(act)) { layerPos.push([]); return; }
+                const lNodes = []; const nNodes = act.length; const dNodes = Math.min(nNodes, maxNds); const lX = layerXs[lIdx];
+                for (let j = 0; j < dNodes; j++) { const origIdx = nNodes <= maxNds ? j : Math.floor(j * nNodes / dNodes); const nodeVal = act[origIdx]; const nY = pad + (dNodes === 1 ? drawAreaHeight / 2 : (drawAreaHeight * j) / (dNodes - 1)); lNodes.push({ x: lX, y: nY, value: (typeof nodeVal === 'number' && isFinite(nodeVal) ? nodeVal : 0) }); } // Ensure value is finite number
+                if (nNodes > maxNds) lNodes.push({ x: lX, y: pad + drawAreaHeight + ellOff, value: 0, isEllipsis: true, originalCount: nNodes });
+                layerPos.push(lNodes);
+            });
+
+            // 2. Draw Connections
+            networkCtx.lineWidth = 1;
+            for (let i = 0; i < nVizLyrs - 1; i++) {
+                const curNodes = layerPos[i].filter(n => !n.isEllipsis); const nextNodes = layerPos[i + 1].filter(n => !n.isEllipsis);
+                const cfg = nn.layers[i]; if (!cfg) continue;
+                const isDenseW = cfg.type === 'dense' && Array.isArray(nn.weights?.[i]); const w = isDenseW ? nn.weights[i] : null;
+                for (let j = 0; j < curNodes.length; j++) {
+                    for (let k = 0; k < nextNodes.length; k++) {
+                        let op = 0.1, col = '100,100,100', lw = 0.5;
+                        if (isDenseW && w?.[k]?.[j] !== undefined) {
+                            const weight = w[k][j];
+                            if (typeof weight === 'number' && typeof curNodes[j].value === 'number') { // Check types
+                                const wMag = Math.tanh(Math.abs(weight));
+                                const aMag = Math.tanh(Math.abs(curNodes[j].value));
+                                const combSig = (wMag * 0.8 + aMag * 0.2);
+                                op = Math.min(Math.max(cBOp + combSig * (cMOp - cBOp), cBOp), cMOp);
+                                col = weight >= 0 ? '255,255,255' : '180,180,255';
+                                lw = Math.min(Math.max(0.5, op * cWScale), 2);
+                            }
+                        } else if (cfg.type !== 'dense') { // Faint lines for non-dense layer outputs
+                            op = 0.05; lw = 0.5; col = '100,100,100';
+                        }
+                        networkCtx.strokeStyle = `rgba(${col},${op})`; networkCtx.lineWidth = lw;
+                        networkCtx.beginPath(); networkCtx.moveTo(curNodes[j].x, curNodes[j].y); networkCtx.lineTo(nextNodes[k].x, nextNodes[k].y); networkCtx.stroke();
+                    }
+                }
+            }
+
+            // 3. Draw Nodes and Labels
+            networkCtx.textAlign = "center";
+            
+            // Draw the "Layers" label centered over all hidden layers
+            if (layerXs.length > 2) {
+                // Calculate center position between first hidden layer and last hidden layer
+                const firstHiddenLayerX = layerXs[1]; // Index 1 is first hidden layer
+                const lastHiddenLayerX = layerXs[layerXs.length - 2]; // Second-to-last is last hidden layer
+                const centerX = (firstHiddenLayerX + lastHiddenLayerX) / 2;
+                
+                // Draw "Layers" label at the calculated center position
+                networkCtx.fillStyle = lblClr;
+                networkCtx.font = lblFnt;
+                networkCtx.textBaseline = "bottom";
+                networkCtx.fillText("Layers", centerX, pad - lblOff / 2);
+            }
+            
+            layerPos.forEach((lNodes, lIdx) => {
+                // Draw Label
+                networkCtx.fillStyle = lblClr; networkCtx.font = lblFnt; networkCtx.textBaseline = "bottom";
+                if (lIdx === 0) {
+                    networkCtx.fillText("Input", layerXs[lIdx], pad - lblOff / 2);
+                } else if (lIdx === layerPos.length - 1) {
+                    networkCtx.fillText("Output", layerXs[lIdx], pad - lblOff / 2);
+                }
+                // Draw Nodes
+                lNodes.forEach(n => {
+                    if (n.isEllipsis) { networkCtx.fillStyle = "#777"; networkCtx.font = "10px monospace"; networkCtx.textBaseline = "top"; networkCtx.fillText(`(${n.originalCount} nodes)`, n.x, n.y); }
+                    else { const actStr = Math.tanh(Math.abs(n.value)); const r = nRBase + actStr * nRScale; const op = 0.3 + actStr * 0.7; const col = n.value >= 0 ? '255,255,255' : '200,200,255'; networkCtx.fillStyle = `rgba(${col},${op})`; networkCtx.strokeStyle = 'rgba(255,255,255,0.6)'; networkCtx.lineWidth = 1; networkCtx.beginPath(); networkCtx.arc(n.x, n.y, r, 0, Math.PI * 2); networkCtx.fill(); networkCtx.stroke(); }
+                });
+            });
+        }
+        function resizeCanvases() {
+             const lossContainer = lossCanvas?.parentElement;
+             // Target the specific container for the network graph
+             const networkContainer = document.getElementById('network-viz-container');
+
+             // Resize and redraw loss graph as before
+             if (lossContainer?.clientWidth > 0 && lossCanvas) {
+                 lossCanvas.width = lossContainer.clientWidth;
+                 lossCanvas.height = lossContainer.clientHeight;
+                 drawLossGraph();
+             }
+             // For network graph, just call drawNetwork. It will read the container size
+             // and set its own canvas width/height appropriately before drawing.
+             if (networkContainer?.clientWidth > 0 && networkCanvas) {
+                 drawNetwork();
+             }
+        }
         window.addEventListener('resize', resizeCanvases); setTimeout(resizeCanvases, 150);
 
         saveButton.addEventListener('click', () => { if (!nn.layers || nn.layers.length === 0) { statsEl.innerHTML = '<span class="error">No model to save.</span>'; return; } nn.save('oblix_model'); statsEl.innerHTML = 'Model saved.'; });
