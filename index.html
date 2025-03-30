@@ -232,6 +232,7 @@
               <option value="sgd">SGD</option>
               <option value="adam" selected>Adam</option>
               <option value="rmsprop">RMSprop</option>
+              <option value="adamw">AdamW</option>
           </select>
          </div>
         <div class="input-group">
@@ -403,7 +404,7 @@
       backwardMultiHeadSelfAttention(dOutput, cache) { if(!cache||!cache.input||!cache.attnWgts){ const N=dOutput?.length||0; return {dInput:Array(N).fill(0)}; } const {input,numHeads,headSize,attentionWeights}=cache; const inputDim=input.length; if(dOutput.length!==inputDim){ return {dInput:Array(inputDim).fill(0)}; } const dInput=Array(inputDim).fill(0); const scale=Math.sqrt(headSize)||1; for(let h=0;h<numHeads;h++){ const start=h*headSize; const end=start+headSize; const q_h=input.slice(start,end); const v_h=q_h; const k_h=q_h; const dO_h=dOutput.slice(start,end); const alpha_h=attentionWeights[h]; if(!alpha_h||alpha_h.length!==headSize||alpha_h[0]?.length!==headSize){ console.error(`Attn Bkwd Err: Head ${h} weights invalid.`); continue; } const dQ_h=Array(headSize).fill(0); const dK_h=Array(headSize).fill(0); const dV_h=Array(headSize).fill(0); const dScores_h=Array.from({length:headSize},()=>Array(headSize).fill(0)); const dAlpha_h=Array.from({length:headSize},()=>Array(headSize).fill(0)); for(let j=0;j<headSize;j++){ for(let i=0;i<headSize;i++){ if(typeof dO_h[i]!=='number'||typeof v_h[j]!=='number'||typeof alpha_h[i][j]!=='number') continue; dV_h[j]+=alpha_h[i][j]*dO_h[i]; dAlpha_h[i][j]=dO_h[i]*v_h[j]; } } for(let i=0;i<headSize;i++){ let row_sum=0; for(let k=0;k<headSize;k++){ if(typeof dAlpha_h[i][k]!=='number'||typeof alpha_h[i][k]!=='number') continue; row_sum+=dAlpha_h[i][k]*alpha_h[i][k]; } for(let j=0;j<headSize;j++){ if(typeof alpha_h[i][j]!=='number'||typeof dAlpha_h[i][j]!=='number') continue; const dS_ij=alpha_h[i][j]*(dAlpha_h[i][j]-row_sum); dScores_h[i][j]=dS_ij/scale; } } for(let i=0;i<headSize;i++){ for(let j=0;j<headSize;j++){ if(typeof dScores_h[i][j]!=='number'||typeof k_h[j]!=='number'||typeof q_h[i]!=='number') continue; dQ_h[i]+=dScores_h[i][j]*k_h[j]; dK_h[j]+=dScores_h[i][j]*q_h[i]; } } for(let i=0;i<headSize;i++){ dInput[start+i]=(dQ_h[i]||0)+(dK_h[i]||0)+(dV_h[i]||0); } } return {dInput}; }
       backwardDropout(dOutput, layerIndex) { const mask=this.masks[layerIndex]; if(!mask){ return dOutput; } if(!dOutput||dOutput.length!==mask.length){ return dOutput; } return dOutput.map((g,i)=>g*mask[i]); }
       backwardSoftmax(dOutput, layerIndex) { console.warn("Softmax backward pass used directly."); return dOutput; }
-      initializeOptimizerState(optimizer) { const numLayers=this.layers.length; if(this.debug) console.log(`Init optimizer state: ${optimizer}, ${numLayers} layers.`); this.t=0; this.m_dw=Array(numLayers).fill(null); this.v_dw=Array(numLayers).fill(null); this.m_db=Array(numLayers).fill(null); this.v_db=Array(numLayers).fill(null); this.m_dgamma=Array(numLayers).fill(null); this.v_dgamma=Array(numLayers).fill(null); this.m_dbeta=Array(numLayers).fill(null); this.v_dbeta=Array(numLayers).fill(null); this.s_dw=Array(numLayers).fill(null); this.s_db=Array(numLayers).fill(null); this.s_dgamma=Array(numLayers).fill(null); this.s_dbeta=Array(numLayers).fill(null); for(let i=0;i<numLayers;i++){ const cfg=this.layers[i]; if(!cfg) continue; const w=this.weights[i]; const reqW=cfg.type==='dense'&&Array.isArray(w)&&w.length>0&&Array.isArray(w[0]); const b=this.biases[i]; const reqB=cfg.type==='dense'&&cfg.useBias&&Array.isArray(b)&&b.length>0; const g=this.gammas[i]; const beta=this.betas[i]; const reqLN=cfg.type==='layernorm'&&Array.isArray(g)&&Array.isArray(beta)&&g.length===beta.length&&g.length>0; if(optimizer==='adam'||optimizer==='rmsprop'){ if(reqW){ try{ const z=()=>w.map(r=>r.map(()=>0)); if(optimizer==='adam'){this.m_dw[i]=z();this.v_dw[i]=z();} if(optimizer==='rmsprop'){this.s_dw[i]=z();} }catch(e){ console.error(`InitOpt L${i} W err: ${e.message}`);this.m_dw[i]=null;this.v_dw[i]=null;this.s_dw[i]=null;}} if(reqB){ try{ const z=()=>b.map(()=>0); if(optimizer==='adam'){this.m_db[i]=z();this.v_db[i]=z();} if(optimizer==='rmsprop'){this.s_db[i]=z();} }catch(e){ console.error(`InitOpt L${i} B err: ${e.message}`);this.m_db[i]=null;this.v_db[i]=null;this.s_db[i]=null;}} if(reqLN){ try{ const z=()=>g.map(()=>0); if(optimizer==='adam'){this.m_dgamma[i]=z();this.v_dgamma[i]=z();this.m_dbeta[i]=z();this.v_dbeta[i]=z();} if(optimizer==='rmsprop'){this.s_dgamma[i]=z();this.s_dbeta[i]=z();} }catch(e){ console.error(`InitOpt L${i} LN err: ${e.message}`);this.m_dgamma[i]=null;this.v_dgamma[i]=null;this.m_dbeta[i]=null;this.v_dbeta[i]=null;this.s_dgamma[i]=null;this.s_dbeta[i]=null;}} } } if(this.debug) console.log(`Optimizer state init finished.`); }
+      initializeOptimizerState(optimizer) { const numLayers=this.layers.length; if(this.debug) console.log(`Init optimizer state: ${optimizer}, ${numLayers} layers.`); this.t=0; this.m_dw=Array(numLayers).fill(null); this.v_dw=Array(numLayers).fill(null); this.m_db=Array(numLayers).fill(null); this.v_db=Array(numLayers).fill(null); this.m_dgamma=Array(numLayers).fill(null); this.v_dgamma=Array(numLayers).fill(null); this.m_dbeta=Array(numLayers).fill(null); this.v_dbeta=Array(numLayers).fill(null); this.s_dw=Array(numLayers).fill(null); this.s_db=Array(numLayers).fill(null); this.s_dgamma=Array(numLayers).fill(null); this.s_dbeta=Array(numLayers).fill(null); for(let i=0;i<numLayers;i++){ const cfg=this.layers[i]; if(!cfg) continue; const w=this.weights[i]; const reqW=cfg.type==='dense'&&Array.isArray(w)&&w.length>0&&Array.isArray(w[0]); const b=this.biases[i]; const reqB=cfg.type==='dense'&&cfg.useBias&&Array.isArray(b)&&b.length>0; const g=this.gammas[i]; const beta=this.betas[i]; const reqLN=cfg.type==='layernorm'&&Array.isArray(g)&&Array.isArray(beta)&&g.length===beta.length&&g.length>0; if(optimizer==='adam'||optimizer==='rmsprop'||optimizer==='adamw'){ if(reqW){ try{ const z=()=>w.map(r=>r.map(()=>0)); if(optimizer==='adam'||optimizer==='adamw'){this.m_dw[i]=z();this.v_dw[i]=z();} if(optimizer==='rmsprop'){this.s_dw[i]=z();} }catch(e){ console.error(`InitOpt L${i} W err: ${e.message}`);this.m_dw[i]=null;this.v_dw[i]=null;this.s_dw[i]=null;}} if(reqB){ try{ const z=()=>b.map(()=>0); if(optimizer==='adam'||optimizer==='adamw'){this.m_db[i]=z();this.v_db[i]=z();} if(optimizer==='rmsprop'){this.s_db[i]=z();} }catch(e){ console.error(`InitOpt L${i} B err: ${e.message}`);this.m_db[i]=null;this.v_db[i]=null;this.s_db[i]=null;}} if(reqLN){ try{ const z=()=>g.map(()=>0); if(optimizer==='adam'||optimizer==='adamw'){this.m_dgamma[i]=z();this.v_dgamma[i]=z();this.m_dbeta[i]=z();this.v_dbeta[i]=z();} if(optimizer==='rmsprop'){this.s_dgamma[i]=z();this.s_dbeta[i]=z();} }catch(e){ console.error(`InitOpt L${i} LN err: ${e.message}`);this.m_dgamma[i]=null;this.v_dgamma[i]=null;this.m_dbeta[i]=null;this.v_dbeta[i]=null;this.s_dgamma[i]=null;this.s_dbeta[i]=null;}} } } if(this.debug) console.log(`Optimizer state init finished.`); }
 
       // --- ADD getTotalParameters Method ---
       getTotalParameters() { let total=0; if(!this.layers||this.layers.length===0)return 0; this.layers.forEach((l,i)=>{if(l.type==='dense'){total+=this.weights[i]?this.weights[i].flat().length:0;total+=(l.useBias&&this.biases[i])?this.biases[i].length:0;}else if(l.type==='layernorm'){total+=this.gammas[i]?this.gammas[i].length:0;total+=this.betas[i]?this.betas[i].length:0;}}); return total; }
@@ -435,10 +436,191 @@
             } // End batch sample loop
 
             const batchMult=1.0/batch.length; this.t++;
-            for(let i=0;i<this.layers.length;i++){ const cfg=this.layers[i]; const isDense=cfg.type==='dense'; const isLN=cfg.type==='layernorm'; const reqW=isDense&&Array.isArray(this.weights[i])&&this.weights[i].length>0; const reqB=isDense&&cfg.useBias&&Array.isArray(this.biases[i])&&this.biases[i].length>0; const reqLN=isLN&&Array.isArray(this.gammas[i])&&Array.isArray(this.betas[i])&&this.gammas[i].length>0; let curLR=learningRate; const applyUpd=(p,g,m,v,s,isW=false)=>{if(typeof p!=='number'||typeof g!=='number')return{updatedParam:p,m,v,s}; let clip_g=g; if(gradientClipValue>0){clip_g=Math.max(-gradientClipValue,Math.min(gradientClipValue,g));} const avg_g=clip_g*batchMult; let upd=0; if(optimizer==='adam'){m=(typeof m==='number'&&isFinite(m))?m:0; v=(typeof v==='number'&&isFinite(v))?v:0; m=this.beta1*m+(1-this.beta1)*avg_g; v=this.beta2*v+(1-this.beta2)*avg_g**2; const m_h=m/(1-this.beta1**this.t); const v_h=v/(1-this.beta2**this.t); curLR=learningRate*Math.sqrt(1-this.beta2**this.t)/(1-this.beta1**this.t); upd=curLR*m_h/(Math.sqrt(v_h)+this.epsilon); if(isW&&l2Lambda>0){upd+=curLR*l2Lambda*p;} return{updatedParam:p-upd,m,v};}else if(optimizer==='rmsprop'){s=(typeof s==='number'&&isFinite(s))?s:0; s=this.decayRate*s+(1-this.decayRate)*avg_g**2; upd=learningRate*avg_g/(Math.sqrt(s)+this.epsilon); if(isW&&l2Lambda>0){upd+=learningRate*l2Lambda*p;} return{updatedParam:p-upd,s};}else{let grad_r=avg_g; if(isW&&l2Lambda>0){grad_r+=l2Lambda*p;} upd=learningRate*grad_r; return{updatedParam:p-upd};}};
-            if(reqW){if(!gradsW||!Array.isArray(gradsW[i])||!Array.isArray(gradsW[i][0])){console.error(`Upd L${i} W grad invalid`); continue;} for(let j=0;j<cfg.outputSize;j++){for(let k=0;k<cfg.inputSize;k++){if(!gradsW[i][j]||typeof gradsW[i][j][k]!=='number')continue; const gW=gradsW[i][j][k]; if(!this.weights[i]?.[j]||typeof this.weights[i][j][k]!=='number')continue; const cW=this.weights[i][j][k]; const mV=this.m_dw?.[i]?.[j]?.[k]; const vV=this.v_dw?.[i]?.[j]?.[k]; const sV=this.s_dw?.[i]?.[j]?.[k]; const res=applyUpd(cW,gW,mV,vV,sV,true); this.weights[i][j][k]=res.updatedParam; if(optimizer==='adam'){if(typeof res.m!=='number'||typeof res.v!=='number')continue; if(!this.m_dw?.[i]?.[j]||!this.v_dw?.[i]?.[j])continue; this.m_dw[i][j][k]=res.m; this.v_dw[i][j][k]=res.v;} if(optimizer==='rmsprop'){if(typeof res.s!=='number')continue; if(!this.s_dw?.[i]?.[j])continue; this.s_dw[i][j][k]=res.s;}}}}
-            if(reqB){if(!gradsB||!Array.isArray(gradsB[i])){console.error(`Upd L${i} B grad invalid`);continue;} if(!this.biases||!Array.isArray(this.biases[i])){console.error(`Upd L${i} B array invalid`);continue;} for(let j=0;j<cfg.outputSize;j++){if(typeof gradsB[i][j]!=='number')continue; const gB=gradsB[i][j]; if(typeof this.biases[i][j]!=='number')continue; const cB=this.biases[i][j]; const mVB=this.m_db?.[i]?.[j]; const vVB=this.v_db?.[i]?.[j]; const sVB=this.s_db?.[i]?.[j]; const res=applyUpd(cB,gB,mVB,vVB,sVB,false); this.biases[i][j]=res.updatedParam; if(optimizer==='adam'){if(typeof res.m!=='number'||typeof res.v!=='number')continue; if(!this.m_db?.[i]||!this.v_db?.[i])continue; this.m_db[i][j]=res.m; this.v_db[i][j]=res.v;} if(optimizer==='rmsprop'){if(typeof res.s!=='number')continue; if(!this.s_db?.[i])continue; this.s_db[i][j]=res.s;}}}
-            if(reqLN){if(!gradsGamma?.[i]||!gradsBeta?.[i]||!this.gammas?.[i]||!this.betas?.[i]){console.error(`Upd L${i} LN state invalid`);continue;} for(let j=0;j<cfg.outputSize;j++){ if(typeof gradsGamma[i][j]!=='number')continue; const gG=gradsGamma[i][j]; if(typeof this.gammas[i][j]!=='number')continue; const cG=this.gammas[i][j]; const mVG=this.m_dgamma?.[i]?.[j]; const vVG=this.v_dgamma?.[i]?.[j]; const sVG=this.s_dgamma?.[i]?.[j]; const resG=applyUpd(cG,gG,mVG,vVG,sVG,false); this.gammas[i][j]=resG.updatedParam; if(optimizer==='adam'){if(typeof resG.m!=='number'||typeof resG.v!=='number')continue; if(!this.m_dgamma?.[i]||!this.v_dgamma?.[i])continue; this.m_dgamma[i][j]=resG.m; this.v_dgamma[i][j]=resG.v;} if(optimizer==='rmsprop'){if(typeof resG.s!=='number')continue; if(!this.s_dgamma?.[i])continue; this.s_dgamma[i][j]=resG.s;} if(typeof gradsBeta[i][j]!=='number')continue; const gBeta=gradsBeta[i][j]; if(typeof this.betas[i][j]!=='number')continue; const cBeta=this.betas[i][j]; const mVBeta=this.m_dbeta?.[i]?.[j]; const vVBeta=this.v_dbeta?.[i]?.[j]; const sVBeta=this.s_dbeta?.[i]?.[j]; const resB=applyUpd(cBeta,gBeta,mVBeta,vVBeta,sVBeta,false); this.betas[i][j]=resB.updatedParam; if(optimizer==='adam'){if(typeof resB.m!=='number'||typeof resB.v!=='number')continue; if(!this.m_dbeta?.[i]||!this.v_dbeta?.[i])continue; this.m_dbeta[i][j]=resB.m; this.v_dbeta[i][j]=resB.v;} if(optimizer==='rmsprop'){if(typeof resB.s!=='number')continue; if(!this.s_dbeta?.[i])continue; this.s_dbeta[i][j]=resB.s;}}}
+            for(let i=0;i<this.layers.length;i++){
+              const cfg=this.layers[i];
+              const isDense=cfg.type==='dense';
+              const isLN=cfg.type==='layernorm';
+              const w = this.weights[i]; const b = this.biases[i];
+              const g = this.gammas[i]; const betaParam = this.betas[i]; // Renamed to avoid conflict
+              const gW = gradsW[i]; const gB = gradsB[i];
+              const gGamma = gradsGamma[i]; const gBeta = gradsBeta[i];
+              let curLR = learningRate; // Base LR for the step
+
+              // --- Weight Updates (Dense Layers) ---
+              if (isDense && Array.isArray(w) && Array.isArray(gW)) {
+                for (let j = 0; j < cfg.outputSize; j++) {
+                  for (let k = 0; k < cfg.inputSize; k++) {
+                    if (typeof w[j]?.[k] !== 'number' || typeof gW[j]?.[k] !== 'number') continue;
+                    const grad = gW[j][k] * batchMult;
+                    let param = w[j][k];
+                    let m = this.m_dw?.[i]?.[j]?.[k];
+                    let v = this.v_dw?.[i]?.[j]?.[k];
+                    let s = this.s_dw?.[i]?.[j]?.[k];
+                    let update = 0;
+
+                    // Gradient Clipping
+                    const clippedGrad = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, grad)) : grad;
+
+                    if (optimizer === 'adam' || optimizer === 'adamw') {
+                      m = (typeof m === 'number' && isFinite(m)) ? m : 0;
+                      v = (typeof v === 'number' && isFinite(v)) ? v : 0;
+                      m = this.beta1 * m + (1 - this.beta1) * clippedGrad;
+                      v = this.beta2 * v + (1 - this.beta2) * clippedGrad ** 2;
+                      const m_hat = m / (1 - this.beta1 ** this.t);
+                      const v_hat = v / (1 - this.beta2 ** this.t);
+                      // Use bias-corrected LR for Adam/AdamW step size consistency
+                      curLR = learningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
+                      update = curLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
+                      if (optimizer === 'adam' && l2Lambda > 0) { // Original Adam L2
+                        update += curLR * l2Lambda * param;
+                      }
+                      // Store updated momentum
+                      if (this.m_dw?.[i]?.[j]) this.m_dw[i][j][k] = m;
+                      if (this.v_dw?.[i]?.[j]) this.v_dw[i][j][k] = v;
+                    } else if (optimizer === 'rmsprop') {
+                      s = (typeof s === 'number' && isFinite(s)) ? s : 0;
+                      s = this.decayRate * s + (1 - this.decayRate) * clippedGrad ** 2;
+                      update = learningRate * clippedGrad / (Math.sqrt(s) + this.epsilon);
+                      if (l2Lambda > 0) { // RMSprop L2
+                          update += learningRate * l2Lambda * param;
+                      }
+                      // Store updated state
+                      if (this.s_dw?.[i]?.[j]) this.s_dw[i][j][k] = s;
+                    } else { // SGD
+                      update = learningRate * clippedGrad;
+                      if (l2Lambda > 0) { // SGD L2
+                        update += learningRate * l2Lambda * param;
+                      }
+                    }
+
+                    param -= update; // Apply main update
+
+                    // --- Decoupled Weight Decay (AdamW) ---
+                    if (optimizer === 'adamw' && l2Lambda > 0) {
+                      // Note: Using curLR (bias-corrected LR) here matches common libraries
+                      param -= curLR * l2Lambda * param;
+                      // Alternative often seen: param *= (1 - learningRate * l2Lambda); // Uses base LR
+                    }
+
+                    this.weights[i][j][k] = param; // Store updated parameter
+                  }
+                }
+              }
+
+              // --- Bias Updates (Dense Layers) ---
+              if (isDense && cfg.useBias && Array.isArray(b) && Array.isArray(gB)) {
+                for (let j = 0; j < cfg.outputSize; j++) {
+                    if (typeof b[j] !== 'number' || typeof gB[j] !== 'number') continue;
+                    const grad = gB[j] * batchMult;
+                    let param = b[j];
+                    let m = this.m_db?.[i]?.[j];
+                    let v = this.v_db?.[i]?.[j];
+                    let s = this.s_db?.[i]?.[j];
+                    let update = 0;
+
+                    const clippedGrad = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, grad)) : grad;
+
+                    if (optimizer === 'adam' || optimizer === 'adamw') {
+                      m = (typeof m === 'number' && isFinite(m)) ? m : 0;
+                      v = (typeof v === 'number' && isFinite(v)) ? v : 0;
+                      m = this.beta1 * m + (1 - this.beta1) * clippedGrad;
+                      v = this.beta2 * v + (1 - this.beta2) * clippedGrad ** 2;
+                      const m_hat = m / (1 - this.beta1 ** this.t);
+                      const v_hat = v / (1 - this.beta2 ** this.t);
+                      curLR = learningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
+                      update = curLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
+                      // No L2/Weight Decay for biases
+                      if (this.m_db?.[i]) this.m_db[i][j] = m;
+                      if (this.v_db?.[i]) this.v_db[i][j] = v;
+                    } else if (optimizer === 'rmsprop') {
+                      s = (typeof s === 'number' && isFinite(s)) ? s : 0;
+                      s = this.decayRate * s + (1 - this.decayRate) * clippedGrad ** 2;
+                      update = learningRate * clippedGrad / (Math.sqrt(s) + this.epsilon);
+                      // No L2/Weight Decay for biases
+                      if (this.s_db?.[i]) this.s_db[i][j] = s;
+                    } else { // SGD
+                      update = learningRate * clippedGrad;
+                      // No L2/Weight Decay for biases
+                    }
+                    param -= update;
+                    this.biases[i][j] = param;
+                }
+              }
+
+              // --- LayerNorm Parameter Updates (Gamma & Beta) ---
+              if (isLN && Array.isArray(g) && Array.isArray(betaParam) && Array.isArray(gGamma) && Array.isArray(gBeta)) {
+                for (let j = 0; j < cfg.outputSize; j++) {
+                  // Update Gamma
+                  if (typeof g[j] === 'number' && typeof gGamma[j] === 'number') {
+                    const gradGamma = gGamma[j] * batchMult;
+                    let paramGamma = g[j];
+                    let mGamma = this.m_dgamma?.[i]?.[j];
+                    let vGamma = this.v_dgamma?.[i]?.[j];
+                    let sGamma = this.s_dgamma?.[i]?.[j];
+                    let updateGamma = 0;
+
+                    const clippedGradGamma = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, gradGamma)) : gradGamma;
+
+                    if (optimizer === 'adam' || optimizer === 'adamw') {
+                      mGamma = (typeof mGamma === 'number' && isFinite(mGamma)) ? mGamma : 0;
+                      vGamma = (typeof vGamma === 'number' && isFinite(vGamma)) ? vGamma : 0;
+                      mGamma = this.beta1 * mGamma + (1 - this.beta1) * clippedGradGamma;
+                      vGamma = this.beta2 * vGamma + (1 - this.beta2) * clippedGradGamma ** 2;
+                      const m_hat = mGamma / (1 - this.beta1 ** this.t);
+                      const v_hat = vGamma / (1 - this.beta2 ** this.t);
+                      curLR = learningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
+                      updateGamma = curLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
+                      if (this.m_dgamma?.[i]) this.m_dgamma[i][j] = mGamma;
+                      if (this.v_dgamma?.[i]) this.v_dgamma[i][j] = vGamma;
+                    } else if (optimizer === 'rmsprop') {
+                       sGamma = (typeof sGamma === 'number' && isFinite(sGamma)) ? sGamma : 0;
+                       sGamma = this.decayRate * sGamma + (1 - this.decayRate) * clippedGradGamma ** 2;
+                       updateGamma = learningRate * clippedGradGamma / (Math.sqrt(sGamma) + this.epsilon);
+                       if (this.s_dgamma?.[i]) this.s_dgamma[i][j] = sGamma;
+                    } else { // SGD
+                       updateGamma = learningRate * clippedGradGamma;
+                    }
+                    paramGamma -= updateGamma;
+                    this.gammas[i][j] = paramGamma;
+                  }
+
+                  // Update Beta
+                  if (typeof betaParam[j] === 'number' && typeof gBeta[j] === 'number') {
+                    const gradBeta = gBeta[j] * batchMult;
+                    let paramBeta = betaParam[j];
+                    let mBeta = this.m_dbeta?.[i]?.[j];
+                    let vBeta = this.v_dbeta?.[i]?.[j];
+                    let sBeta = this.s_dbeta?.[i]?.[j];
+                    let updateBeta = 0;
+
+                    const clippedGradBeta = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, gradBeta)) : gradBeta;
+
+                    if (optimizer === 'adam' || optimizer === 'adamw') {
+                      mBeta = (typeof mBeta === 'number' && isFinite(mBeta)) ? mBeta : 0;
+                      vBeta = (typeof vBeta === 'number' && isFinite(vBeta)) ? vBeta : 0;
+                      mBeta = this.beta1 * mBeta + (1 - this.beta1) * clippedGradBeta;
+                      vBeta = this.beta2 * vBeta + (1 - this.beta2) * clippedGradBeta ** 2;
+                      const m_hat = mBeta / (1 - this.beta1 ** this.t);
+                      const v_hat = vBeta / (1 - this.beta2 ** this.t);
+                      curLR = learningRate * Math.sqrt(1 - this.beta2 ** this.t) / (1 - this.beta1 ** this.t);
+                      updateBeta = curLR * m_hat / (Math.sqrt(v_hat) + this.epsilon);
+                      if (this.m_dbeta?.[i]) this.m_dbeta[i][j] = mBeta;
+                      if (this.v_dbeta?.[i]) this.v_dbeta[i][j] = vBeta;
+                    } else if (optimizer === 'rmsprop') {
+                       sBeta = (typeof sBeta === 'number' && isFinite(sBeta)) ? sBeta : 0;
+                       sBeta = this.decayRate * sBeta + (1 - this.decayRate) * clippedGradBeta ** 2;
+                       updateBeta = learningRate * clippedGradBeta / (Math.sqrt(sBeta) + this.epsilon);
+                       if (this.s_dbeta?.[i]) this.s_dbeta[i][j] = sBeta;
+                    } else { // SGD
+                       updateBeta = learningRate * clippedGradBeta;
+                    }
+                    paramBeta -= updateBeta;
+                    this.betas[i][j] = paramBeta; // Note: uses the renamed variable betaParam
+                  }
+                }
+              }
+              // --- END LayerNorm Updates ---
+
             } // End param update layer loop
             totalEpochTrainError += batchLossSum;
           } // End batch loop
