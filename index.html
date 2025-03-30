@@ -414,7 +414,10 @@
         let { epochs = 100, learningRate = 0.01, batchSize = 16, printEveryEpochs = 10, earlyStopThreshold = 1e-7, testSet = null, callback = null, optimizer = 'adam', lossFunction = 'mse', l2Lambda = 0, decayRate = 0.9, usePositionalEncoding = this.usePositionalEncoding, gradientClipValue = 0 } = options;
         if (!trainSet || trainSet.length === 0) throw new Error("Training set empty."); if (this.layers.length === 0) throw new Error("No layers."); const effectiveBatchSize = Math.max(1, Math.min(batchSize, trainSet.length)); this.usePositionalEncoding = usePositionalEncoding; this.decayRate = decayRate;
         let needsOptimizerInit = this.m_dw?.length !== this.layers.length || this.v_dw?.length !== this.layers.length || this.s_dw?.length !== this.layers.length || this.m_db?.length !== this.layers.length || this.v_db?.length !== this.layers.length || this.s_db?.length !== this.layers.length; for (let i=0; i < this.layers.length && !needsOptimizerInit; i++) { if (this.layers[i].type === 'dense') { if (this.weights[i] && this.m_dw[i] === null) needsOptimizerInit = true; if (this.biases[i] && this.m_db[i] === null) needsOptimizerInit = true; } else if (this.layers[i].type === 'layernorm') { if (this.gammas[i] && this.m_dgamma[i] === null) needsOptimizerInit = true; if (this.betas[i] && this.m_dbeta[i] === null) needsOptimizerInit = true; } } if (needsOptimizerInit) { if (this.debug) console.log("Optimizer state needs init."); this.initializeOptimizerState(optimizer); }
-        let lastTrainLoss = Infinity; let lastTestLoss = null; const finalLayerAct = this.layers[this.layers.length - 1].activation; if (lossFunction==='crossentropy' && finalLayerAct!=='softmax' && finalLayerAct!=='sigmoid') console.warn(`Cross-entropy needs final softmax/sigmoid`); if (lossFunction==='mse' && (finalLayerAct==='softmax'||finalLayerAct==='sigmoid')) console.warn(`MSE with final softmax/sigmoid`);
+        let lastTrainLoss = Infinity; let lastTestLoss = null;
+        // const finalLayerAct = this.layers[this.layers.length - 1].activation; // Commented out
+        // if (lossFunction==='crossentropy' && finalLayerAct!=='softmax' && finalLayerAct!=='sigmoid') console.warn(`Cross-entropy needs final softmax/sigmoid`); // Commented out
+        // if (lossFunction==='mse' && (finalLayerAct==='softmax'||finalLayerAct==='sigmoid')) console.warn(`MSE with final softmax/sigmoid`); // Commented out
 
         for (let epoch = 0; epoch < epochs; epoch++) {
           let totalEpochTrainError = 0; for (let i = trainSet.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [trainSet[i], trainSet[j]] = [trainSet[j], trainSet[i]]; }
@@ -556,27 +559,63 @@
             // 2. Draw Connections
             networkCtx.lineWidth = 1;
             for (let i = 0; i < nVizLyrs - 1; i++) {
-                const curNodes = layerPos[i].filter(n => !n.isEllipsis); const nextNodes = layerPos[i + 1].filter(n => !n.isEllipsis);
-                const cfg = nn.layers[i]; if (!cfg) continue;
-                const isDenseW = cfg.type === 'dense' && Array.isArray(nn.weights?.[i]); const w = isDenseW ? nn.weights[i] : null;
+                const curNodes = layerPos[i].filter(n => !n.isEllipsis);
+                const nextNodes = layerPos[i + 1].filter(n => !n.isEllipsis);
+                const cfg = nn.layers[i];
+                if (!cfg) continue;
+
+                const isDenseW = cfg.type === 'dense' && Array.isArray(nn.weights?.[i]);
+                const w = isDenseW ? nn.weights[i] : null;
+
                 for (let j = 0; j < curNodes.length; j++) {
                     for (let k = 0; k < nextNodes.length; k++) {
                         let op = 0.1, col = '100,100,100', lw = 0.5;
+                        let lineDash = []; // Default: solid line
+
                         if (isDenseW && w?.[k]?.[j] !== undefined) {
+                            // --- Dense layer: Keep existing logic (weighted white/blue) ---
                             const weight = w[k][j];
-                            if (typeof weight === 'number' && typeof curNodes[j].value === 'number') { // Check types
+                            if (typeof weight === 'number' && typeof curNodes[j].value === 'number') {
                                 const wMag = Math.tanh(Math.abs(weight));
                                 const aMag = Math.tanh(Math.abs(curNodes[j].value));
                                 const combSig = (wMag * 0.8 + aMag * 0.2);
-                                op = Math.min(Math.max(cBOp + combSig * (cMOp - cBOp), cBOp), cMOp);
-                                col = weight >= 0 ? '255,255,255' : '180,180,255';
-                                lw = Math.min(Math.max(0.5, op * cWScale), 2);
+                                op = Math.min(Math.max(cBOp + combSig * (cMOp - cBOp), cBOp), cMOp); // op ~ 0.02 to 0.85
+                                col = weight >= 0 ? '255,255,255' : '180,180,255'; // White/Blue
+                                lw = Math.min(Math.max(0.5, op * cWScale), 2); // lw ~ 0.5 to 2
+                                lineDash = []; // Explicitly solid
                             }
-                        } else if (cfg.type !== 'dense') { // Faint lines for non-dense layer outputs
-                            op = 0.05; lw = 0.5; col = '100,100,100';
+                             // --- End dense logic ---
+                        } else if (cfg.type === 'attention') {
+                            // --- Attention: Bright Cyan ---
+                            op = 0.5; lw = 1.2; col = '0,200,200'; lineDash = []; // Solid line
+                        } else if (cfg.type === 'layernorm') {
+                            // --- LayerNorm: Yellow, dashed ---
+                            op = 0.4;
+                            lw = 0.8;
+                            col = '255,255,0'; // Yellow
+                            lineDash = [2, 2]; // Simple dash
+                        } else if (cfg.type === 'dropout') {
+                             // --- Dropout: Orange, dashed, relatively faint ---
+                            op = 0.2; // Still low opacity
+                            lw = 0.6; // Still thin
+                            col = '255,165,0'; // Orange
+                            lineDash = [3, 3]; // Dashed line
+                        } else if (cfg.type === 'softmax') {
+                             // --- Softmax: Magenta/Purple ---
+                             op = 0.4; lw = 1.0; col = '200,0,200'; lineDash = []; // Solid line
+                        } else {
+                             // Fallback
+                             op = 0.1; lw = 0.5; col = '100,100,100'; lineDash = []; // Solid line
                         }
-                        networkCtx.strokeStyle = `rgba(${col},${op})`; networkCtx.lineWidth = lw;
-                        networkCtx.beginPath(); networkCtx.moveTo(curNodes[j].x, curNodes[j].y); networkCtx.lineTo(nextNodes[k].x, nextNodes[k].y); networkCtx.stroke();
+
+                        networkCtx.strokeStyle = `rgba(${col},${op})`;
+                        networkCtx.lineWidth = lw;
+                        networkCtx.setLineDash(lineDash || []); // Use specified dash or default solid
+                        networkCtx.beginPath();
+                        networkCtx.moveTo(curNodes[j].x, curNodes[j].y);
+                        networkCtx.lineTo(nextNodes[k].x, nextNodes[k].y);
+                        networkCtx.stroke();
+                        networkCtx.setLineDash([]); // Reset to solid lines for next iteration
                     }
                 }
             }
