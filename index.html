@@ -844,7 +844,8 @@
                             // LayerNorm and Softmax have no specific config values in this simple setup
                         }
                     });
-                    statsEl.innerHTML = `Applied '${templateKey}' template. Ready.`;
+                    // {{ Edit 1: Apply blue color and bold to only the template name }}
+                    statsEl.innerHTML = `Applied <span style="color: #87CEEB; font-weight: bold;">${templateKey}</span> template. Ready.`;
                  } catch (error) {
                      console.error("Error applying template UI:", error);
                      statsEl.innerHTML = `<span class="error">Error applying template: ${error.message}</span>`;
