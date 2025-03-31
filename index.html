@@ -975,9 +975,12 @@
                console.log(logMsg);
           }
 
-          // {{ Edit: Pass metric name and value to callback }}
+          // {{ Edit: Pass forwardCache to callback }}
           if (callback) {
-              await callback(epoch + 1, lastTrainLoss, lastTestLoss, validationMetricName, lastValidationMetric);
+              // Pass the forwardCache from the *last* sample processed in the batch/epoch
+              // Note: This visualizes the state after processing one sample, which might jump around.
+              // Averaging activations over a batch would be smoother but more complex.
+              await callback(epoch + 1, lastTrainLoss, lastTestLoss, validationMetricName, lastValidationMetric, this.forwardCache); // Pass the cache
           }
 
           await new Promise(resolve => setTimeout(resolve, 0)); // Yield to browser
@@ -1275,7 +1278,10 @@
                     lrStepDecayFactor: parseFloat(document.getElementById('lrStepDecayFactor').value) || 0.1,
                     lrStepDecaySize: parseInt(document.getElementById('lrStepDecaySize').value) || 10,
                     lrExpDecayRate: parseFloat(document.getElementById('lrExpDecayRate').value) || 0.95,
-                    callback:async(ep,trL,tstL,metricName,metricVal)=>{
+                    callback:async(ep,trL,tstL,metricName,metricVal, lastForwardCache)=>{ // Add lastForwardCache parameter
+                        // {{ Log 1: Confirm callback execution }}
+                        //console.log(`UI Callback - Epoch ${ep} Received`);
+
                         lossHistory.push({train:trL,test:tstL});
                         drawLossGraph();
                         epochBar.style.width=`${(ep/opts.epochs)*100}%`;
@@ -1294,10 +1300,32 @@
                          statusText += lrString;
                          statsEl.innerHTML = statusText;
 
-                        await new Promise(requestAnimationFrame); // Yield for UI update
+                         // Update visualization based on the last sample's activations
+                         if (lastForwardCache && lastForwardCache.activations && lastForwardCache.activations.length > 0) {
+                             nn.lastActivations = lastForwardCache.activations; // Update the data source for drawNetwork
+
+                             // Throttle drawing - requestAnimationFrame ensures smooth rendering
+                             if (!window._drawNetworkScheduled) { // Use a simple flag to prevent queuing multiple frames
+                                 window._drawNetworkScheduled = true;
+                                 requestAnimationFrame(() => {
+                                     try { // Add try-catch around drawing in case of errors during intensive training
+                                         drawNetwork();
+                                     } catch (drawErr) {
+                                         console.warn("Error during dynamic drawNetwork:", drawErr);
+                                         // Optionally disable further dynamic drawing on error to prevent flooding logs
+                                         // window._disableDynamicDraw = true;
+                                     } finally {
+                                         window._drawNetworkScheduled = false; // Allow scheduling the next frame
+                                     }
+                                 });
+                             }
+                         }
                     }
                 };
                 statsEl.innerHTML=`Training (${opts.optimizer}, ${opts.lossFunction}` + (opts.lrSchedule !== 'none' ? `, ${opts.lrSchedule} LR` : '') + `)...`;
+                // Reset the scheduling flag before training starts
+                window._drawNetworkScheduled = false;
+                // window._disableDynamicDraw = false; // Reset disable flag if implemented
                 const summary=await nn.train(trainingData,opts);
                 const totalParams=nn.getTotalParameters();
                 statsEl.innerHTML=`<strong>Done!</strong> Loss:${summary.trainLoss.toFixed(6)}`+(summary.testLoss!==null?`, Val:${summary.testLoss.toFixed(6)}`:'')+` | Params:${totalParams.toLocaleString()}`;
