@@ -196,7 +196,37 @@
 <body>
   <h3>Oblix</h3>
   <p>a neural playground for anyone...</p>
-  <p>Load dummy data: <span id="loadDataBtn">click here</span></p>
+  <p>Load dummy data:
+
+  <!-- Data Generation Settings Panel -->
+  <div class="widget" style="margin-bottom: 20px;">
+    <div class="widget-title">Data Generation</div>
+    <div class="settings-grid">
+      <div class="input-group">
+        <label for="numTrainSamples" title="Number of training samples to generate">Training Samples:</label>
+        <input type="number" id="numTrainSamples" value="100" min="1" step="1">
+      </div>
+      <div class="input-group">
+        <label for="numTestSamples" title="Number of test/validation samples to generate">Test Samples:</label>
+        <input type="number" id="numTestSamples" value="25" min="1" step="1">
+      </div>
+      <div class="input-group">
+        <label for="numInputDims" title="Number of input features per sample">Input Dimensions:</label>
+        <input type="number" id="numInputDims" value="3" min="1" step="1">
+      </div>
+      <div class="input-group">
+        <label for="numOutputDims" title="Number of output values per sample">Output Dimensions:</label>
+        <input type="number" id="numOutputDims" value="1" min="1" step="1">
+      </div>
+      <div class="input-group">
+        <label for="noiseLevel" title="Amount of random noise to add (0-1)">Noise Level:</label>
+        <input type="number" id="noiseLevel" value="0.05" min="0" max="1" step="0.01">
+      </div>
+    </div>
+    <div class="button-group" style="margin-top: 10px;">
+      <button id="generateDataBtn">Generate Data</button>
+    </div>
+  </div>
 
   <div class="grid">
     <!-- Group 1: Data & Training Config -->
@@ -1061,7 +1091,35 @@
         // {{ End Template Definitions }}
 
         function generateRandomData(numSamples, numInputs, numOutputs = 1, noiseLevel = 0.05) { if (numInputs <= 0 || numOutputs <= 0) return ""; const data = []; for (let i = 0; i < numSamples; i++) { const input = []; for (let j = 0; j < numInputs; j++) input.push(Math.random()); const output = []; for (let j = 0; j < numOutputs; j++) { const base = Math.sin(input[0] * Math.PI * 2) * 0.4 + 0.5; const noise = (Math.random() - 0.5) * 2 * noiseLevel; let final = Math.max(0.01, Math.min(0.99, base + noise)); output.push(final); } data.push([...input, ...output].map(v => v.toFixed(3)).join(', ')); } return data.join('\n'); }
-        document.getElementById("loadDataBtn").onclick = () => { const numTrain=100, numTest=25, numIn=3, numOut=1; trainingDataTextarea.value = generateRandomData(numTrain, numIn, numOut); testDataTextarea.value = generateRandomData(numTest, numIn, numOut); statsEl.innerHTML = `Generated ${numTrain}/${numTest} random samples.`; try { const sample = parseCSV(trainingDataTextarea.value)[0]; if(sample && nn.layers && nn.layers.length > 0) nn.predict(sample.input); } catch (e) {} drawNetwork(); }
+        document.getElementById("generateDataBtn").addEventListener('click', () => { 
+            // Read values from inputs, with fallbacks to original defaults
+            const numTrain = parseInt(document.getElementById("numTrainSamples").value) || 100;
+            const numTest = parseInt(document.getElementById("numTestSamples").value) || 25;
+            const numIn = parseInt(document.getElementById("numInputDims").value) || 3;
+            const numOut = parseInt(document.getElementById("numOutputDims").value) || 1;
+            const noise = parseFloat(document.getElementById("noiseLevel").value) || 0.05;
+            
+            // Validate within reasonable ranges
+            const safeNumTrain = Math.max(1, Math.min(1000, numTrain));
+            const safeNumTest = Math.max(1, Math.min(500, numTest));
+            const safeNumIn = Math.max(1, Math.min(50, numIn));
+            const safeNumOut = Math.max(1, Math.min(20, numOut));
+            const safeNoise = Math.max(0, Math.min(1, noise));
+            
+            // Generate data with the configured parameters
+            trainingDataTextarea.value = generateRandomData(safeNumTrain, safeNumIn, safeNumOut, safeNoise);
+            testDataTextarea.value = generateRandomData(safeNumTest, safeNumIn, safeNumOut, safeNoise);
+            
+            // Update UI feedback
+            statsEl.innerHTML = `Generated ${safeNumTrain}/${safeNumTest} random samples with ${safeNumIn} inputs, ${safeNumOut} outputs, and ${safeNoise.toFixed(2)} noise.`;
+            
+            try {
+                const sample = parseCSV(trainingDataTextarea.value)[0];
+                if(sample && nn.layers && nn.layers.length > 0) nn.predict(sample.input);
+            } catch (e) {}
+            
+            drawNetwork();
+        });
         function parseCSV(csvString) { if (!csvString || typeof csvString !== 'string') return []; return csvString.trim().split('\n').map(r=>r.trim()).filter(r=>r.length>0).map((r,idx)=>{ const v=r.split(',').map(v=>parseFloat(v.trim())); if(v.some(isNaN)){console.warn(`R ${idx+1} NaN`);return null;} if(v.length<2){console.warn(`R ${idx+1} <2 vals`);return null;} const i=v.slice(0,-1), o=v.slice(-1); if(i.length===0){console.warn(`R ${idx+1} no input`);return null;} return {input:i,output:o}; }).filter(i=>i!==null); }
         function drawLossGraph() { if (!lossCtx || !lossCanvas) return; lossCtx.clearRect(0, 0, lossCanvas.width, lossCanvas.height); if (lossHistory.length < 2) return; const trainL=lossHistory.map(h=>h.train).filter(l=>l!==null&&isFinite(l)); const testL=lossHistory.map(h=>h.test).filter(l=>l!==null&&isFinite(l)); let maxL=0.1; if(trainL.length>0)maxL=Math.max(maxL,...trainL); if(testL.length>0)maxL=Math.max(maxL,...testL); maxL=Math.max(maxL,0.1); const W=lossCanvas.width,H=lossCanvas.height,nPts=lossHistory.length,pH=H*0.9,yOff=H*0.05; const plot=(ctx,pts,c)=>{ ctx.strokeStyle=c; ctx.lineWidth=1.5; ctx.beginPath(); let first=true; pts.forEach((p,i)=>{if(p!==null&&isFinite(p)){const x=(i/Math.max(1,nPts-1))*W; const y=H-(p/maxL)*pH-yOff; if(first){ctx.moveTo(x,y);first=false;}else{ctx.lineTo(x,y);}}else{first=true;}}); ctx.stroke(); }; const trainC=getComputedStyle(document.body).getPropertyValue('--text')?.trim()||'#fff'; plot(lossCtx,lossHistory.map(h=>h.train),trainC); plot(lossCtx,lossHistory.map(h=>h.test),'#87CEEB'); }
 
