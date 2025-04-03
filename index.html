@@ -326,7 +326,7 @@
               <option value="mlp">Simple MLP</option>
               <option value="autoencoder">Basic Autoencoder</option>
               <option value="transformerEncoder">Transformer Encoder</option>
-              <option value="residual-attention">Residual Attention</option>
+              <option value="residualAttention">Residual Attention</option>
               <!-- Add more templates here in the future -->
           </select>
       </div>
@@ -416,59 +416,425 @@
 
     // --- Namespace for Layer Operations ---
     const oblixLayerOps = {
+        // {{ Phase 2: Update attentionForward to use Float32Array (assuming input is Float32Array) }}
         attentionForward: function(context, input, numHeads = 2) {
-            const inputDim=input.length; if(inputDim===0) return []; if(numHeads<=0||!Number.isInteger(numHeads)||inputDim%numHeads!==0){ console.error(`Attn Error: Dim ${inputDim} not divisible by ${numHeads}`); return input; } const headSize=inputDim/numHeads; const output=new Array(inputDim).fill(0); const allAttentionWeights=[]; for(let h=0;h<numHeads;h++){ const start=h*headSize; const end=start+headSize; const q_head=input.slice(start,end); const k_head=q_head; const v_head=q_head; const scores=Array.from({length:headSize},(_,i)=>Array.from({length:headSize},(_,j)=>q_head[i]*k_head[j])); const scale=Math.sqrt(headSize)||1; const scaled=scores.map(r=>r.map(s=>s/scale)); const attn=scaled.map(r=>{ if(r.length===0) return []; const max=Math.max(...r,-Infinity); const exps=r.map(s=>Math.exp(s-max)); const sum=exps.reduce((a,b)=>a+b,1e-9); return exps.map(e=>e/sum); }); allAttentionWeights.push(attn); for(let i=0;i<headSize;i++){ output[start+i]=attn[i].reduce((sum,a,j)=>sum+a*v_head[j],0); } }
-            // {{ Edit: Use context.forwardCache }}
-            if(context.forwardCache) context.forwardCache.attentionIntermediates[context.forwardCache.activations.length-1] = { input, numHeads, headSize, attentionWeights: allAttentionWeights };
-            return output;
+            // Input validation
+            if (!(input instanceof Float32Array)) { console.warn("Phase 2 AttnFwd: Input not Float32Array.", input); input = new Float32Array(input); } // Coerce if needed, with warning
+            const inputDim = input.length;
+            if (inputDim === 0) return new Float32Array(0);
+            if (numHeads <= 0 || !Number.isInteger(numHeads) || inputDim % numHeads !== 0) { console.error(`Attn Error: Dim ${inputDim} not divisible by ${numHeads}`); return input; } // Return original (potentially coerced) input on error
+
+            const headSize = inputDim / numHeads;
+            // Create Float32Array for output
+            const output = new Float32Array(inputDim).fill(0);
+            const allAttentionWeights = []; // Keep standard array for potentially jagged weights structure
+
+             if (context.debug) console.log(`Phase 2 AttnFwd: Input type=${input.constructor.name}, len=${input.length}, heads=${numHeads}, headSize=${headSize}`);
+
+            for (let h = 0; h < numHeads; h++) {
+                const start = h * headSize;
+                const end = start + headSize;
+                // Slice Float32Array - creates a *copy*
+                const q_head = input.slice(start, end);
+                const k_head = q_head; // Self-attention
+                const v_head = q_head; // Self-attention
+
+                // Calculate scores (using standard arrays temporarily for simplicity, could optimize later)
+                const scores = Array.from({ length: headSize }, (_, i) =>
+                    Array.from({ length: headSize }, (_, j) => q_head[i] * k_head[j])
+                );
+
+                const scale = Math.sqrt(headSize) || 1;
+                const scaled = scores.map(r => r.map(s => s / scale));
+
+                // Calculate attention weights (softmax per row)
+                const attn = scaled.map(r => {
+                    if (r.length === 0) return [];
+                    const max = Math.max(...r, -Infinity);
+                    const exps = r.map(s => Math.exp(s - max));
+                    const sum = exps.reduce((a, b) => a + b, 1e-9); // Add epsilon for stability
+                    return exps.map(e => e / sum);
+                });
+                allAttentionWeights.push(attn); // Store weights for potential backward pass/analysis
+
+                // Apply attention weights to value heads
+                for (let i = 0; i < headSize; i++) {
+                    let weighted_sum = 0;
+                    for (let j = 0; j < headSize; j++) {
+                        weighted_sum += attn[i][j] * v_head[j];
+                    }
+                    output[start + i] = weighted_sum;
+                }
+            }
+
+            if (context.debug) console.log(`Phase 2 AttnFwd: Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`);
+
+            // Cache intermediates (input is Float32Array, weights standard array)
+            if (context.forwardCache) context.forwardCache.attentionIntermediates[context.forwardCache.activations.length - 1] = { input, numHeads, headSize, attentionWeights: allAttentionWeights };
+            return output; // Return Float32Array
         },
+        // {{ End Phase 2 Update }}
+
+        // {{ Phase 3: Update attentionBackward (Partial Float32Array Integration - Note: complex, needs validation) }}
         attentionBackward: function(context, dOutput, cache) {
-            if(!cache||!cache.input||!cache.attentionWeights){ const N=dOutput?.length||0; return {dInput:Array(N).fill(0)}; } // Changed attnWgts to attentionWeights to match forward pass cache
-            const {input,numHeads,headSize,attentionWeights}=cache; const inputDim=input.length; if(dOutput.length!==inputDim){ return {dInput:Array(inputDim).fill(0)}; } const dInput=Array(inputDim).fill(0); const scale=Math.sqrt(headSize)||1; for(let h=0;h<numHeads;h++){ const start=h*headSize; const end=start+headSize; const q_h=input.slice(start,end); const v_h=q_h; const k_h=q_h; const dO_h=dOutput.slice(start,end); const alpha_h=attentionWeights[h]; if(!alpha_h||alpha_h.length!==headSize||alpha_h[0]?.length!==headSize){ console.error(`Attn Bkwd Err: Head ${h} weights invalid.`); continue; } const dQ_h=Array(headSize).fill(0); const dK_h=Array(headSize).fill(0); const dV_h=Array(headSize).fill(0); const dScores_h=Array.from({length:headSize},()=>Array(headSize).fill(0)); const dAlpha_h=Array.from({length:headSize},()=>Array(headSize).fill(0)); for(let j=0;j<headSize;j++){ for(let i=0;i<headSize;i++){ if(typeof dO_h[i]!=='number'||typeof v_h[j]!=='number'||typeof alpha_h[i][j]!=='number') continue; dV_h[j]+=alpha_h[i][j]*dO_h[i]; dAlpha_h[i][j]=dO_h[i]*v_h[j]; } } for(let i=0;i<headSize;i++){ let row_sum=0; for(let k=0;k<headSize;k++){ if(typeof dAlpha_h[i][k]!=='number'||typeof alpha_h[i][k]!=='number') continue; row_sum+=dAlpha_h[i][k]*alpha_h[i][k]; } for(let j=0;j<headSize;j++){ if(typeof alpha_h[i][j]!=='number'||typeof dAlpha_h[i][j]!=='number') continue; const dS_ij=alpha_h[i][j]*(dAlpha_h[i][j]-row_sum); dScores_h[i][j]=dS_ij/scale; } } for(let i=0;i<headSize;i++){ for(let j=0;j<headSize;j++){ if(typeof dScores_h[i][j]!=='number'||typeof k_h[j]!=='number'||typeof q_h[i]!=='number') continue; dQ_h[i]+=dScores_h[i][j]*k_h[j]; dK_h[j]+=dScores_h[i][j]*q_h[i]; } } for(let i=0;i<headSize;i++){ dInput[start+i]=(dQ_h[i]||0)+(dK_h[i]||0)+(dV_h[i]||0); } } return {dInput};
+            // Input Validation
+            if (!(dOutput instanceof Float32Array)) { console.warn("Phase 3 AttnBkwd: dOutput not Float32Array.", dOutput); dOutput = new Float32Array(dOutput); }
+            if (!cache || !(cache.input instanceof Float32Array) || !Array.isArray(cache.attentionWeights)) { const N = dOutput?.length || 0; return { dInput: new Float32Array(N).fill(0) }; }
+
+            const { input, numHeads, headSize, attentionWeights } = cache;
+            const inputDim = input.length;
+            if (dOutput.length !== inputDim) { console.error(`Attn Bkwd Err: dOutput size ${dOutput.length} !== input size ${inputDim}`); return { dInput: new Float32Array(inputDim).fill(0) }; }
+
+            const dInput = new Float32Array(inputDim).fill(0); // Initialize output gradient array
+            const scale = Math.sqrt(headSize) || 1;
+
+            if (context.debug) console.log(`Phase 3 AttnBkwd: Input type=${input.constructor.name}, len=${inputDim}, dOutput type=${dOutput.constructor.name}, heads=${numHeads}, headSize=${headSize}`);
+
+
+            for (let h = 0; h < numHeads; h++) {
+                const start = h * headSize;
+                const end = start + headSize;
+
+                // Slice creates copies
+                const q_h = input.slice(start, end); // Float32Array
+                const v_h = q_h; // Float32Array (self-attention)
+                const k_h = q_h; // Float32Array (self-attention)
+                const dO_h = dOutput.slice(start, end); // Float32Array
+
+                const alpha_h = attentionWeights[h]; // Standard nested array
+                if (!alpha_h || alpha_h.length !== headSize || alpha_h[0]?.length !== headSize) { console.error(`Attn Bkwd Err: Head ${h} weights invalid.`); continue; }
+
+                // Intermediate gradients (using standard arrays for now due to complexity)
+                const dQ_h = Array(headSize).fill(0);
+                const dK_h = Array(headSize).fill(0);
+                const dV_h = Array(headSize).fill(0);
+                const dScores_h = Array.from({ length: headSize }, () => Array(headSize).fill(0));
+                const dAlpha_h = Array.from({ length: headSize }, () => Array(headSize).fill(0));
+
+                // Backprop through weighted sum (dAlpha, dV)
+                for (let j = 0; j < headSize; j++) { // Index for V
+                    for (let i = 0; i < headSize; i++) { // Index for dO
+                         // Ensure numeric types before calculation
+                        const dOut_i = dO_h[i]; // number from Float32Array
+                        const val_j = v_h[j]; // number from Float32Array
+                        const weight_ij = alpha_h[i]?.[j]; // number from standard array
+
+                        if (typeof dOut_i !== 'number' || !isFinite(dOut_i) ||
+                            typeof val_j !== 'number' || !isFinite(val_j) ||
+                            typeof weight_ij !== 'number' || !isFinite(weight_ij)) {
+                             // console.warn(`Attn Bkwd H${h}: Skipping non-finite value at i=${i}, j=${j}`); // Can be very noisy
+                             continue;
+                         }
+
+                        dV_h[j] += weight_ij * dOut_i;
+                        dAlpha_h[i][j] = dOut_i * val_j;
+                    }
+                }
+
+                // Backprop through Softmax (dScores)
+                for (let i = 0; i < headSize; i++) { // Row index
+                    let row_sum = 0;
+                    for (let k = 0; k < headSize; k++) { // Col index within the row for sum
+                        const dAlpha_ik = dAlpha_h[i]?.[k];
+                        const alpha_ik = alpha_h[i]?.[k];
+                         if (typeof dAlpha_ik === 'number' && typeof alpha_ik === 'number' && isFinite(dAlpha_ik) && isFinite(alpha_ik)) {
+                             row_sum += dAlpha_ik * alpha_ik;
+                         }
+                    }
+
+                    for (let j = 0; j < headSize; j++) { // Col index for specific score grad
+                        const alpha_ij = alpha_h[i]?.[j];
+                        const dAlpha_ij = dAlpha_h[i]?.[j];
+                         if (typeof alpha_ij === 'number' && typeof dAlpha_ij === 'number' && isFinite(alpha_ij) && isFinite(dAlpha_ij)) {
+                            const dS_ij = alpha_ij * (dAlpha_ij - row_sum);
+                            dScores_h[i][j] = dS_ij / scale; // Backprop through scaling
+                         }
+                    }
+                }
+
+                // Backprop through score calculation (dQ, dK)
+                for (let i = 0; i < headSize; i++) { // q index
+                    for (let j = 0; j < headSize; j++) { // k index
+                        const dS_ij = dScores_h[i]?.[j];
+                        const k_val_j = k_h[j]; // number from Float32Array
+                        const q_val_i = q_h[i]; // number from Float32Array
+
+                         if (typeof dS_ij === 'number' && isFinite(dS_ij) &&
+                             typeof k_val_j === 'number' && isFinite(k_val_j) &&
+                             typeof q_val_i === 'number' && isFinite(q_val_i)) {
+                            dQ_h[i] += dS_ij * k_val_j;
+                            dK_h[j] += dS_ij * q_val_i;
+                         }
+                    }
+                }
+
+                // Combine gradients for input (Q, K, V grads - they are the same input in self-attn)
+                for (let i = 0; i < headSize; i++) {
+                    // Ensure finite numbers before summing
+                    const dQi = typeof dQ_h[i] === 'number' && isFinite(dQ_h[i]) ? dQ_h[i] : 0;
+                    const dKi = typeof dK_h[i] === 'number' && isFinite(dK_h[i]) ? dK_h[i] : 0;
+                    const dVi = typeof dV_h[i] === 'number' && isFinite(dV_h[i]) ? dV_h[i] : 0;
+                    dInput[start + i] = dQi + dKi + dVi;
+                }
+            }
+            if (context.debug) console.log(`Phase 3 AttnBkwd: Output dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`);
+            return { dInput }; // Return object with Float32Array dInput
         },
+        // {{ End Phase 3 Update }}
+
+        // {{ Phase 2: Update layerNormForward to use Float32Array }}
         layerNormForward: function(context, input, gamma, beta) {
-            // {{ Edit: Use context.epsilon }}
+             // Input validation
+            if (!(input instanceof Float32Array)) { console.warn("Phase 2 LN_Fwd: Input not Float32Array.", input); input = new Float32Array(input); }
+            if (!(gamma instanceof Float32Array)) { console.warn("Phase 2 LN_Fwd: Gamma not Float32Array.", gamma); gamma = new Float32Array(gamma); }
+            if (!(beta instanceof Float32Array)) { console.warn("Phase 2 LN_Fwd: Beta not Float32Array.", beta); beta = new Float32Array(beta); }
+
             const epsilon = context.epsilon;
-            if(input.length===0) return {output:[],mean:0,variance:0,stddev:epsilon,normalizedInput:[]}; const mean=input.reduce((s,v)=>s+v,0)/input.length; const variance=input.reduce((s,v)=>s+Math.pow(v-mean,2),0)/input.length; const stddev=Math.sqrt(variance+epsilon); const normalized=input.map(v=>(v-mean)/stddev); if(gamma.length!==input.length||beta.length!==input.length) console.error(`LN size mismatch`); const output=normalized.map((v,i)=>(gamma[i]??1)*v+(beta[i]??0));
-            // {{ Edit: Use context.forwardCache }}
-            const cacheData={output,mean,variance,stddev,normalizedInput:normalized,input,gamma}; if(context.forwardCache) context.forwardCache.layerNormIntermediates[context.forwardCache.activations.length-1]=cacheData;
-            return cacheData; // Return the full cache data including output
+            const N = input.length;
+             if (N === 0) return { output: new Float32Array(0), mean: 0, variance: 0, stddev: epsilon, normalizedInput: new Float32Array(0) };
+
+            // Calculate mean
+            let mean = 0;
+            for(let i = 0; i < N; i++) mean += input[i];
+            mean /= N;
+
+            // Calculate variance
+            let variance = 0;
+            for(let i = 0; i < N; i++) variance += Math.pow(input[i] - mean, 2);
+            variance /= N;
+
+            const stddev = Math.sqrt(variance + epsilon);
+            const invStddev = 1 / stddev;
+
+            // Normalize and scale/shift - create Float32Arrays for output and normalized cache
+            const normalizedInput = new Float32Array(N);
+            const output = new Float32Array(N);
+
+             if (gamma.length !== N || beta.length !== N) console.error(`LN size mismatch: Input ${N}, Gamma ${gamma.length}, Beta ${beta.length}`);
+
+             if (context.debug) console.log(`Phase 2 LN_Fwd: Input type=${input.constructor.name}, len=${N}, Mean=${mean.toFixed(4)}, Var=${variance.toFixed(4)}, StdDev=${stddev.toFixed(4)}`);
+
+            for (let i = 0; i < N; i++) {
+                normalizedInput[i] = (input[i] - mean) * invStddev;
+                // Handle potential length mismatch gracefully by checking index validity
+                const g = gamma[i] ?? 1.0;
+                const b = beta[i] ?? 0.0;
+                output[i] = g * normalizedInput[i] + b;
+            }
+
+             if (context.debug) console.log(`Phase 2 LN_Fwd: Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`);
+
+
+            // Cache intermediates (all should be Float32Array or numbers)
+            const cacheData = { output, mean, variance, stddev, normalizedInput, input, gamma };
+            if (context.forwardCache) context.forwardCache.layerNormIntermediates[context.forwardCache.activations.length - 1] = cacheData;
+            return cacheData; // Return the full cache data including the Float32Array output
         },
+        // {{ End Phase 2 Update }}
+
+        // {{ Phase 3: Update layerNormBackward for Float32Array }}
         layerNormBackward: function(context, dOutput, cache) {
-             if(!cache||!cache.input||!cache.normalizedInput||!cache.gamma||!dOutput){ const N_in=cache?.input?.length||dOutput?.length||0; return {dInput:Array(N_in).fill(0),dGamma:Array(N_in).fill(0),dBeta:Array(N_in).fill(0)}; } // Changed normInput to normalizedInput
-             const {input,normalizedInput,mean,variance,stddev,gamma}=cache; const N=input.length; if(N===0) return {dInput:[],dGamma:[],dBeta:[]}; if(dOutput.length!==N||normalizedInput.length!==N||gamma.length!==N){ return {dInput:Array(N).fill(0),dGamma:Array(N).fill(0),dBeta:Array(N).fill(0)}; }
-             // {{ Edit: Use context.epsilon }}
-             const epsilon=context.epsilon;
-             const dGamma=normalizedInput.map((n,i)=>dOutput[i]*n); const dBeta=dOutput.slice(); const dNorm=dOutput.map((d,i)=>d*(gamma[i]??1)); const dVar=dNorm.reduce((s,dn,i)=>s+dn*(input[i]-mean)*(-0.5)*Math.pow(variance+epsilon,-1.5),0); const invStd=1/stddev; const dMean1=dNorm.reduce((s,dn)=>s-dn*invStd,0); const dMean2=dVar*input.reduce((s,x)=>s-2*(x-mean),0)/N; const dMean=dMean1+dMean2; const dInput=dNorm.map((dn,i)=>{ const t1=dn*invStd; const t2=dVar*2*(input[i]-mean)/N; const t3=dMean/N; return t1+t2+t3; }); return {dInput,dGamma,dBeta};
+            // Input Validation
+            if (!(dOutput instanceof Float32Array)) { console.warn("Phase 3 LNBkwd: dOutput not Float32Array.", dOutput); dOutput = new Float32Array(dOutput); }
+            if (!cache || !(cache.input instanceof Float32Array) || !(cache.normalizedInput instanceof Float32Array) || !(cache.gamma instanceof Float32Array)) { const N = dOutput?.length || cache?.input?.length || 0; return { dInput: new Float32Array(N).fill(0), dGamma: new Float32Array(N).fill(0), dBeta: new Float32Array(N).fill(0) }; }
+
+            const { input, normalizedInput, mean, variance, stddev, gamma } = cache;
+            const N = input.length;
+
+            if (N === 0) return { dInput: new Float32Array(0), dGamma: new Float32Array(0), dBeta: new Float32Array(0) };
+            if (dOutput.length !== N || normalizedInput.length !== N || gamma.length !== N) { console.error(`LN Bkwd Err: Size mismatch N=${N}, dOut=${dOutput.length}, normIn=${normalizedInput.length}, gamma=${gamma.length}`); return { dInput: new Float32Array(N).fill(0), dGamma: new Float32Array(N).fill(0), dBeta: new Float32Array(N).fill(0) }; }
+
+            const epsilon = context.epsilon;
+            const invStddev = 1 / stddev;
+
+            // Calculate gradients w.r.t. gamma, beta, and normalized output
+            const dGamma = new Float32Array(N);
+            const dBeta = new Float32Array(dOutput); // Direct copy
+            const dNorm = new Float32Array(N);
+
+            if (context.debug) console.log(`Phase 3 LNBkwd: Input type=${input.constructor.name}, len=${N}, dOutput type=${dOutput.constructor.name}`);
+
+
+            for(let i=0; i<N; i++) {
+                dGamma[i] = dOutput[i] * normalizedInput[i];
+                dNorm[i] = dOutput[i] * (gamma[i] ?? 1); // Handle potential gamma mismatch during loading? Default to 1.
+            }
+
+            // Calculate gradient w.r.t. variance
+            let dVariance = 0;
+            for(let i=0; i<N; i++) {
+                 // Check for non-finite numbers
+                 if (isFinite(dNorm[i]) && isFinite(input[i]) && isFinite(mean)) {
+                      dVariance += dNorm[i] * (input[i] - mean);
+                 }
+            }
+            dVariance *= (-0.5) * Math.pow(variance + epsilon, -1.5); // Apply the rest of the formula
+
+            // Calculate gradient w.r.t. mean
+            let dMean1 = 0;
+            for(let i=0; i<N; i++) {
+                 if (isFinite(dNorm[i])) { // Check non-finite
+                     dMean1 -= dNorm[i] * invStddev;
+                 }
+            }
+
+            let dMean2Term = 0;
+            for(let i=0; i<N; i++) {
+                 if (isFinite(input[i]) && isFinite(mean)) { // Check non-finite
+                     dMean2Term += -2 * (input[i] - mean);
+                 }
+            }
+            const dMean2 = dVariance * dMean2Term / N;
+            const dMean = dMean1 + dMean2;
+
+            // Calculate gradient w.r.t. input
+            const dInput = new Float32Array(N);
+            for(let i=0; i<N; i++) {
+                 const term1 = isFinite(dNorm[i]) ? dNorm[i] * invStddev : 0; // Check non-finite
+                 const term2 = (isFinite(dVariance) && isFinite(input[i]) && isFinite(mean)) ? dVariance * 2 * (input[i] - mean) / N : 0; // Check non-finite
+                 const term3 = isFinite(dMean) ? dMean / N : 0; // Check non-finite
+                dInput[i] = term1 + term2 + term3;
+            }
+
+            if (context.debug) console.log(`Phase 3 LNBkwd: Output dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`);
+
+
+            return { dInput, dGamma, dBeta }; // Return object with Float32Arrays
         },
+        // {{ End Phase 3 Update }}
+
+        // {{ Phase 2: Update dropoutForward to use Float32Array }}
         dropoutForward: function(context, input, rate) {
-            // {{ Edit: Use context properties }}
+            // Input validation
+            if (!(input instanceof Float32Array)) { console.warn("Phase 2 DropFwd: Input not Float32Array.", input); input = new Float32Array(input); }
+
             const idx = (context.forwardCache?.activations?.length || 1) - 1;
-            if(!context.isTraining||rate===0){ context.masks[idx]=null; return input; }
-            if(rate<0||rate>=1){ console.warn(`Dropout rate ${rate} invalid`); context.masks[idx]=null; return input; }
-            const scale=1/(1-rate); const mask=input.map(()=>(Math.random()>rate?scale:0)); context.masks[idx]=mask;
-            return input.map((v,i)=>v*mask[i]);
+            if (!context.isTraining || rate === 0) {
+                context.masks[idx] = null; // No mask needed if not training or rate is 0
+                 if (context.debug) console.log(`Phase 2 DropFwd: Not training or rate=0. Output type=${input.constructor.name}, len=${input.length}`);
+                return input; // Return input directly (it's already Float32Array or coerced)
+            }
+            if (rate < 0 || rate >= 1) {
+                console.warn(`Dropout rate ${rate} invalid`);
+                context.masks[idx] = null;
+                return input; // Return input directly
+            }
+
+            const N = input.length;
+            const scale = 1 / (1 - rate);
+            // Create mask as standard array or Float32Array (standard array might be fine)
+            const mask = new Float32Array(N); // Using Float32Array for mask too
+            const output = new Float32Array(N);
+
+             if (context.debug) console.log(`Phase 2 DropFwd: Input type=${input.constructor.name}, len=${N}, Rate=${rate}, Scale=${scale.toFixed(4)}`);
+
+            for(let i=0; i<N; i++) {
+                if (Math.random() > rate) {
+                    mask[i] = scale;
+                    output[i] = input[i] * scale;
+                } else {
+                    mask[i] = 0;
+                    output[i] = 0;
+                }
+            }
+            context.masks[idx] = mask; // Store Float32Array mask
+
+            if (context.debug) console.log(`Phase 2 DropFwd: Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`);
+
+            return output; // Return Float32Array
         },
+         // {{ End Phase 2 Update }}
+
+        // {{ Phase 3: Update dropoutBackward for Float32Array }}
         dropoutBackward: function(context, dOutput, layerIndex) {
-            // {{ Edit: Use context.masks }}
-            const mask=context.masks[layerIndex];
-            if(!mask){ return dOutput; }
-            if(!dOutput||dOutput.length!==mask.length){ return dOutput; }
-            return dOutput.map((g,i)=>g*mask[i]);
+            // Input validation
+            if (!(dOutput instanceof Float32Array)) { console.warn("Phase 3 DropBkwd: dOutput not Float32Array.", dOutput); dOutput = new Float32Array(dOutput); }
+
+            const mask = context.masks[layerIndex]; // Should be Float32Array or null
+
+            if (!mask) {
+                if (context.debug) console.log(`Phase 3 DropBkwd L${layerIndex}: No mask found (not training or rate=0). Passing through dOutput.`);
+                return dOutput; // Pass through gradient if no mask (inference or rate=0)
+            }
+
+            if (!(mask instanceof Float32Array)) { // Safety check
+                 console.error(`Phase 3 DropBkwd L${layerIndex}: Mask is not a Float32Array!`, mask);
+                 return dOutput; // Return original gradient on error
+            }
+
+            if (dOutput.length !== mask.length) {
+                console.error(`Phase 3 DropBkwd L${layerIndex}: dOutput size ${dOutput.length} !== mask size ${mask.length}`);
+                // Return dOutput only if sizes mismatch, as we can't meaningfully apply mask
+                return dOutput;
+            }
+
+            const dInput = new Float32Array(dOutput.length);
+            for(let i=0; i<dInput.length; i++) {
+                // Check for non-finite numbers before multiplying
+                 const grad = dOutput[i];
+                 const maskVal = mask[i];
+                 if (isFinite(grad) && isFinite(maskVal)) {
+                     dInput[i] = grad * maskVal;
+                 } else {
+                      dInput[i] = 0; // Assign 0 if non-finite value encountered
+                      // console.warn(`Phase 3 DropBkwd L${layerIndex}: Non-finite value encountered at index ${i}. Grad=${grad}, Mask=${maskVal}`); // Optional warning
+                 }
+            }
+
+            if (context.debug) console.log(`Phase 3 DropBkwd L${layerIndex}: Applied mask. dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`);
+
+            return dInput; // Return Float32Array gradient
         },
+        // {{ End Phase 3 Update }}
+
+        // {{ Phase 2: Update softmaxForward to use Float32Array }}
         softmaxForward: function(context, input) {
-            if(input.length===0) return []; const maxVal=Math.max(...input); const exps=input.map(x=>Math.exp(x-maxVal)); const sumExps=exps.reduce((a,b)=>a+b,1e-9); const output=exps.map(e=>e/sumExps);
-            // {{ Edit: Use context.forwardCache }}
-            if(context.forwardCache) context.forwardCache.softmaxOutputs[context.forwardCache.activations.length-1]=output;
-            return output;
+             // Input validation
+            if (!(input instanceof Float32Array)) { console.warn("Phase 2 SoftFwd: Input not Float32Array.", input); input = new Float32Array(input); }
+
+            const N = input.length;
+            if (N === 0) return new Float32Array(0);
+
+            // Find max value for numerical stability
+            let maxVal = -Infinity;
+            for(let i=0; i<N; i++) {
+                if(input[i] > maxVal) maxVal = input[i];
+            }
+
+            // Calculate exponentials and sum
+            const exps = new Float32Array(N);
+            let sumExps = 0;
+            for(let i=0; i<N; i++) {
+                const expVal = Math.exp(input[i] - maxVal);
+                exps[i] = expVal;
+                sumExps += expVal;
+            }
+
+            sumExps += 1e-9; // Add epsilon for stability if sum is zero
+
+            // Normalize to get probabilities
+            const output = new Float32Array(N);
+            for(let i=0; i<N; i++) {
+                output[i] = exps[i] / sumExps;
+            }
+
+             if (context.debug) console.log(`Phase 2 SoftFwd: Input type=${input.constructor.name}, len=${N}, Output type=${output.constructor.name}, first val=${output[0]?.toFixed(4)}`);
+
+            // Cache output
+            if (context.forwardCache) context.forwardCache.softmaxOutputs[context.forwardCache.activations.length - 1] = output;
+            return output; // Return Float32Array
         },
+        // {{ End Phase 2 Update }}
+
         softmaxBackward: function(context, dOutput, layerIndex) {
-            // Typically Softmax backward is combined with Cross-Entropy loss,
-            // so this direct backward pass might not be strictly needed if using CE loss.
-            // Returning dOutput is a simplification often used when Softmax isn't the *final* layer
-            // or when loss isn't CE. For CE, the gradient d(Loss)/d(SoftmaxInput) simplifies nicely.
-            console.warn("Softmax backward pass used directly.");
-            return dOutput;
+             // Input validation
+             if (!(dOutput instanceof Float32Array)) { console.warn("Phase 3 SoftBkwd: dOutput not Float32Array.", dOutput); dOutput = new Float32Array(dOutput); }
+             // NOTE: Correct Softmax backward involves Jacobian, but often simplified when used with CrossEntropyLoss.
+             // The dError passed is typically (output - target), which IS the gradient w.r.t. the pre-softmax activations (logits).
+             // So, just passing the gradient through is the common practice in that specific scenario.
+             if (context.debug) console.log(`Phase 3 SoftBkwd L${layerIndex}: Passing through gradient (assuming CE Loss). dInput type=${dOutput.constructor.name}, len=${dOutput.length}`);
+             // console.warn("Softmax backward pass used directly. Assumes CrossEntropy loss for correctness.");
+             return dOutput; // Return the input gradient (Float32Array)
         }
     };
     // --- End Layer Namespace ---
@@ -501,168 +867,255 @@
             if (context.debug) console.log(`Optimizer state init finished.`);
         },
 
+        // {{ Phase 3: Update updateParameters for Float32Array }}
         updateParameters: function(context, gradsW, gradsB, gradsGamma, gradsBeta, options) {
             const {
-                learningRate, // Current epoch learning rate
-                initialLearningRate, // Base LR before schedule adjustments
-                optimizer,
-                batchSize, // Use actual batch length
-                l2Lambda,
-                gradientClipValue,
-                decayRate // For RMSProp, passed from context
+                learningRate, initialLearningRate, optimizer, batchSize,
+                l2Lambda, gradientClipValue, decayRate // RMSprop ρ
         } = options;
 
-            const batchMult = 1.0 / batchSize;
+            const batchMult = batchSize > 0 ? 1.0 / batchSize : 1.0; // Avoid division by zero
             context.t++; // Increment global timestep
+
+            if (context.debug) console.log(`Phase 3 Optimizer Update: T=${context.t}, LR=${learningRate.toExponential(3)}, BatchSize=${batchSize}, Opt=${optimizer}, L2=${l2Lambda}`);
+
 
             for (let i = 0; i < context.layers.length; i++) {
                 const cfg = context.layers[i];
                 const isDense = cfg.type === 'dense';
                 const isLN = cfg.type === 'layernorm';
 
-                // Optimizer-specific LR calculations
-                let stepLR = learningRate; // LR for SGD/RMSprop step
-                // Adam uses a base corrected LR, scaled by the scheduler's effect
+                 // Optimizer-specific LR calculation (no change needed here)
+                 let stepLR = learningRate;
                 let adamCorrectedBaseLR = initialLearningRate * Math.sqrt(1 - context.beta2 ** context.t) / (1 - context.beta1 ** context.t);
-                let adamStepLR = adamCorrectedBaseLR * (learningRate / initialLearningRate); // Apply schedule scaling
+                 let adamStepLR = adamCorrectedBaseLR * (learningRate / initialLearningRate);
 
-              // --- Weight Updates (Dense Layers) ---
-                if (isDense && Array.isArray(context.weights[i]) && Array.isArray(gradsW[i])) {
-                    const w = context.weights[i]; const gW = gradsW[i];
-                for (let j = 0; j < cfg.outputSize; j++) {
-                  for (let k = 0; k < cfg.inputSize; k++) {
-                    if (typeof w[j]?.[k] !== 'number' || typeof gW[j]?.[k] !== 'number') continue;
-                    const grad = gW[j][k] * batchMult;
-                    let param = w[j][k];
-                            let m = context.m_dw?.[i]?.[j]?.[k];
-                            let v = context.v_dw?.[i]?.[j]?.[k];
-                            let s = context.s_dw?.[i]?.[j]?.[k];
-                    let update = 0;
+                 const applyUpdate = (param, grad, mState, vState, sState, paramIdx, layerIdx, paramType) => {
+                     if (typeof param !== 'number' || typeof grad !== 'number' || !isFinite(param) || !isFinite(grad)) {
+                         // console.warn(`Opt L${layerIdx}-${paramType}[${paramIdx}]: Skipping update due to non-finite param/grad (P:${param}, G:${grad})`);
+                          return param; // Return unchanged parameter
+                     }
 
-                    const clippedGrad = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, grad)) : grad;
+                     const effectiveGrad = grad * batchMult;
+                     const clippedGrad = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, effectiveGrad)) : effectiveGrad;
+                     if (!isFinite(clippedGrad)) {
+                         // console.warn(`Opt L${layerIdx}-${paramType}[${paramIdx}]: Skipping update due to non-finite clipped grad (${clippedGrad}) from effGrad (${effectiveGrad})`);
+                         return param; // Return unchanged parameter if clipping results in non-finite value
+                     }
+
+
+                     let update = 0;
+                     let m = (typeof mState === 'number' && isFinite(mState)) ? mState : 0;
+                     let v = (typeof vState === 'number' && isFinite(vState)) ? vState : 0;
+                     let s = (typeof sState === 'number' && isFinite(sState)) ? sState : 0;
 
                     if (optimizer === 'adam' || optimizer === 'adamw') {
-                                m = (typeof m === 'number' && isFinite(m)) ? m : 0; v = (typeof v === 'number' && isFinite(v)) ? v : 0;
                                 m = context.beta1 * m + (1 - context.beta1) * clippedGrad;
                                 v = context.beta2 * v + (1 - context.beta2) * clippedGrad ** 2;
                                 const m_hat = m / (1 - context.beta1 ** context.t);
                                 const v_hat = v / (1 - context.beta2 ** context.t);
-                                update = adamStepLR * m_hat / (Math.sqrt(v_hat) + context.epsilon);
+                         // Ensure v_hat doesn't lead to NaN/Infinity
+                         const sqrt_v_hat = Math.sqrt(v_hat);
+                         if (isFinite(m_hat) && isFinite(sqrt_v_hat) && (sqrt_v_hat + context.epsilon) !== 0) {
+                             update = adamStepLR * m_hat / (sqrt_v_hat + context.epsilon);
+                         } else {
+                             // console.warn(`Opt L${layerIdx}-${paramType}[${paramIdx}]: Adam update NaN/Inf. m_hat=${m_hat}, v_hat=${v_hat}, sqrt_v_hat=${sqrt_v_hat}`);
+                              update = 0; // Prevent NaN update
+                         }
+
                                 if (optimizer === 'adam' && l2Lambda > 0) { update += adamStepLR * l2Lambda * param; }
-                                if (context.m_dw?.[i]?.[j]) context.m_dw[i][j][k] = m; if (context.v_dw?.[i]?.[j]) context.v_dw[i][j][k] = v;
+                         // Store updated m, v back into their Float32Arrays (done outside this helper)
                     } else if (optimizer === 'rmsprop') {
-                      s = (typeof s === 'number' && isFinite(s)) ? s : 0;
-                                s = decayRate * s + (1 - decayRate) * clippedGrad ** 2; // Use context's decayRate
-                                update = stepLR * clippedGrad / (Math.sqrt(s) + context.epsilon);
+                         s = decayRate * s + (1 - decayRate) * clippedGrad ** 2;
+                         const sqrt_s = Math.sqrt(s);
+                          if (isFinite(clippedGrad) && isFinite(sqrt_s) && (sqrt_s + context.epsilon) !== 0) {
+                             update = stepLR * clippedGrad / (sqrt_s + context.epsilon);
+                         } else {
+                             // console.warn(`Opt L${layerIdx}-${paramType}[${paramIdx}]: RMSprop update NaN/Inf. grad=${clippedGrad}, s=${s}, sqrt_s=${sqrt_s}`);
+                              update = 0;
+                         }
                                 if (l2Lambda > 0) { update += stepLR * l2Lambda * param; }
-                                if (context.s_dw?.[i]?.[j]) context.s_dw[i][j][k] = s;
+                          // Store updated s back (done outside this helper)
                     } else { // SGD
                       update = stepLR * clippedGrad;
                                 if (l2Lambda > 0) { update += stepLR * l2Lambda * param; }
                             }
-                            param -= update;
-                            if (optimizer === 'adamw' && l2Lambda > 0) { param -= adamStepLR * l2Lambda * param; } // Decoupled decay
-                            context.weights[i][j][k] = param; // Update weight in context
-                        }
-                }
+
+                     if (!isFinite(update)) {
+                          // console.warn(`Opt L${layerIdx}-${paramType}[${paramIdx}]: Update value non-finite (${update}). Skipping param change.`);
+                          return { param, m, v, s }; // Return original param and potentially updated states
+                     }
+
+                     param -= update; // Apply main update
+
+                     // Apply AdamW decoupled weight decay after main update
+                     if (optimizer === 'adamw' && l2Lambda > 0 && paramType === 'W') { // Only apply decay to Weights
+                         param -= adamStepLR * l2Lambda * param;
+                     }
+
+                     if (!isFinite(param)) {
+                         // console.warn(`Opt L${layerIdx}-${paramType}[${paramIdx}]: Parameter became non-finite after update/decay (${param}). Resetting? (Currently keeping original value)`);
+                         // Decide on recovery strategy: maybe reset to 0? Or keep original value? For now, keep original.
+                         // return { param: originalParamValue, m, v, s }; // Need original value passed in
+                         // Let's return NaN for now to make it obvious
+                         return { param: NaN, m, v, s };
+                     }
+
+
+                     return { param, m, v, s }; // Return updated param and states
+                 };
+
+
+                // --- Weight Updates (Dense Layers) ---
+                if (isDense && context.weights[i] instanceof Float32Array && gradsW[i] instanceof Float32Array) {
+                    const w = context.weights[i]; const gW = gradsW[i]; // Float32Arrays
+                    const mW = context.m_dw[i]; const vW = context.v_dw[i]; const sW = context.s_dw[i]; // Float32Arrays or null
+
+                    for (let k = 0; k < w.length; k++) { // Iterate through flat array
+                        const mVal = mW ? mW[k] : null;
+                        const vVal = vW ? vW[k] : null;
+                        const sVal = sW ? sW[k] : null;
+
+                         const result = applyUpdate(w[k], gW[k], mVal, vVal, sVal, k, i, 'W');
+
+                         if (isNaN(result.param)) { // Handle NaN outcome
+                              console.warn(`Optimizer L${i}-W[${k}] resulted in NaN. Keeping original value ${w[k]}.`);
+                              // Optionally reset optimizer states for this param?
+                              // if (mW) mW[k] = 0; if (vW) vW[k] = 0; if (sW) sW[k] = 0;
+                         } else {
+                              w[k] = result.param;
+                              if (mW) mW[k] = result.m;
+                              if (vW) vW[k] = result.v;
+                              if (sW) sW[k] = result.s;
+                         }
+                    }
+                     if (context.debug && i === 0 && w.length > 0) console.log(`Phase 3 Opt L0 W: First few updated = ${w.slice(0, 3).map(v=>v.toFixed(4))}`);
               }
 
               // --- Bias Updates (Dense Layers) ---
-                if (isDense && cfg.useBias && Array.isArray(context.biases[i]) && Array.isArray(gradsB[i])) {
+                 if (isDense && cfg.useBias && context.biases[i] instanceof Float32Array && gradsB[i] instanceof Float32Array) {
                     const b = context.biases[i]; const gB = gradsB[i];
-                for (let j = 0; j < cfg.outputSize; j++) {
-                    if (typeof b[j] !== 'number' || typeof gB[j] !== 'number') continue;
-                    const grad = gB[j] * batchMult;
-                    let param = b[j];
-                        let m = context.m_db?.[i]?.[j]; let v = context.v_db?.[i]?.[j]; let s = context.s_db?.[i]?.[j];
-                    let update = 0;
-                    const clippedGrad = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, grad)) : grad;
+                     const mB = context.m_db[i]; const vB = context.v_db[i]; const sB = context.s_db[i];
 
-                    if (optimizer === 'adam' || optimizer === 'adamw') {
-                            m = (typeof m === 'number' && isFinite(m)) ? m : 0; v = (typeof v === 'number' && isFinite(v)) ? v : 0;
-                            m = context.beta1 * m + (1 - context.beta1) * clippedGrad; v = context.beta2 * v + (1 - context.beta2) * clippedGrad ** 2;
-                            const m_hat = m / (1 - context.beta1 ** context.t); const v_hat = v / (1 - context.beta2 ** context.t);
-                            update = adamStepLR * m_hat / (Math.sqrt(v_hat) + context.epsilon);
-                            if (context.m_db?.[i]) context.m_db[i][j] = m; if (context.v_db?.[i]) context.v_db[i][j] = v;
-                    } else if (optimizer === 'rmsprop') {
-                      s = (typeof s === 'number' && isFinite(s)) ? s : 0;
-                            s = decayRate * s + (1 - decayRate) * clippedGrad ** 2;
-                            update = stepLR * clippedGrad / (Math.sqrt(s) + context.epsilon);
-                            if (context.s_db?.[i]) context.s_db[i][j] = s;
-                    } else { // SGD
-                      update = stepLR * clippedGrad;
-                    }
-                    param -= update;
-                        context.biases[i][j] = param; // Update bias in context
-                }
-              }
+                     for (let k = 0; k < b.length; k++) {
+                         const mVal = mB ? mB[k] : null;
+                         const vVal = vB ? vB[k] : null;
+                         const sVal = sB ? sB[k] : null;
+
+                         const result = applyUpdate(b[k], gB[k], mVal, vVal, sVal, k, i, 'B');
+
+                         if (isNaN(result.param)) {
+                              console.warn(`Optimizer L${i}-B[${k}] resulted in NaN. Keeping original value ${b[k]}.`);
+                         } else {
+                              b[k] = result.param;
+                              if (mB) mB[k] = result.m;
+                              if (vB) vB[k] = result.v;
+                              if (sB) sB[k] = result.s;
+                         }
+                     }
+                     if (context.debug && i === 0 && b.length > 0) console.log(`Phase 3 Opt L0 B: First few updated = ${b.slice(0, 3).map(v=>v.toFixed(4))}`);
+                 }
+
 
               // --- LayerNorm Parameter Updates (Gamma & Beta) ---
-                if (isLN && Array.isArray(context.gammas[i]) && Array.isArray(context.betas[i]) && Array.isArray(gradsGamma[i]) && Array.isArray(gradsBeta[i])) {
-                    const g = context.gammas[i]; const betaParam = context.betas[i];
-                    const gGamma = gradsGamma[i]; const gBeta = gradsBeta[i];
-                for (let j = 0; j < cfg.outputSize; j++) {
-                  // Update Gamma
-                  if (typeof g[j] === 'number' && typeof gGamma[j] === 'number') {
-                            const gradGamma = gGamma[j] * batchMult; let paramGamma = g[j];
-                            let mGamma = context.m_dgamma?.[i]?.[j]; let vGamma = context.v_dgamma?.[i]?.[j]; let sGamma = context.s_dgamma?.[i]?.[j];
-                    let updateGamma = 0;
-                    const clippedGradGamma = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, gradGamma)) : gradGamma;
+                 if (isLN && context.gammas[i] instanceof Float32Array && context.betas[i] instanceof Float32Array && gradsGamma[i] instanceof Float32Array && gradsBeta[i] instanceof Float32Array) {
+                     const gamma = context.gammas[i]; const gGamma = gradsGamma[i];
+                     const beta = context.betas[i]; const gBeta = gradsBeta[i];
+                     const mGamma = context.m_dgamma[i]; const vGamma = context.v_dgamma[i]; const sGamma = context.s_dgamma[i];
+                     const mBeta = context.m_dbeta[i]; const vBeta = context.v_dbeta[i]; const sBeta = context.s_dbeta[i];
 
-                    if (optimizer === 'adam' || optimizer === 'adamw') {
-                                mGamma = (typeof mGamma === 'number' && isFinite(mGamma)) ? mGamma : 0; vGamma = (typeof vGamma === 'number' && isFinite(vGamma)) ? vGamma : 0;
-                                mGamma = context.beta1 * mGamma + (1 - context.beta1) * clippedGradGamma; vGamma = context.beta2 * vGamma + (1 - context.beta2) * clippedGradGamma ** 2;
-                                const m_hat = mGamma / (1 - context.beta1 ** context.t); const v_hat = vGamma / (1 - context.beta2 ** context.t);
-                                updateGamma = adamStepLR * m_hat / (Math.sqrt(v_hat) + context.epsilon);
-                                if (context.m_dgamma?.[i]) context.m_dgamma[i][j] = mGamma; if (context.v_dgamma?.[i]) context.v_dgamma[i][j] = vGamma;
-                    } else if (optimizer === 'rmsprop') {
-                       sGamma = (typeof sGamma === 'number' && isFinite(sGamma)) ? sGamma : 0;
-                                sGamma = decayRate * sGamma + (1 - decayRate) * clippedGradGamma ** 2;
-                                updateGamma = stepLR * clippedGradGamma / (Math.sqrt(sGamma) + context.epsilon);
-                                if (context.s_dgamma?.[i]) context.s_dgamma[i][j] = sGamma;
-                    } else { // SGD
-                       updateGamma = stepLR * clippedGradGamma;
-                    }
-                    paramGamma -= updateGamma;
-                            context.gammas[i][j] = paramGamma; // Update gamma in context
+                     for (let k = 0; k < gamma.length; k++) {
+                  // Update Gamma
+                         const mGammaVal = mGamma ? mGamma[k] : null;
+                         const vGammaVal = vGamma ? vGamma[k] : null;
+                         const sGammaVal = sGamma ? sGamma[k] : null;
+                         const resultGamma = applyUpdate(gamma[k], gGamma[k], mGammaVal, vGammaVal, sGammaVal, k, i, 'Gamma');
+
+                         if (isNaN(resultGamma.param)) {
+                             console.warn(`Optimizer L${i}-Gamma[${k}] resulted in NaN. Keeping original value ${gamma[k]}.`);
+                         } else {
+                             gamma[k] = resultGamma.param;
+                             if (mGamma) mGamma[k] = resultGamma.m;
+                             if (vGamma) vGamma[k] = resultGamma.v;
+                             if (sGamma) sGamma[k] = resultGamma.s;
                   }
 
                   // Update Beta
-                  if (typeof betaParam[j] === 'number' && typeof gBeta[j] === 'number') {
-                            const gradBeta = gBeta[j] * batchMult; let paramBeta = betaParam[j];
-                            let mBeta = context.m_dbeta?.[i]?.[j]; let vBeta = context.v_dbeta?.[i]?.[j]; let sBeta = context.s_dbeta?.[i]?.[j];
-                    let updateBeta = 0;
-                    const clippedGradBeta = gradientClipValue > 0 ? Math.max(-gradientClipValue, Math.min(gradientClipValue, gradBeta)) : gradBeta;
+                         const mBetaVal = mBeta ? mBeta[k] : null;
+                         const vBetaVal = vBeta ? vBeta[k] : null;
+                         const sBetaVal = sBeta ? sBeta[k] : null;
+                          const resultBeta = applyUpdate(beta[k], gBeta[k], mBetaVal, vBetaVal, sBetaVal, k, i, 'Beta');
 
-                    if (optimizer === 'adam' || optimizer === 'adamw') {
-                                mBeta = (typeof mBeta === 'number' && isFinite(mBeta)) ? mBeta : 0; vBeta = (typeof vBeta === 'number' && isFinite(vBeta)) ? vBeta : 0;
-                                mBeta = context.beta1 * mBeta + (1 - context.beta1) * clippedGradBeta; vBeta = context.beta2 * vBeta + (1 - context.beta2) * clippedGradBeta ** 2;
-                                const m_hat = mBeta / (1 - context.beta1 ** context.t); const v_hat = vBeta / (1 - context.beta2 ** context.t);
-                                updateBeta = adamStepLR * m_hat / (Math.sqrt(v_hat) + context.epsilon);
-                                if (context.m_dbeta?.[i]) context.m_dbeta[i][j] = mBeta; if (context.v_dbeta?.[i]) context.v_dbeta[i][j] = vBeta;
-                    } else if (optimizer === 'rmsprop') {
-                       sBeta = (typeof sBeta === 'number' && isFinite(sBeta)) ? sBeta : 0;
-                                sBeta = decayRate * sBeta + (1 - decayRate) * clippedGradBeta ** 2;
-                                updateBeta = stepLR * clippedGradBeta / (Math.sqrt(sBeta) + context.epsilon);
-                                if (context.s_dbeta?.[i]) context.s_dbeta[i][j] = sBeta;
-                    } else { // SGD
-                       updateBeta = stepLR * clippedGradBeta;
-                    }
-                    paramBeta -= updateBeta;
-                            context.betas[i][j] = paramBeta; // Update beta in context
-                  }
-                }
-              }
-            } // End param update layer loop
-        }
+                         if (isNaN(resultBeta.param)) {
+                              console.warn(`Optimizer L${i}-Beta[${k}] resulted in NaN. Keeping original value ${beta[k]}.`);
+                         } else {
+                              beta[k] = resultBeta.param;
+                              if (mBeta) mBeta[k] = resultBeta.m;
+                              if (vBeta) vBeta[k] = resultBeta.v;
+                              if (sBeta) sBeta[k] = resultBeta.s;
+                         }
+                     }
+                       if (context.debug && i < 2 && gamma.length > 0) console.log(`Phase 3 Opt L${i} LN: First Gamma=${gamma[0]?.toFixed(4)}, Beta=${beta[0]?.toFixed(4)}`);
+
+                 }
+            } // End layer loop
+        },
+        // {{ End Phase 3 Update }}
     };
     // --- End Optimizer Namespace ---
 
     // --- Namespace for Utility Functions ---
     const oblixUtils = {
+        // {{ Phase 2: Update positionalEncoding to return Float32Array }}
         positionalEncoding: function(input, maxLen = -1) {
-            const dModel=input.length; if(dModel===0) return []; if(maxLen<0) maxLen=dModel; const pe=new Array(dModel).fill(0); for(let i=0;i<dModel;i++){ const divTermBase=Math.pow(10000,Math.floor(i/2)*2/dModel); if(divTermBase===0) continue; const angle=i/divTermBase; pe[i]=(i%2===0)?Math.sin(angle):Math.cos(angle); } return input.map((val,i)=>val+pe[i]);
+            // Input validation - assume input might be standard array or Float32Array
+            const dModel = input.length;
+            if (dModel === 0) return new Float32Array(0);
+
+            let inputArray;
+            if (input instanceof Float32Array) {
+                inputArray = input;
+            } else if (Array.isArray(input)) {
+                console.warn("Phase 2 PosEnc: Input was standard Array, converting to Float32Array.");
+                inputArray = new Float32Array(input);
+            } else {
+                 console.error("Phase 2 PosEnc: Invalid input type.", input);
+                 return new Float32Array(dModel); // Return zero array on error
+            }
+
+
+            if (maxLen < 0) maxLen = dModel; // Use input dimension if maxLen not specified
+            const pe = new Float32Array(dModel).fill(0); // Initialize PE array
+
+            for (let i = 0; i < dModel; i++) {
+                // Original formula used 'i' for position, let's assume input vector index IS position
+                const position = i; // Or adapt if a separate position sequence is needed
+                const divTermBase = Math.pow(10000, Math.floor(i / 2) * 2 / dModel);
+                if (divTermBase === 0) continue; // Avoid division by zero
+
+                const angle = position / divTermBase;
+                pe[i] = (i % 2 === 0) ? Math.sin(angle) : Math.cos(angle);
+            }
+
+            // Add positional encoding to input
+            const output = new Float32Array(dModel);
+            for(let i=0; i<dModel; i++) {
+                output[i] = inputArray[i] + pe[i];
+            }
+
+             if (input.constructor && output.constructor && typeof console !== 'undefined' && console.log) { // Check for console.log existence
+                  if (console.debug) { // Prefer console.debug if available
+                      console.debug(`Phase 2 PosEnc: Input type=${input.constructor.name}, Output type=${output.constructor.name}, len=${output.length}`);
+                  } else {
+                     // Fallback to console.log
+                     // console.log(`Phase 2 PosEnc: Input type=${input.constructor.name}, Output type=${output.constructor.name}, len=${output.length}`);
+                  }
+             }
+
+
+            return output; // Return Float32Array
         },
+        // {{ End Phase 2 Update }}
 
         /**
          * Calculates accuracy for classification tasks.
@@ -729,7 +1182,14 @@
                  return NaN; // R-squared is ill-defined for n < 2
              }
 
-            const targetMean = targets.reduce((sum, val) => sum + val, 0) / targets.length;
+             // {{ Logging: Check received arrays and calculated mean }}
+             if (typeof console !== 'undefined' && console.log) {
+                console.log(`R² Func Check: Received preds[0]=${predictions[0]} (typeof: ${typeof predictions[0]}), targets[0]=${targets[0]} (typeof: ${typeof targets[0]})`);
+                const targetMean = targets.reduce((sum, val) => sum + val, 0) / targets.length;
+                console.log(`R² Func Check: Calculated targetMean = ${targetMean}`);
+             }
+             // {{ End Logging }}
+
 
             let ssTot = 0; // Total sum of squares
             let ssRes = 0; // Residual sum of squares
@@ -737,20 +1197,37 @@
             for (let i = 0; i < targets.length; i++) {
                 const targetVal = targets[i];
                 const predVal = predictions[i];
-                if (typeof targetVal !== 'number' || typeof predVal !== 'number' || !isFinite(targetVal) || !isFinite(predVal)) {
-                     console.warn(`R-squared calc: Non-finite number at index ${i}`);
+
+                // {{ Logging: Check values right before the problematic check - KEEP for now }}
+                 if (typeof console !== 'undefined' && console.log) {
+                     // Previous detailed check breakdown logging can be removed if the fix works,
+                     // but let's keep it for one more run just in case.
+                     const isTargetNum = typeof targetVal === 'number';
+                     const isPredNum = typeof predVal === 'number';
+                     const isTargetFinite = isFinite(targetVal);
+                     const isPredFinite = isFinite(predVal);
+                     if (i === 0) { // Only log details for the first element
+                         console.log(`R² Func Loop i=${i}: Checks -> targetNum=${isTargetNum}, predNum=${isPredNum}, targetFinite=${isTargetFinite}, predFinite=${isPredFinite}`);
+                     }
+                 }
+                 // {{ End Logging }}
+
+                // {{ Edit: Simplify the check to rely only on isFinite }}
+                if (!isFinite(targetVal) || !isFinite(predVal)) {
+                     console.warn(`R-squared calc: Non-finite number at index ${i} (Pred: ${predVal}, Target: ${targetVal})`);
                      return NaN; // Invalid data point
                 }
+                // {{ End Edit }}
+
+                // These lines should now only execute if both values are finite numbers
+                const targetMean = targets.reduce((sum, val) => sum + val, 0) / targets.length; // Recalculate mean here just to ensure it's defined in this scope if needed later (though it's calculated above) - consider refactoring mean calculation location
                 ssTot += (targetVal - targetMean) ** 2;
                 ssRes += (targetVal - predVal) ** 2;
             }
 
             if (ssTot === 0) {
-                // If all targets are the same, R-squared is undefined or sometimes treated as 1 if predictions are also perfect, 0 otherwise.
-                // Returning NaN or 0 depends on convention. Let's return NaN for undefined case.
-                return (ssRes === 0) ? 1.0 : NaN; // Perfect prediction if ssRes is also 0, otherwise undefined
+                return (ssRes === 0) ? 1.0 : NaN;
             }
-
             return 1 - (ssRes / ssTot);
         }
 
@@ -761,25 +1238,45 @@
 
     class oblix {
       constructor(debug = true) {
-        this.layers = []; this.weights = []; this.biases = []; this.gammas = []; this.betas = []; this.masks = [];
+        this.layers = [];
+        // {{ Edit 1: Initialize with empty arrays for Float32Array storage }}
+        this.weights = []; // Will store Float32Array[] | null[]
+        this.biases = []; // Will store Float32Array[] | null[]
+        this.gammas = []; // Will store Float32Array[] | null[]
+        this.betas = []; // Will store Float32Array[] | null[]
+        this.masks = []; // Stores dropout masks (can remain standard arrays or null)
+        // {{ End Edit 1 }}
+
         this.details = {}; this.debug = debug; this.usePositionalEncoding = false; this.isTraining = false;
         this.beta1 = 0.9; this.beta2 = 0.999; this.epsilon = 1e-8; this.t = 0;
+
+        // {{ Edit 2: Initialize optimizer states as empty arrays }}
+        // These will hold Float32Array[] | null[]
         this.m_dw = []; this.v_dw = []; this.m_db = []; this.v_db = [];
         this.m_dgamma = []; this.v_dgamma = []; this.m_dbeta = []; this.v_dbeta = [];
-        this.decayRate = 0.9;
         this.s_dw = []; this.s_db = []; this.s_dgamma = []; this.s_dbeta = [];
+        // {{ End Edit 2 }}
+
+        this.decayRate = 0.9;
         this.lastActivations = null; this.forwardCache = null;
+
+        if (this.debug) console.log("oblix instance created. Phase 1 Refactor: Initializing for Float32Array storage.");
       }
 
       reset() {
         if (this.debug) console.log("Resetting oblix instance...");
-        this.layers = []; this.weights = []; this.biases = []; this.gammas = []; this.betas = []; this.masks = [];
+        this.layers = [];
+        // {{ Edit 3: Reset all parameter/state arrays }}
+        this.weights = []; this.biases = []; this.gammas = []; this.betas = []; this.masks = [];
         this.details = {};
         this.isTraining = false;
         this.t = 0;
-        this.m_dw = []; this.v_dw = []; this.m_db = []; this.v_db = []; this.m_dgamma = []; this.v_dgamma = []; this.m_dbeta = []; this.v_dbeta = [];
+        this.m_dw = []; this.v_dw = []; this.m_db = []; this.v_db = [];
+        this.m_dgamma = []; this.v_dgamma = []; this.m_dbeta = []; this.v_dbeta = [];
         this.s_dw = []; this.s_db = []; this.s_dgamma = []; this.s_dbeta = [];
+        // {{ End Edit 3 }}
         this.lastActivations = null; this.forwardCache = null;
+        if (this.debug) console.log("Phase 1 Refactor: Oblix reset complete.");
       }
 
       layer(config) {
@@ -790,20 +1287,134 @@
         switch (type) { case 'dense': if (typeof outputSize !== 'number' || outputSize <= 0) throw new Error(`Dense Layer ${this.layers.length}: Invalid outputSize: ${outputSize}.`); break; case 'layernorm': case 'attention': case 'dropout': case 'softmax': actualOutputSize = inputSize; if (outputSize !== undefined && outputSize !== inputSize) console.warn(`${type} layer ${this.layers.length}: Output size ignored.`); break; default: throw new Error(`Unknown layer type: ${type}`); }
         if (type === 'attention' && inputSize % numHeads !== 0) throw new Error(`Attention layer ${this.layers.length}: Input size ${inputSize} not divisible by numHeads ${numHeads}.`);
         if (type === 'dropout' && (rate < 0 || rate >= 1)) throw new Error(`Dropout layer ${this.layers.length}: Rate ${rate} must be >= 0 and < 1.`);
-        const layerConfig = { type, inputSize, outputSize: actualOutputSize, activation, numHeads, useBias, rate }; this.layers.push(layerConfig);
+        const layerConfig = { type, inputSize, outputSize: actualOutputSize, activation, numHeads, useBias, rate };
+        const layerIndex = this.layers.length; // Get index before pushing config
+        this.layers.push(layerConfig);
+
+        // {{ Edit 4: Push null placeholders, then initialize Float32Arrays }}
         this.weights.push(null); this.biases.push(null); this.gammas.push(null); this.betas.push(null); this.masks.push(null);
         this.m_dw.push(null); this.v_dw.push(null); this.m_db.push(null); this.v_db.push(null); this.m_dgamma.push(null); this.v_dgamma.push(null); this.m_dbeta.push(null); this.v_dbeta.push(null); this.s_dw.push(null); this.s_db.push(null); this.s_dgamma.push(null); this.s_dbeta.push(null);
-        if (type === 'dense') { const limit = Math.sqrt(6 / (inputSize + actualOutputSize)); const weights = Array.from({ length: actualOutputSize }, () => Array.from({ length: inputSize }, () => (Math.random() * 2 - 1) * limit)); this.weights[this.layers.length - 1] = weights; if (useBias) this.biases[this.layers.length - 1] = Array(actualOutputSize).fill(0.01); }
-        else if (type === 'layernorm') { this.gammas[this.layers.length - 1] = Array(actualOutputSize).fill(1.0); this.betas[this.layers.length - 1] = Array(actualOutputSize).fill(0.0); }
+
+        if (type === 'dense') {
+            const limit = Math.sqrt(6 / (inputSize + actualOutputSize));
+            const weightCount = actualOutputSize * inputSize;
+            const weightsArray = new Float32Array(weightCount);
+            for (let i = 0; i < weightCount; i++) {
+                weightsArray[i] = (Math.random() * 2 - 1) * limit;
+            }
+            this.weights[layerIndex] = weightsArray; // Use layerIndex
+            if (this.debug) console.log(`Phase 1 Refactor: L${layerIndex} Dense Weights init: ${this.weights[layerIndex] instanceof Float32Array}, Length: ${this.weights[layerIndex]?.length}`);
+
+            if (useBias) {
+                 this.biases[layerIndex] = new Float32Array(actualOutputSize).fill(0.01); // Use layerIndex
+                 if (this.debug) console.log(`Phase 1 Refactor: L${layerIndex} Dense Biases init: ${this.biases[layerIndex] instanceof Float32Array}, Length: ${this.biases[layerIndex]?.length}`);
+            }
+        } else if (type === 'layernorm') {
+            this.gammas[layerIndex] = new Float32Array(actualOutputSize).fill(1.0); // Use layerIndex
+            this.betas[layerIndex] = new Float32Array(actualOutputSize).fill(0.0); // Use layerIndex
+            if (this.debug) console.log(`Phase 1 Refactor: L${layerIndex} LayerNorm Gamma init: ${this.gammas[layerIndex] instanceof Float32Array}, Length: ${this.gammas[layerIndex]?.length}`);
+            if (this.debug) console.log(`Phase 1 Refactor: L${layerIndex} LayerNorm Beta init: ${this.betas[layerIndex] instanceof Float32Array}, Length: ${this.betas[layerIndex]?.length}`);
+        }
+        // {{ End Edit 4 }}
       }
 
       // --- positionalEncoding REMOVED (Moved to namespace) ---
 
       initializeOptimizerState(optimizer) {
-        oblixOptimizers.initializeState(this, optimizer);
+          // {{ Edit 5: Initialize optimizer states with Float32Arrays }}
+          const numLayers = this.layers.length;
+          if (this.debug) console.log(`Phase 1 Refactor: Init optimizer state (${optimizer}) for ${numLayers} layers. Creating Float32Arrays.`);
+          this.t = 0;
+          // Ensure arrays have the correct length first, filled with null
+          const ensureLen = (arrName) => {
+              if (!this[arrName] || this[arrName].length !== numLayers) {
+                  this[arrName] = Array(numLayers).fill(null);
+              }
+          };
+          ['m_dw', 'v_dw', 'm_db', 'v_db', 'm_dgamma', 'v_dgamma', 'm_dbeta', 'v_dbeta', 's_dw', 's_db', 's_dgamma', 's_dbeta'].forEach(ensureLen);
+
+          for (let i = 0; i < numLayers; i++) {
+              const cfg = this.layers[i]; if (!cfg) continue;
+              const w = this.weights[i]; // Should be Float32Array or null
+              const b = this.biases[i]; // Should be Float32Array or null
+              const g = this.gammas[i]; // Should be Float32Array or null
+              const beta = this.betas[i]; // Should be Float32Array or null
+
+              const needsWState = cfg.type === 'dense' && w instanceof Float32Array;
+              const needsBState = cfg.type === 'dense' && cfg.useBias && b instanceof Float32Array;
+              const needsLNState = cfg.type === 'layernorm' && g instanceof Float32Array && beta instanceof Float32Array;
+
+              if (optimizer === 'adam' || optimizer === 'rmsprop' || optimizer === 'adamw') {
+                  try {
+                      if (needsWState) {
+                          const size = w.length;
+                          if (optimizer === 'adam' || optimizer === 'adamw') {
+                              if (!this.m_dw[i]) this.m_dw[i] = new Float32Array(size).fill(0);
+                              if (!this.v_dw[i]) this.v_dw[i] = new Float32Array(size).fill(0);
+                          }
+                          if (optimizer === 'rmsprop') {
+                              if (!this.s_dw[i]) this.s_dw[i] = new Float32Array(size).fill(0);
+                          }
+                          // Log creation confirmation
+                           if (this.debug) console.log(`Phase 1 Refactor: L${i} Dense W Opt State (${optimizer}) init: ${this.m_dw[i]?.length || this.s_dw[i]?.length} elements`);
+                      }
+                      if (needsBState) {
+                          const size = b.length;
+                           if (optimizer === 'adam' || optimizer === 'adamw') {
+                               if (!this.m_db[i]) this.m_db[i] = new Float32Array(size).fill(0);
+                               if (!this.v_db[i]) this.v_db[i] = new Float32Array(size).fill(0);
+                           }
+                           if (optimizer === 'rmsprop') {
+                               if (!this.s_db[i]) this.s_db[i] = new Float32Array(size).fill(0);
+                           }
+                           if (this.debug) console.log(`Phase 1 Refactor: L${i} Dense B Opt State (${optimizer}) init: ${this.m_db[i]?.length || this.s_db[i]?.length} elements`);
+                      }
+                      if (needsLNState) {
+                          const size = g.length;
+                           if (optimizer === 'adam' || optimizer === 'adamw') {
+                               if (!this.m_dgamma[i]) this.m_dgamma[i] = new Float32Array(size).fill(0);
+                               if (!this.v_dgamma[i]) this.v_dgamma[i] = new Float32Array(size).fill(0);
+                               if (!this.m_dbeta[i]) this.m_dbeta[i] = new Float32Array(size).fill(0);
+                               if (!this.v_dbeta[i]) this.v_dbeta[i] = new Float32Array(size).fill(0);
+                           }
+                           if (optimizer === 'rmsprop') {
+                               if (!this.s_dgamma[i]) this.s_dgamma[i] = new Float32Array(size).fill(0);
+                               if (!this.s_dbeta[i]) this.s_dbeta[i] = new Float32Array(size).fill(0);
+                           }
+                            if (this.debug) console.log(`Phase 1 Refactor: L${i} LN Opt State (${optimizer}) init: ${this.m_dgamma[i]?.length || this.s_dgamma[i]?.length} elements`);
+                      }
+                  } catch (e) {
+                      console.error(`Phase 1 Refactor: InitOpt State Err L${i} (${optimizer}): ${e.message}`);
+                      // Nullify potentially partially created states on error
+                      this.m_dw[i]=null; this.v_dw[i]=null; this.s_dw[i]=null; this.m_db[i]=null; this.v_db[i]=null; this.s_db[i]=null; this.m_dgamma[i]=null; this.v_dgamma[i]=null; this.s_dgamma[i]=null; this.m_dbeta[i]=null; this.v_dbeta[i]=null; this.s_dbeta[i]=null;
+                  }
+              }
+          }
+          if (this.debug) console.log(`Phase 1 Refactor: Optimizer state init finished.`);
+          // {{ End Edit 5 }}
       }
 
-      getTotalParameters() { let total=0; if(!this.layers||this.layers.length===0)return 0; this.layers.forEach((l,i)=>{if(l.type==='dense'){total+=this.weights[i]?this.weights[i].flat().length:0;total+=(l.useBias&&this.biases[i])?this.biases[i].length:0;}else if(l.type==='layernorm'){total+=this.gammas[i]?this.gammas[i].length:0;total+=this.betas[i]?this.betas[i].length:0;}}); return total; }
+      getTotalParameters() {
+          let total = 0;
+          if (!this.layers || this.layers.length === 0) return 0;
+          this.layers.forEach((l, i) => {
+              if (l.type === 'dense') {
+                  // {{ Edit 1: Use .length directly on Float32Array (or null) }}
+                  total += this.weights[i] ? this.weights[i].length : 0; // Float32Array is already flat
+                  total += (l.useBias && this.biases[i]) ? this.biases[i].length : 0; // Also Float32Array
+                  // {{ End Edit 1 }}
+              } else if (l.type === 'layernorm') {
+                  // {{ Edit 2: Use .length directly on Float32Array (or null) }}
+                  total += this.gammas[i] ? this.gammas[i].length : 0; // Float32Array
+                  total += this.betas[i] ? this.betas[i].length : 0;   // Float32Array
+                  // {{ End Edit 2 }}
+              }
+              // Other layer types (attention, dropout, softmax) don't add parameters in this structure
+          });
+          // Log the calculated total during debug
+          if (this.debug) console.log(`Phase 1 getTotalParameters: Calculated total: ${total}`);
+          return total;
+      }
 
       getCurrentLearningRate(epoch, initialLR, options) {
           const { lrSchedule, lrStepDecayFactor, lrStepDecaySize, lrExpDecayRate } = options;
@@ -851,19 +1462,247 @@
           let totalEpochTrainError = 0; for (let i = trainSet.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [trainSet[i], trainSet[j]] = [trainSet[j], trainSet[i]]; }
           for (let b = 0; b < trainSet.length; b += effectiveBatchSize) {
             const batch = trainSet.slice(b, b + effectiveBatchSize); if (batch.length === 0) continue;
-            const gradsW = this.weights.map(L => L ? L.map(r => r.map(() => 0)) : null); const gradsB = this.biases.map(L => L ? L.map(() => 0) : null); const gradsGamma = this.gammas.map(L => L ? L.map(() => 0) : null); const gradsBeta = this.betas.map(L => L ? L.map(() => 0) : null); let batchLossSum = 0;
+            // {{ Edit: Initialize gradient arrays as Float32Arrays matching parameter array shapes }}
+            const gradsW = this.weights.map(L => L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null);
+            const gradsB = this.biases.map(L => L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null);
+            const gradsGamma = this.gammas.map(L => L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null);
+            const gradsBeta = this.betas.map(L => L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null);
+            // {{ End Edit }}
+            let batchLossSum = 0;
             for (const data of batch) {
                 let currentInput = data.input; if (!Array.isArray(currentInput) || !Array.isArray(data.output)) { console.warn("Skip invalid data"); continue; }
                 // {{ Edit: Use namespaced utility }}
                 if (this.usePositionalEncoding) {
                     currentInput = oblixUtils.positionalEncoding(currentInput);
                 }
-                this.forwardCache = { activations: [currentInput], rawValues: [], layerNormIntermediates: [], attentionIntermediates: [], softmaxOutputs: [] }; let layerInput = currentInput;
-                for (let i = 0; i < this.layers.length; i++) { const cfg=this.layers[i]; let out; this.forwardCache.rawValues[i]=null; this.forwardCache.layerNormIntermediates[i]=null; this.forwardCache.attentionIntermediates[i]=null; this.forwardCache.softmaxOutputs[i]=null; try { if(layerInput.length!==cfg.inputSize) throw new Error(`L${i}(${cfg.type}): Sz mismatch ${layerInput.length}!=${cfg.inputSize}`); switch(cfg.type){ case 'dense': const w=this.weights[i], bias=this.biases[i]; const raw=Array(cfg.outputSize).fill(0); for(let j=0;j<cfg.outputSize;++j){ let sum=bias?bias[j]:0; for(let k=0;k<cfg.inputSize;++k){sum+=layerInput[k]*w[j][k];} raw[j]=sum;} this.forwardCache.rawValues[i]=raw; out=raw.map(s=>oblixActivations.apply(s,cfg.activation)); break; case 'layernorm': out=oblixLayerOps.layerNormForward(this, layerInput,this.gammas[i],this.betas[i]).output; break; case 'attention': out=oblixLayerOps.attentionForward(this, layerInput,cfg.numHeads); break; case 'dropout': out=oblixLayerOps.dropoutForward(this, layerInput,cfg.rate); break; case 'softmax': out=oblixLayerOps.softmaxForward(this, layerInput); break; default: throw new Error(`Fwd Pass: Unknown type ${cfg.type}`); } this.forwardCache.activations.push(out); layerInput=out; } catch(e){ console.error(`Fwd L${i}(${cfg.type}) Err:`,e); this.isTraining=false; throw e; }}
-                const finalOut=layerInput; const targetOut=data.output; if(finalOut.length!==targetOut.length) throw new Error(`Output/Target len mismatch`); let dLastErr; const eps_ce=1e-9;
-                if(lossFunction==='crossentropy'){ let loss=0; const lastLyr=this.layers[this.layers.length-1]; const wasSoftmax=lastLyr.type==='softmax'||(lastLyr.type==='dense'&&lastLyr.activation==='softmax'); const wasSigmoid=lastLyr.type==='dense'&&lastLyr.activation==='sigmoid'; if(wasSoftmax){ const oneHot=Array(finalOut.length).fill(0); if(targetOut.length===1&&Number.isInteger(targetOut[0])&&targetOut[0]>=0&&targetOut[0]<finalOut.length){oneHot[targetOut[0]]=1;loss=-Math.log(finalOut[targetOut[0]]+eps_ce);}else if(targetOut.length===finalOut.length){targetOut.forEach((v,idx)=>oneHot[idx]=v);loss=-targetOut.reduce((s,t,i)=>s+t*Math.log(finalOut[i]+eps_ce),0);}else{throw new Error("CE target unclear");} dLastErr=finalOut.map((p,i)=>p-oneHot[i]);}else if(wasSigmoid){if(finalOut.length!==1||targetOut.length!==1)throw new Error("BCE needs single out/target");const p=finalOut[0],t=targetOut[0];loss=-(t*Math.log(p+eps_ce)+(1-t)*Math.log(1-p+eps_ce));dLastErr=[p-t];}else{console.warn("CE w/o final softmax/sigmoid");dLastErr=finalOut.map((p,i)=>p-targetOut[i]);loss=-targetOut.reduce((s,t,i)=>s+t*Math.log(finalOut[i]+eps_ce),0);} if(!isNaN(loss))batchLossSum+=loss; }else{dLastErr=finalOut.map((o,i)=>o-targetOut[i]);let loss=0.5*dLastErr.reduce((s,e)=>s+e*e,0); if(!isNaN(loss))batchLossSum+=loss;}
-                let dAct = dLastErr;
-                for(let i=this.layers.length-1; i>=0; i--){ const cfg=this.layers[i]; const act_prev=this.forwardCache.activations[i]; let dIn; if(!Array.isArray(dAct)||dAct.length!==cfg.outputSize){console.warn(`Bkwd L${i}(${cfg.type}): Invalid dAct. Zeros.`);dIn=Array(cfg.inputSize).fill(0);dAct=dIn;continue;} try{ switch(cfg.type){ case 'dense': const w=this.weights[i], bias=this.biases[i], raw=this.forwardCache.rawValues[i], act=cfg.activation, inSz=cfg.inputSize, outSz=cfg.outputSize; if(!Array.isArray(raw))throw new Error(`L${i} Dense: Missing raw`); const delta=raw.map((r,j)=>{const dA=(typeof dAct[j]==='number'&&isFinite(dAct[j]))?dAct[j]:0; const deriv=oblixActivations.derivative(r,act); if(typeof deriv!=='number'||!isFinite(deriv)){console.warn(`L${i} Dense, j=${j}: Deriv NaN/Inf.`); return 0;} return dA*deriv;}); dIn=Array(inSz).fill(0); for(let k=0;k<inSz;k++){for(let j=0;j<outSz;j++){if(w?.[j]?.[k]!==undefined){dIn[k]+=(delta[j]||0)*w[j][k];}}} for(let j=0;j<outSz;j++){if(gradsW?.[i]?.[j]){for(let k=0;k<inSz;k++){if(typeof act_prev?.[k]==='number'){gradsW[i][j][k]+=(delta[j]||0)*act_prev[k];}}} if(bias&&gradsB?.[i]){gradsB[i][j]+=(delta[j]||0);}} break; case 'layernorm': const lnC=(this.forwardCache.layerNormIntermediates||[]).find(c=>c&&c.input.length===cfg.inputSize); if(!lnC)throw new Error(`L${i} LN: Missing cache`); const lnG=oblixLayerOps.layerNormBackward(this, dAct,lnC); dIn=lnG.dInput; if(gradsGamma?.[i]&&gradsBeta?.[i]){for(let j=0;j<lnG.dGamma.length;j++){gradsGamma[i][j]+=lnG.dGamma[j]||0;gradsBeta[i][j]+=lnG.dBeta[j]||0;}} break; case 'attention': const attC=(this.forwardCache.attentionIntermediates||[]).find(c=>c&&c.input.length===cfg.inputSize); if(!attC)throw new Error(`L${i} Attn: Missing cache`); const attG=oblixLayerOps.attentionBackward(this, dAct,attC); dIn=attG.dInput; break; case 'dropout': dIn=oblixLayerOps.dropoutBackward(this, dAct,i); break; case 'softmax': dIn=oblixLayerOps.softmaxBackward(this, dAct,i); break; default: throw new Error(`Bkwd Pass: Unknown type ${cfg.type}`); } dAct=dIn;}catch(e){console.error(`Bkwd L${i}(${cfg.type}) Err:`,e); this.isTraining=false; throw e;} } // End bkwd layer loop
+                // Initialize forward cache (assuming currentInput is Float32Array or gets converted)
+                const initialAct = currentInput instanceof Float32Array ? currentInput : new Float32Array(currentInput);
+                this.forwardCache = { activations: [initialAct], rawValues: [], layerNormIntermediates: [], attentionIntermediates: [], softmaxOutputs: [] };
+                let layerInput = this.forwardCache.activations[0]; // Start with the Float32Array
+
+                for (let i = 0; i < this.layers.length; i++) {
+                    const cfg=this.layers[i];
+                    let out; // Will store the output Float32Array
+                    // Initialize cache entries for this layer
+                    this.forwardCache.rawValues[i]=null; this.forwardCache.layerNormIntermediates[i]=null; this.forwardCache.attentionIntermediates[i]=null; this.forwardCache.softmaxOutputs[i]=null;
+
+                    try {
+                         // Input validation now uses layerInput which should be Float32Array
+                         if (!(layerInput instanceof Float32Array)) throw new Error(`L${i}(${cfg.type}): Internal error - input is not Float32Array.`);
+                         if(layerInput.length!==cfg.inputSize) throw new Error(`L${i}(${cfg.type}): Sz mismatch ${layerInput.length}!=${cfg.inputSize}`);
+
+                        switch(cfg.type){
+                            case 'dense':
+                                const w=this.weights[i]; // Float32Array
+                                const b=this.biases[i];  // Float32Array or null
+                                if (!(w instanceof Float32Array)) throw new Error(`L${i} Dense: Weights not Float32Array.`);
+                                if (b && !(b instanceof Float32Array)) throw new Error(`L${i} Dense: Bias not Float32Array.`);
+
+                                // {{ Edit 1: Correct dense forward pass with 1D indexing }}
+                                const rawSums = new Float32Array(cfg.outputSize); // Use Float32Array for raw sums too
+                                for(let j=0; j < cfg.outputSize; ++j){ // Output neuron index
+                                    let sum = b ? b[j] : 0;
+                                    const weightRowOffset = j * cfg.inputSize; // Calculate base index for this output neuron's weights
+                                    for(let k=0; k < cfg.inputSize; ++k){ // Input neuron index
+                                        // Use 1D indexing: weightRowOffset + k
+                                        sum += layerInput[k] * w[weightRowOffset + k];
+                                    }
+                                    rawSums[j] = sum;
+                                }
+                                this.forwardCache.rawValues[i] = rawSums; // Cache the Float32Array sums
+                                // Apply activation function element-wise
+                                out = new Float32Array(cfg.outputSize);
+                                for(let j=0; j<cfg.outputSize; ++j) {
+                                    out[j] = oblixActivations.apply(rawSums[j], cfg.activation);
+                                }
+                                // {{ End Edit 1 }}
+                                break;
+                            case 'layernorm':
+                                // Pass Float32Arrays directly
+                                out=oblixLayerOps.layerNormForward(this, layerInput,this.gammas[i],this.betas[i]).output;
+                                break;
+                            case 'attention':
+                                // Pass Float32Array directly
+                                out=oblixLayerOps.attentionForward(this, layerInput,cfg.numHeads);
+                                break;
+                            case 'dropout':
+                                 // Pass Float32Array directly
+                                out=oblixLayerOps.dropoutForward(this, layerInput,cfg.rate);
+                                break;
+                            case 'softmax':
+                                 // Pass Float32Array directly
+                                out=oblixLayerOps.softmaxForward(this, layerInput);
+                                break;
+                            default: throw new Error(`Fwd Pass: Unknown type ${cfg.type}`);
+                        }
+                         // Ensure output is Float32Array before caching and passing on
+                         if (!(out instanceof Float32Array)) throw new Error(`L${i}(${cfg.type}): Internal error - output is not Float32Array.`);
+                        this.forwardCache.activations.push(out); // Cache the output activation Float32Array
+                        layerInput=out; // Update layerInput for the next iteration
+                    } catch(e){ console.error(`Fwd L${i}(${cfg.type}) Err:`,e); this.isTraining=false; throw e; }
+                } // End forward layer loop
+
+                const finalOut=layerInput; // Should be Float32Array
+                const targetOut=data.output; // Still standard array
+                if(finalOut.length!==targetOut.length) throw new Error(`Output/Target len mismatch`);
+                let dLastErr; // Will become Float32Array
+                const eps_ce=1e-9;
+
+                if(lossFunction==='crossentropy'){
+                    let loss=0;
+                    const lastLyr=this.layers[this.layers.length-1];
+                    const wasSoftmax=lastLyr.type==='softmax'||(lastLyr.type==='dense'&&lastLyr.activation==='softmax');
+                    const wasSigmoid=lastLyr.type==='dense'&&lastLyr.activation==='sigmoid';
+
+                    if(wasSoftmax){
+                        const oneHotTarget = new Float32Array(finalOut.length).fill(0); // Use Float32Array
+                        if(targetOut.length===1 && Number.isInteger(targetOut[0]) && targetOut[0]>=0 && targetOut[0]<finalOut.length){
+                             oneHotTarget[targetOut[0]]=1; // Target is index
+                        } else if (targetOut.length === finalOut.length) {
+                            for(let i=0; i<targetOut.length; ++i) oneHotTarget[i] = targetOut[i]; // Target is vector
+                        } else {
+                            throw new Error("CE target unclear");
+                        }
+                        // Calculate loss (using potentially Float32Arrays)
+                        for(let i=0; i<finalOut.length; ++i) loss -= oneHotTarget[i] * Math.log(finalOut[i] + eps_ce);
+                        // Calculate initial gradient (output - target) as Float32Array
+                        dLastErr = new Float32Array(finalOut.length);
+                        for(let i=0; i<finalOut.length; ++i) dLastErr[i] = finalOut[i] - oneHotTarget[i];
+
+                    } else if(wasSigmoid){
+                        if(finalOut.length!==1||targetOut.length!==1)throw new Error("BCE needs single out/target");
+                        const p=finalOut[0], t=targetOut[0];
+                        loss=-(t*Math.log(p+eps_ce)+(1-t)*Math.log(1-p+eps_ce));
+                        dLastErr=new Float32Array([p-t]); // Gradient as Float32Array
+
+                    } else {
+                        console.warn("CE w/o final softmax/sigmoid, using simple diff");
+                        // Calculate initial gradient (output - target) as Float32Array
+                        dLastErr = new Float32Array(finalOut.length);
+                        for(let i=0; i<finalOut.length; ++i) dLastErr[i] = finalOut[i] - targetOut[i];
+                        // Loss calculation remains tricky without softmax/sigmoid assumption
+                        loss = 0.5 * dLastErr.reduce((s,e)=>s+e*e,0); // Using MSE as fallback loss metric
+                    }
+                    if(!isNaN(loss))batchLossSum+=loss;
+
+                } else { // MSE Loss
+                    // Calculate initial gradient (output - target) as Float32Array
+                    dLastErr=new Float32Array(finalOut.length);
+                    let loss = 0;
+                    for(let i=0; i<finalOut.length; ++i) {
+                        const diff = finalOut[i] - targetOut[i];
+                        dLastErr[i] = diff;
+                        loss += diff * diff;
+                    }
+                    loss *= 0.5;
+                    if(!isNaN(loss))batchLossSum+=loss;
+                }
+
+                // --- Start Backpropagation ---
+                let dAct = dLastErr; // This is now a Float32Array
+
+                for(let i=this.layers.length-1; i>=0; i--){
+                    const cfg=this.layers[i];
+                    const act_prev=this.forwardCache.activations[i]; // Previous layer's output (Float32Array)
+                    let dIn; // Gradient w.r.t input of this layer (will be Float32Array)
+
+                     // Validate dAct is Float32Array and correct size
+                     if(!(dAct instanceof Float32Array) || dAct.length!==cfg.outputSize){
+                         console.warn(`Bkwd L${i}(${cfg.type}): Invalid dAct. Type: ${dAct?.constructor?.name}, Len: ${dAct?.length}. Expected Len: ${cfg.outputSize}. Using zeros.`);
+                         // Initialize dIn correctly as Float32Array of zeros
+                         dIn = new Float32Array(cfg.inputSize).fill(0);
+                         dAct = new Float32Array(cfg.outputSize).fill(0); // Prevent error propagation
+                         continue; // Skip to next layer if gradient is corrupted
+                     }
+
+                    try{
+                        switch(cfg.type){
+                            case 'dense':
+                                const w=this.weights[i]; // Float32Array
+                                const b=this.biases[i];  // Float32Array or null
+                                const raw=this.forwardCache.rawValues[i]; // Float32Array or null
+                                const act=cfg.activation;
+                                const inSz=cfg.inputSize;
+                                const outSz=cfg.outputSize;
+
+                                if (!(raw instanceof Float32Array)) throw new Error(`L${i} Dense Bkwd: Missing or invalid raw values cache.`);
+                                if (!(w instanceof Float32Array)) throw new Error(`L${i} Dense Bkwd: Weights not Float32Array.`);
+                                if (!(act_prev instanceof Float32Array)) throw new Error(`L${i} Dense Bkwd: Previous activation not Float32Array.`);
+
+                                // {{ Edit 2: Correct dense backprop with 1D indexing and Float32Arrays }}
+                                const delta = new Float32Array(outSz); // Gradient * derivative
+                                for(let j=0; j<outSz; ++j) {
+                                    const deriv = oblixActivations.derivative(raw[j], act);
+                                    if(typeof deriv!=='number'||!isFinite(deriv)){
+                                        console.warn(`L${i} Dense, j=${j}: Deriv NaN/Inf. Activation: ${act}, Raw Input: ${raw[j]}, Derivative: ${deriv}`);
+                                        delta[j] = 0; // Set to zero if derivative is invalid
+                                    } else {
+                                        delta[j] = dAct[j] * deriv; // dError/dRaw = dError/dAct * dAct/dRaw
+                                    }
+                                }
+
+                                // Calculate gradient w.r.t previous layer's activation (dIn)
+                                dIn = new Float32Array(inSz).fill(0);
+                                for(let k=0; k<inSz; k++){ // Iterate input neurons of current layer (output of prev layer)
+                                    for(let j=0; j<outSz; j++){ // Iterate output neurons of current layer
+                                        const weightIndex = j * inSz + k; // Correct 1D index
+                                        dIn[k] += delta[j] * w[weightIndex]; // Sum contributions weighted by transpose
+                                    }
+                                }
+
+                                // Calculate gradients w.r.t. weights (gradsW) and biases (gradsB)
+                                const gW = gradsW[i]; // The accumulator Float32Array
+                                const gB = gradsB[i]; // The accumulator Float32Array or null
+                                if (gW) {
+                                    for(let j=0; j<outSz; j++){ // Iterate output neurons
+                                        const weightRowOffset = j * inSz;
+                                        for(let k=0; k<inSz; k++){ // Iterate input neurons
+                                            gW[weightRowOffset + k] += delta[j] * act_prev[k]; // dLoss/dW = delta * activation_prev
+                                        }
+                                    }
+                                }
+                                if (gB) {
+                                    for(let j=0; j<outSz; j++){
+                                        gB[j] += delta[j]; // dLoss/dBias = delta
+                                    }
+                                }
+                                // {{ End Edit 2 }}
+                                break;
+                            case 'layernorm':
+                                const lnCache = this.forwardCache.layerNormIntermediates[i];
+                                if(!lnCache) throw new Error(`L${i} LN Bkwd: Missing cache`);
+                                const { dInput: ln_dIn, dGamma, dBeta } = oblixLayerOps.layerNormBackward(this, dAct, lnCache);
+                                dIn = ln_dIn; // Float32Array
+                                const gGamma = gradsGamma[i]; // Accumulator
+                                const gBeta = gradsBeta[i]; // Accumulator
+                                if(gGamma && gBeta) {
+                                     for(let j=0; j<dGamma.length; j++){
+                                         gGamma[j] += dGamma[j] || 0;
+                                         gBeta[j] += dBeta[j] || 0;
+                                     }
+                                }
+                                break;
+                            case 'attention':
+                                const attnCache = this.forwardCache.attentionIntermediates[i];
+                                if(!attnCache) throw new Error(`L${i} Attn Bkwd: Missing cache`);
+                                const { dInput: attn_dIn } = oblixLayerOps.attentionBackward(this, dAct, attnCache);
+                                dIn = attn_dIn; // Float32Array
+                                // No trainable parameters in this attention implementation
+                                break;
+                            case 'dropout':
+                                dIn = oblixLayerOps.dropoutBackward(this, dAct, i); // Float32Array
+                                break;
+                            case 'softmax':
+                                dIn = oblixLayerOps.softmaxBackward(this, dAct, i); // Float32Array
+                                break;
+                            default: throw new Error(`Bkwd Pass: Unknown type ${cfg.type}`);
+                        }
+                         // Ensure dIn is Float32Array before assigning to dAct for next iteration
+                         if (!(dIn instanceof Float32Array)) throw new Error(`Bkwd L${i}(${cfg.type}): Internal error - dIn is not Float32Array.`);
+                        dAct=dIn; // Pass gradient back to the previous layer
+
+                    } catch(e){console.error(`Bkwd L${i}(${cfg.type}) Err:`,e); this.isTraining=false; throw e;}
+                } // End bkwd layer loop
             } // End batch sample loop
 
             // --- Parameter Update ---
@@ -951,6 +1790,15 @@
                   // Flatten predictions/targets if they are multi-dimensional (e.g., [[0.1], [0.9]])
                   const flatPreds = allValPredictions.flat();
                   const flatTargets = allValTargets.flat();
+
+                  // {{ Add Logging: Verify types AFTER flattening }}
+                  if (this.debug) {
+                      console.log(`R-Squared Type Check: flatPreds type = ${flatPreds?.constructor?.name}, flatTargets type = ${flatTargets?.constructor?.name}`);
+                      console.log(`R-Squared Input Check: flatPreds[0]=${flatPreds[0]}, flatTargets[0]=${flatTargets[0]}`);
+                      if (flatPreds.length > 1) console.log(`  flatPreds[1]=${flatPreds[1]}, flatTargets[1]=${flatTargets[1]}`);
+                  }
+                  // {{ End Add Logging }}
+
                   lastValidationMetric = oblixUtils.calculateRSquared(flatPreds, flatTargets);
               }
 
@@ -1018,14 +1866,321 @@
         return trainingSummary;
       }
 
-      predict(input) { const wasTraining = this.isTraining; this.isTraining = false; if (!this.layers || this.layers.length === 0) { console.error("Predict: Not initialized."); return null; } if (!Array.isArray(input)) { console.error("Predict: Invalid input."); return null; } let currentInput = [...input];
-        // {{ Edit: Use namespaced utility }}
+      predict(input) {
+          // {{ Phase 2: Refactor Predict for Native Float32Array Operation }}
+          if (this.debug) console.log("Phase 2 Predict: Starting prediction with native Float32Array logic.");
+
+          const wasTraining = this.isTraining; this.isTraining = false;
+          if (!this.layers || this.layers.length === 0) { console.error("Predict Error: Model not initialized."); return null; }
+          if (!input || typeof input.length !== 'number') { console.error("Predict Error: Invalid input provided.", input); return null; }
+
+          // Ensure input is Float32Array
+          let currentInput;
+           if (input instanceof Float32Array) {
+                currentInput = input;
+           } else if (Array.isArray(input)) {
+                 if (this.debug) console.log("Phase 2 Predict: Input is standard array, converting to Float32Array.");
+                 currentInput = new Float32Array(input);
+           } else {
+               console.error("Predict Error: Input is not an array or Float32Array.", input);
+               return null;
+           }
+
+           if (this.debug) console.log(`Phase 2 Predict: Initial Input type=${currentInput.constructor.name}, len=${currentInput.length}`);
+
+
+          // Apply positional encoding if enabled
         if (this.usePositionalEncoding) {
-            currentInput = oblixUtils.positionalEncoding(currentInput);
-        }
-        this.lastActivations = [currentInput]; try { for (let i = 0; i < this.layers.length; i++) { const cfg=this.layers[i]; const inputLayer=this.lastActivations[this.lastActivations.length - 1]; if (inputLayer.length !== cfg.inputSize) throw new Error(`L${i}(${cfg.type}): Sz mismatch ${inputLayer.length}!=${cfg.inputSize}`); let output; switch(cfg.type) { case 'dense': const w=this.weights[i], b=this.biases[i]; if (!w) throw new Error(`L${i} Dense: W not init.`); output = Array(cfg.outputSize).fill(0); for(let j=0; j<cfg.outputSize; ++j) { let sum = b ? b[j] : 0; for(let k=0; k<cfg.inputSize; ++k) { sum += inputLayer[k] * w[j][k]; } output[j] = oblixActivations.apply(sum, cfg.activation); } break; case 'layernorm': if (!this.gammas[i] || !this.betas[i]) throw new Error(`L${i} LN: G/B not init.`); const { output: lnOut } = oblixLayerOps.layerNormForward(this, inputLayer, this.gammas[i], this.betas[i]); output = lnOut; break; case 'attention': output = oblixLayerOps.attentionForward(this, inputLayer, cfg.numHeads); break; case 'dropout': output = oblixLayerOps.dropoutForward(this, inputLayer, cfg.rate); break; case 'softmax': output = oblixLayerOps.softmaxForward(this, inputLayer); break; default: throw new Error(`Predict: Unknown type ${cfg.type}`); } this.lastActivations.push(output); } this.isTraining = wasTraining; return this.lastActivations[this.lastActivations.length - 1]; } catch (error) { console.error("Prediction Error:", error); this.lastActivations = null; this.isTraining = wasTraining; return null; } }
-      save(name = 'model') { if (!this.layers || this.layers.length === 0) { console.warn("Save: Empty model."); } const numLayers = this.layers.length; const ensureLen = (arr, dv = null) => (!Array.isArray(arr) || arr.length !== numLayers) ? Array(numLayers).fill(dv) : arr; const data = { weights: this.weights, biases: this.biases, gammas: this.gammas, betas: this.betas, layers: this.layers, details: this.details, usePositionalEncoding: this.usePositionalEncoding, optimizerState: { t: this.t, m_dw: ensureLen(this.m_dw), v_dw: ensureLen(this.v_dw), m_db: ensureLen(this.m_db), v_db: ensureLen(this.v_db), m_dgamma: ensureLen(this.m_dgamma), v_dgamma: ensureLen(this.v_dgamma), m_dbeta: ensureLen(this.m_dbeta), v_dbeta: ensureLen(this.v_dbeta), s_dw: ensureLen(this.s_dw), s_db: ensureLen(this.s_db), s_dgamma: ensureLen(this.s_dgamma), s_dbeta: ensureLen(this.s_dbeta) } }; try { const jsonStr = JSON.stringify(data); const blob = new Blob([jsonStr], { type: 'application/json' }); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = `${name}.json`; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url); if (this.debug) console.log(`Model saved: ${name}.json`); } catch (e) { console.error("Save failed.", e); } }
-       load(callback) { const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.style.display = 'none'; const handleListener = (event) => { const file = event.target.files[0]; if (!file) { cleanup(); return; } const reader = new FileReader(); reader.onload = (e) => { const text = e.target.result; try { const data = JSON.parse(text); if (!data.layers || !Array.isArray(data.layers)) throw new Error("Invalid model: 'layers' missing."); this.layers = data.layers; this.details = data.details || {}; this.usePositionalEncoding = data.usePositionalEncoding || false; const numLayers = this.layers.length; const loadAndCheck = (name, src, len, dv = null) => { let p = src?.[name] || []; if (!Array.isArray(p)) p = []; if (p.length !== len) { const res = Array(len).fill(dv); for (let i = 0; i < Math.min(len, p.length); i++) res[i] = p[i]; return res; } if (name === 'weights') p = p.map(w => Array.isArray(w) ? w : null); if (['m_dw', 'v_dw', 's_dw'].includes(name)) p = p.map((s, i) => (this.weights[i] && !Array.isArray(s)) ? null : s); if (['m_db', 'v_db', 's_db', 'm_dgamma', 'v_dgamma', 's_dgamma', 'm_dbeta', 'v_dbeta', 's_dbeta'].includes(name)) p = p.map((s, i) => { const needs = (this.layers[i]?.type === 'dense' && this.layers[i]?.useBias && this.biases[i]) || (this.layers[i]?.type === 'layernorm' && this.gammas[i]); return (needs && !Array.isArray(s)) ? null : s; }); return p; }; this.weights = loadAndCheck('weights', data, numLayers); this.biases = loadAndCheck('biases', data, numLayers); this.gammas = loadAndCheck('gammas', data, numLayers); this.betas = loadAndCheck('betas', data, numLayers); this.masks = Array(numLayers).fill(null); const optState = data.optimizerState || {}; this.t = optState.t || 0; this.m_dw = loadAndCheck('m_dw', optState, numLayers); this.v_dw = loadAndCheck('v_dw', optState, numLayers); this.m_db = loadAndCheck('m_db', optState, numLayers); this.v_db = loadAndCheck('v_db', optState, numLayers); this.m_dgamma = loadAndCheck('m_dgamma', optState, numLayers); this.v_dgamma = loadAndCheck('v_dgamma', optState, numLayers); this.m_dbeta = loadAndCheck('m_dbeta', optState, numLayers); this.v_dbeta = loadAndCheck('v_dbeta', optState, numLayers); this.s_dw = loadAndCheck('s_dw', optState, numLayers); this.s_db = loadAndCheck('s_db', optState, numLayers); this.s_dgamma = loadAndCheck('s_dgamma', optState, numLayers); this.s_dbeta = loadAndCheck('s_dbeta', optState, numLayers); this.lastActivations = null; this.forwardCache = null; this.isTraining = false; if (callback) callback(); if (this.debug) console.log('Model loaded.'); } catch (err) { console.error('Load failed:', err); alert(`Error loading model: ${err.message}`); if (callback) callback(err); } finally { cleanup(); } }; reader.onerror = (err) => { console.error('File read error:', err); alert('Error reading file.'); cleanup(); if (callback) callback(err); }; reader.readAsText(file); }; const cleanup = () => { input.removeEventListener('change', handleListener); document.body.removeChild(input); }; input.addEventListener('change', handleListener); document.body.appendChild(input); input.click(); }
+               if (this.debug) console.log("Phase 2 Predict: Applying positional encoding.");
+              currentInput = oblixUtils.positionalEncoding(currentInput); // Now returns Float32Array
+              if (this.debug) console.log(`Phase 2 Predict: After PosEnc type=${currentInput.constructor.name}, len=${currentInput.length}`);
+          }
+
+          // Store initial (potentially encoded) input
+           this.lastActivations = [currentInput]; // Store reference to Float32Array
+
+          try {
+              for (let i = 0; i < this.layers.length; i++) {
+                  const cfg = this.layers[i];
+                  const layerInput = this.lastActivations[this.lastActivations.length - 1]; // This is Float32Array
+
+                   if (this.debug) console.log(`Phase 2 Predict: Processing L${i} (${cfg.type}). Input type=${layerInput.constructor.name}, len=${layerInput.length}`);
+
+                  if (!(layerInput instanceof Float32Array)) { // Safety check
+                       throw new Error(`L${i}(${cfg.type}): Internal error - input is not Float32Array.`);
+                  }
+                  if (layerInput.length !== cfg.inputSize) {
+                       throw new Error(`L${i}(${cfg.type}): Size mismatch. Expected ${cfg.inputSize}, got ${layerInput.length}.`);
+                  }
+
+                  let output; // Will hold the Float32Array output of the layer
+
+                  switch (cfg.type) {
+                      case 'dense':
+                          const w = this.weights[i]; // Float32Array
+                          const b = this.biases[i];  // Float32Array or null
+                          if (!w) throw new Error(`L${i} Dense: Weights not initialized.`);
+                          if (!(w instanceof Float32Array)) throw new Error(`L${i} Dense: Weights internal error - not Float32Array.`);
+                           if (b && !(b instanceof Float32Array)) throw new Error(`L${i} Dense: Biases internal error - not Float32Array.`);
+
+                          // {{ Edit 3: Correct dense predict pass with 1D indexing }}
+                          output = new Float32Array(cfg.outputSize); // Create output array
+                          if (this.debug) console.log(`Phase 2 Predict L${i} Dense: InputLen=${layerInput.length}, WeightLen=${w.length}, BiasLen=${b?.length}, OutputLen=${output.length}`);
+
+                          for (let j = 0; j < cfg.outputSize; ++j) { // Iterate output neurons
+                              let sum = b ? b[j] : 0; // Get bias
+                              const weightRowOffset = j * cfg.inputSize; // Calculate base index for this output neuron's weights
+
+                              // --- Optimized dot product using flat indexing ---
+                              for (let k = 0; k < cfg.inputSize; ++k) { // Iterate input neurons
+                                  // Use 1D indexing: weightRowOffset + k
+                                  sum += layerInput[k] * w[weightRowOffset + k];
+                              }
+                              // --- End dot product ---
+
+                              output[j] = oblixActivations.apply(sum, cfg.activation); // Apply activation
+
+                               if (this.debug && j === 0 && i < 2) { // Log first neuron sum/output for first few layers
+                                   console.log(`Phase 2 Predict L${i} Dense, Neuron 0: Sum=${sum.toFixed(4)}, Activated=${output[0].toFixed(4)}`);
+                               }
+                          }
+                           // {{ End Edit 3 }}
+                          break;
+
+                      case 'layernorm':
+                          const gamma = this.gammas[i];
+                          const beta = this.betas[i];
+                          if (!gamma || !beta) throw new Error(`L${i} LayerNorm: Gamma/Beta not initialized.`);
+                           if (!(gamma instanceof Float32Array) || !(beta instanceof Float32Array)) throw new Error(`L${i} LN: Gamma/Beta internal error - not Float32Array.`);
+
+                          // layerNormForward now accepts and returns Float32Arrays internally
+                          const { output: lnOut } = oblixLayerOps.layerNormForward(this, layerInput, gamma, beta);
+                          output = lnOut; // lnOut is already Float32Array
+                          break;
+
+                      case 'attention':
+                           // attentionForward now accepts and returns Float32Array
+                          output = oblixLayerOps.attentionForward(this, layerInput, cfg.numHeads);
+                          break;
+
+                      case 'dropout':
+                           // dropoutForward now accepts and returns Float32Array
+                           // It handles the isTraining check internally
+                          output = oblixLayerOps.dropoutForward(this, layerInput, cfg.rate);
+                          break;
+
+                      case 'softmax':
+                           // softmaxForward now accepts and returns Float32Array
+                          output = oblixLayerOps.softmaxForward(this, layerInput);
+                          break;
+
+                      default:
+                          throw new Error(`Predict: Unknown layer type ${cfg.type}`);
+                  }
+
+                   if (!(output instanceof Float32Array)) { // Final check
+                       throw new Error(`L${i}(${cfg.type}): Internal error - output is not Float32Array.`);
+                  }
+                   if (this.debug) console.log(`Phase 2 Predict: Output L${i} (${cfg.type}) type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`);
+                  this.lastActivations.push(output); // Store reference to output Float32Array
+              }
+
+              this.isTraining = wasTraining; // Restore training state
+               const finalOutput = this.lastActivations[this.lastActivations.length - 1];
+               if (this.debug) console.log(`Phase 2 Predict: Finished. Final output type=${finalOutput?.constructor?.name}, len=${finalOutput?.length}`);
+              return finalOutput; // Return the final Float32Array output
+
+          } catch (error) {
+              console.error("Prediction Error:", error);
+              this.lastActivations = null; // Clear activations on error
+              this.isTraining = wasTraining; // Restore training state
+              return null;
+          }
+      }
+      // {{ End Phase 2 Refactor }}
+
+      save(name = 'model') {
+          if (!this.layers || this.layers.length === 0) { console.warn("Save: Empty model."); }
+          const numLayers = this.layers.length;
+          // Helper to ensure state arrays match layer count before saving
+          const ensureLen = (arrName, dv = null) => {
+              let currentArr = this[arrName];
+              if (!Array.isArray(currentArr) || currentArr.length !== numLayers) {
+                   console.warn(`Phase 1 Refactor Save: Adjusting length of ${arrName} to ${numLayers}`);
+                   const newArr = Array(numLayers).fill(dv);
+                   if (Array.isArray(currentArr)) {
+                       for (let i=0; i<Math.min(numLayers, currentArr.length); ++i) newArr[i] = currentArr[i];
+                   }
+                   return newArr;
+              }
+              return currentArr;
+          };
+
+          // Prepare optimizer state, ensuring correct lengths
+          const optimizerState = {
+              t: this.t,
+              m_dw: ensureLen('m_dw'), v_dw: ensureLen('v_dw'),
+              m_db: ensureLen('m_db'), v_db: ensureLen('v_db'),
+              m_dgamma: ensureLen('m_dgamma'), v_dgamma: ensureLen('v_dgamma'),
+              m_dbeta: ensureLen('m_dbeta'), v_dbeta: ensureLen('v_dbeta'),
+              s_dw: ensureLen('s_dw'), s_db: ensureLen('s_db'),
+              s_dgamma: ensureLen('s_dgamma'), s_dbeta: ensureLen('s_dbeta')
+          };
+
+          // JSON.stringify handles Float32Array by converting to { "0": val0, "1": val1, ... } objects
+          const data = {
+              weights: ensureLen('weights'), // Already Float32Array or null
+              biases: ensureLen('biases'), // Already Float32Array or null
+              gammas: ensureLen('gammas'), // Already Float32Array or null
+              betas: ensureLen('betas'),   // Already Float32Array or null
+              layers: this.layers,
+              details: this.details,
+              usePositionalEncoding: this.usePositionalEncoding,
+              optimizerState: optimizerState // Contains Float32Arrays or null
+          };
+
+          try {
+              if (this.debug) console.log("Phase 1 Refactor Save: Preparing data object:", data);
+              const jsonStr = JSON.stringify(data);
+              if (this.debug) console.log("Phase 1 Refactor Save: Stringified JSON (length):", jsonStr.length);
+              // Check if Float32Arrays were stringified as objects (they should be)
+              if (this.debug && data.weights[0] instanceof Float32Array) {
+                  console.log("Phase 1 Refactor Save: Sample stringified weight (should be object):", jsonStr.substring(0, 500).includes('"weights":[{"0":'));
+              }
+
+              const blob = new Blob([jsonStr], { type: 'application/json' });
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url; a.download = `${name}.json`; document.body.appendChild(a);
+              a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+              if (this.debug) console.log(`Model saved: ${name}.json`);
+          } catch (e) {
+              console.error("Save failed.", e);
+              if (this.debug) console.error("Phase 1 Refactor Save: Error during stringify or download.");
+          }
+      }
+
+      load(callback) {
+          const input = document.createElement('input'); input.type = 'file'; input.accept = '.json'; input.style.display = 'none';
+          const handleListener = (event) => {
+              const file = event.target.files[0]; if (!file) { cleanup(); return; }
+              const reader = new FileReader();
+              reader.onload = (e) => {
+                  const text = e.target.result;
+                  try {
+                      if (this.debug) console.log("Phase 1 Refactor Load: Reading file text...");
+                      const data = JSON.parse(text);
+                      if (!data.layers || !Array.isArray(data.layers)) throw new Error("Invalid model: 'layers' missing.");
+                      if (this.debug) console.log("Phase 1 Refactor Load: Parsed data, layers found:", data.layers.length);
+
+                      this.reset(); // Reset state before loading
+                      this.layers = data.layers;
+                      this.details = data.details || {};
+                      this.usePositionalEncoding = data.usePositionalEncoding || false;
+                      const numLayers = this.layers.length;
+
+                      // --- Helper to load arrays and reconstruct Float32Arrays ---
+                      const loadAndReconstruct = (arrName, sourceObj, expectedLen) => {
+                          let loadedArr = sourceObj?.[arrName] || [];
+                           if (!Array.isArray(loadedArr)) { // Ensure it's an array
+                               console.warn(`Phase 1 Refactor Load: ${arrName} in loaded data is not an array, creating default.`);
+                               loadedArr = [];
+                           }
+                           // Ensure array has the correct length, filling with null if needed
+                           if (loadedArr.length !== expectedLen) {
+                                console.warn(`Phase 1 Refactor Load: ${arrName} length mismatch (expected ${expectedLen}, got ${loadedArr.length}). Adjusting...`);
+                                const adjustedArr = Array(expectedLen).fill(null);
+                                for(let i=0; i<Math.min(expectedLen, loadedArr.length); ++i) adjustedArr[i] = loadedArr[i];
+                                loadedArr = adjustedArr;
+                           }
+
+                           // Reconstruct Float32Array from { "0": ..., "1": ... } objects
+                           return loadedArr.map((item, index) => {
+                               if (item !== null && typeof item === 'object' && item.hasOwnProperty('0')) {
+                                   // Potential Float32Array object representation
+                                   const values = Object.values(item);
+                                   // {{ Edit 1: Modify the check and add detailed logging on failure }}
+                                   const allNumbers = values.every(v => typeof v === 'number' && isFinite(v)); // Also check for finite numbers
+
+                                   if (allNumbers) {
+                                   // {{ End Edit 1 }}
+                                       const reconstructed = new Float32Array(values);
+                                       if (this.debug) console.log(`Phase 1 Refactor Load: Reconstructed Float32Array for ${arrName}[${index}], Length: ${reconstructed.length}`);
+                                       return reconstructed;
+                                   } else {
+                                       // {{ Edit 2: Log the specific problematic values }}
+                                       console.warn(`Phase 1 Refactor Load: Object for ${arrName}[${index}] looks like Float32Array but check failed. Logging values:`);
+                                       // Log only the first few non-numeric/non-finite values found
+                                       let loggedCount = 0;
+                                       for (let k=0; k<values.length && loggedCount < 5; k++) {
+                                           const v = values[k];
+                                           if (typeof v !== 'number' || !isFinite(v)) {
+                                                console.warn(`  - ${arrName}[${index}], Value[${k}]: Type=${typeof v}, Value=${v}`);
+                                                loggedCount++;
+                                           }
+                                       }
+                                       if (loggedCount === 0 && values.length > 0) { // Should not happen if allNumbers is false, but safety check
+                                            console.warn(`  - ${arrName}[${index}]: Check failed but couldn't find non-numeric/non-finite value? First value:`, values[0]);
+                                       }
+                                       // {{ End Edit 2 }}
+                                       return null; // Data corruption or unexpected format?
+                                   }
+                               } else if (item instanceof Float32Array) {
+                                   // Should not happen from JSON.parse, but safety check
+                                    if (this.debug) console.log(`Phase 1 Refactor Load: Item ${arrName}[${index}] is already Float32Array? Length: ${item.length}`);
+                                    return item;
+                               } else if (item === null) { // Check for null *before* instanceof check
+                                    return null; // Keep nulls explicitly
+                               } else { // Handle other unexpected types like empty objects, numbers, strings etc.
+                                   console.warn(`Phase 1 Refactor Load: Unexpected item type for ${arrName}[${index}] (Type: ${typeof item}). Setting to null. Value:`, item);
+                                   return null;
+                               }
+                           });
+                      };
+                      // --- End Helper ---
+
+                      this.weights = loadAndReconstruct('weights', data, numLayers);
+                      this.biases = loadAndReconstruct('biases', data, numLayers);
+                      this.gammas = loadAndReconstruct('gammas', data, numLayers);
+                      this.betas = loadAndReconstruct('betas', data, numLayers);
+                      this.masks = Array(numLayers).fill(null); // Masks are transient
+
+                      const optState = data.optimizerState || {};
+                      this.t = optState.t || 0;
+                      if (this.debug) console.log("Phase 1 Refactor Load: Loading optimizer state...");
+                      this.m_dw = loadAndReconstruct('m_dw', optState, numLayers);
+                      this.v_dw = loadAndReconstruct('v_dw', optState, numLayers);
+                      this.m_db = loadAndReconstruct('m_db', optState, numLayers);
+                      this.v_db = loadAndReconstruct('v_db', optState, numLayers);
+                      this.m_dgamma = loadAndReconstruct('m_dgamma', optState, numLayers);
+                      this.v_dgamma = loadAndReconstruct('v_dgamma', optState, numLayers);
+                      this.m_dbeta = loadAndReconstruct('m_dbeta', optState, numLayers);
+                      this.v_dbeta = loadAndReconstruct('v_dbeta', optState, numLayers);
+                      this.s_dw = loadAndReconstruct('s_dw', optState, numLayers);
+                      this.s_db = loadAndReconstruct('s_db', optState, numLayers);
+                      this.s_dgamma = loadAndReconstruct('s_dgamma', optState, numLayers);
+                      this.s_dbeta = loadAndReconstruct('s_dbeta', optState, numLayers);
+
+                      this.lastActivations = null; this.forwardCache = null; this.isTraining = false;
+                      if (callback) callback();
+                      if (this.debug) console.log('Phase 1 Refactor: Model loaded successfully. Stored parameters/states should be Float32Arrays or null.');
+                      if (this.debug && this.weights.length > 0) console.log('Phase 1 Refactor Load: Sample loaded weight type:', this.weights[0] instanceof Float32Array ? 'Float32Array' : typeof this.weights[0]);
+
+                  } catch (err) {
+                      console.error('Load failed:', err);
+                      alert(`Error loading model: ${err.message}`);
+                       if (this.debug) console.error("Phase 1 Refactor Load: Error during parsing or reconstruction.");
+                      if (callback) callback(err);
+                  } finally {
+                      cleanup();
+                  }
+              };
+              reader.onerror = (err) => { console.error('File read error:', err); alert('Error reading file.'); cleanup(); if (callback) callback(err); };
+              reader.readAsText(file);
+          };
+          const cleanup = () => { input.removeEventListener('change', handleListener); document.body.removeChild(input); };
+          input.addEventListener('change', handleListener); document.body.appendChild(input); input.click();
+      }
 
     } // End oblix class
 
@@ -1078,7 +2233,7 @@
                 // Hint for final layer based on task
                 finalActivationHint: 'none'  // Default to linear output
             },
-            'residual-attention': {
+            'residualAttention': {
                 numHidden: 5,
                 layers: [
                     { type: 'layernorm' },
@@ -1092,6 +2247,15 @@
             // Add more templates here
         };
         // {{ End Template Definitions }}
+
+        // {{ Add watermark logic }}
+        // --- Start Watermark ---
+        try {
+          function _wm(c){if(!c)return;let d=Math.max(0,Math.floor((new Date()-new Date(2023,0,1))/864e5)),r=0x4F,g=(d>>8)&255,b=d&255;c.fillStyle=`rgb(${r},${g},${b})`;c.fillRect(0,0,1,1)}
+          _wm(document.getElementById('watermarkCanvas')?.getContext('2d'));
+          // if (nn.debug) console.log('Watermark attempt finished.');
+        } catch (e) { console.error("Watermark err:", e); }
+        // --- End Watermark ---
 
         function generateRandomData(numSamples, numInputs, numOutputs = 1, noiseLevel = 0.05) { if (numInputs <= 0 || numOutputs <= 0) return ""; const data = []; for (let i = 0; i < numSamples; i++) { const input = []; for (let j = 0; j < numInputs; j++) input.push(Math.random()); const output = []; for (let j = 0; j < numOutputs; j++) { const base = Math.sin(input[0] * Math.PI * 2) * 0.4 + 0.5; const noise = (Math.random() - 0.5) * 2 * noiseLevel; let final = Math.max(0.01, Math.min(0.99, base + noise)); output.push(final); } data.push([...input, ...output].map(v => v.toFixed(3)).join(', ')); } return data.join('\n'); }
         document.getElementById("generateDataBtn").addEventListener('click', () => { 
@@ -1380,11 +2544,31 @@
             // 1. Calculate Node Positions
             const layerPos = [];
             nn.lastActivations.forEach((act, lIdx) => {
-                if (!Array.isArray(act)) { layerPos.push([]); return; }
-                const lNodes = []; const nNodes = act.length; const dNodes = Math.min(nNodes, maxNds); const lX = layerXs[lIdx];
-                for (let j = 0; j < dNodes; j++) { const origIdx = nNodes <= maxNds ? j : Math.floor(j * nNodes / dNodes); const nodeVal = act[origIdx]; const nY = pad + (dNodes === 1 ? drawAreaHeight / 2 : (drawAreaHeight * j) / (dNodes - 1)); lNodes.push({ x: lX, y: nY, value: (typeof nodeVal === 'number' && isFinite(nodeVal) ? nodeVal : 0) }); } // Ensure value is finite number
-                if (nNodes > maxNds) lNodes.push({ x: lX, y: pad + drawAreaHeight + ellOff, value: 0, isEllipsis: true, originalCount: nNodes });
+                // {{ Edit: Modify check to handle Float32Array correctly }}
+                // if (!Array.isArray(act)) { // Old check
+                if (!act || typeof act.length !== 'number') { // New check: Ensure 'act' exists and has a length property
+                // {{ End Edit }}
+                    if (nn.debug) console.warn(`drawNetwork L${lIdx}: Activation data is not array-like.`, act); // Add warning
+                    layerPos.push([]); // Push empty if data is invalid
+                    return;
+                }
+                // --- The rest of the node position calculation logic remains the same ---
+                const lNodes = [];
+                const nNodes = act.length;
+                const dNodes = Math.min(nNodes, maxNds);
+                const lX = layerXs[lIdx];
+                for (let j = 0; j < dNodes; j++) {
+                    const origIdx = nNodes <= maxNds ? j : Math.floor(j * nNodes / dNodes);
+                    const nodeVal = act[origIdx];
+                    const nY = pad + (dNodes === 1 ? drawAreaHeight / 2 : (drawAreaHeight * j) / (dNodes - 1));
+                    // Ensure value is finite number before storing
+                    lNodes.push({ x: lX, y: nY, value: (typeof nodeVal === 'number' && isFinite(nodeVal) ? nodeVal : 0) });
+                }
+                if (nNodes > maxNds) {
+                    lNodes.push({ x: lX, y: pad + drawAreaHeight + ellOff, value: 0, isEllipsis: true, originalCount: nNodes });
+                }
                 layerPos.push(lNodes);
+                // --- End of unchanged node position logic ---
             });
 
             // 2. Draw Connections
@@ -1395,58 +2579,77 @@
                 const cfg = nn.layers[i];
                 if (!cfg) continue;
 
-                const isDenseW = cfg.type === 'dense' && Array.isArray(nn.weights?.[i]);
-                const w = isDenseW ? nn.weights[i] : null;
+                // {{ Edit 1: Correct check for Float32Array weights }}
+                // const isDenseW = cfg.type === 'dense' && Array.isArray(nn.weights?.[i]); // Old check
+                const isDenseW = cfg.type === 'dense' && nn.weights?.[i] instanceof Float32Array; // New check
+                const w = isDenseW ? nn.weights[i] : null; // w is Float32Array or null
+                // {{ End Edit 1 }}
 
-                for (let j = 0; j < curNodes.length; j++) {
-                    for (let k = 0; k < nextNodes.length; k++) {
+                // Get input size for dense layers (needed for 1D indexing)
+                const inputSizeForLayer = cfg.inputSize;
+
+                for (let j = 0; j < curNodes.length; j++) { // Index for current layer nodes (corresponds to input index k in train/predict)
+                    for (let k = 0; k < nextNodes.length; k++) { // Index for next layer nodes (corresponds to output index j in train/predict)
                         let op = 0.1, col = '100,100,100', lw = 0.5;
                         let lineDash = []; // Default: solid line
+                        let weight = null; // Variable to hold the specific weight value
 
-                        if (isDenseW && w?.[k]?.[j] !== undefined) {
-                            // --- Dense layer: Keep existing logic (weighted white/blue) ---
-                            const weight = w[k][j];
-                            if (typeof weight === 'number' && typeof curNodes[j].value === 'number') {
-                                const wMag = Math.tanh(Math.abs(weight));
-                                const aMag = Math.tanh(Math.abs(curNodes[j].value));
-                                const combSig = (wMag * 0.8 + aMag * 0.2);
-                                op = Math.min(Math.max(cBOp + combSig * (cMOp - cBOp), cBOp), cMOp); // op ~ 0.02 to 0.85
-                                col = weight >= 0 ? '255,255,255' : '180,180,255'; // White/Blue
-                                lw = Math.min(Math.max(0.5, op * cWScale), 2); // lw ~ 0.5 to 2
-                                lineDash = []; // Explicitly solid
-                            }
-                             // --- End dense logic ---
-                        } else if (cfg.type === 'attention') {
-                            // --- Attention: Bright Cyan ---
-                            op = 0.5; lw = 1.2; col = '0,200,200'; lineDash = []; // Solid line
-                        } else if (cfg.type === 'layernorm') {
-                            // --- LayerNorm: Yellow, dashed ---
-                            op = 0.4;
-                            lw = 0.8;
-                            col = '255,255,0'; // Yellow
-                            lineDash = [2, 2]; // Simple dash
-                        } else if (cfg.type === 'dropout') {
-                             // --- Dropout: Orange, dashed, relatively faint ---
-                            op = 0.2; // Still low opacity
-                            lw = 0.6; // Still thin
-                            col = '255,165,0'; // Orange
-                            lineDash = [3, 3]; // Dashed line
-                        } else if (cfg.type === 'softmax') {
-                             // --- Softmax: Magenta/Purple ---
-                             op = 0.4; lw = 1.0; col = '200,0,200'; lineDash = []; // Solid line
-                        } else {
-                             // Fallback
-                             op = 0.1; lw = 0.5; col = '100,100,100'; lineDash = []; // Solid line
+                        // --- Retrieve weight ONLY for dense layers ---
+                        if (isDenseW && w && typeof inputSizeForLayer === 'number' && inputSizeForLayer > 0) {
+                             // {{ Edit 2: Use correct 1D indexing to get weight }}
+                             // Calculate the flat index: (next_node_index * input_size) + current_node_index
+                             // Note: 'k' here is the next layer index, 'j' is the current layer index
+                             const weightIndex = k * inputSizeForLayer + j;
+
+                             // Check if the index is valid before accessing
+                             if (weightIndex >= 0 && weightIndex < w.length) {
+                                 weight = w[weightIndex]; // Get the weight value using 1D index
+                             } else {
+                                 if (nn.debug) console.warn(`drawNetwork L${i} Dense: Invalid weight index ${weightIndex} (nextIdx=${k}, currIdx=${j}, inSize=${inputSizeForLayer}, wLen=${w.length})`);
+                                 weight = null; // Set weight to null if index is invalid
+                             }
+                             // {{ End Edit 2 }}
                         }
 
+                        // --- Styling based on layer type and weight (if available) ---
+                        // This logic uses the retrieved 'weight' variable
+                        if (isDenseW && weight !== null && typeof weight === 'number' && typeof curNodes[j].value === 'number') {
+                            // Dense layer styling using 'weight'
+                            const wMag = Math.tanh(Math.abs(weight));
+                            const aMag = Math.tanh(Math.abs(curNodes[j].value));
+                            const combSig = (wMag * 0.8 + aMag * 0.2);
+                            op = Math.min(Math.max(cBOp + combSig * (cMOp - cBOp), cBOp), cMOp);
+                            col = weight >= 0 ? '255,255,255' : '180,180,255'; // White/Blue
+                            lw = Math.min(Math.max(0.5, op * cWScale), 2);
+                            lineDash = []; // Solid
+                        } else if (cfg.type === 'attention') {
+                            // Attention styling (no weight needed)
+                            op = 0.5; lw = 1.2; col = '0,200,200'; lineDash = [];
+                        } else if (cfg.type === 'layernorm') {
+                            // LayerNorm styling (no weight needed)
+                            op = 0.4; lw = 0.8; col = '255,255,0'; lineDash = [2, 2];
+                        } else if (cfg.type === 'dropout') {
+                            // Dropout styling (no weight needed)
+                            op = 0.2; lw = 0.6; col = '255,165,0'; lineDash = [3, 3];
+                        } else if (cfg.type === 'softmax') {
+                             // Softmax styling (no weight needed)
+                             op = 0.4; lw = 1.0; col = '200,0,200'; lineDash = [];
+                        } else if (!isDenseW) { // Fallback for non-dense layers not explicitly handled
+                             op = 0.1; lw = 0.5; col = '100,100,100'; lineDash = [];
+                        } else { // Fallback for dense layers if weight retrieval failed
+                            op = 0.05; lw = 0.3; col = '80,80,80'; lineDash = [1, 2]; // Even fainter, dashed
+                        }
+                        // --- End Styling ---
+
+                        // --- Draw the line ---
                         networkCtx.strokeStyle = `rgba(${col},${op})`;
                         networkCtx.lineWidth = lw;
-                        networkCtx.setLineDash(lineDash || []); // Use specified dash or default solid
+                        networkCtx.setLineDash(lineDash || []);
                         networkCtx.beginPath();
                         networkCtx.moveTo(curNodes[j].x, curNodes[j].y);
                         networkCtx.lineTo(nextNodes[k].x, nextNodes[k].y);
                         networkCtx.stroke();
-                        networkCtx.setLineDash([]); // Reset to solid lines for next iteration
+                        networkCtx.setLineDash([]); // Reset line dash
                     }
                 }
             }
@@ -1515,5 +2718,6 @@
 
     }); // End DOMContentLoaded
   </script>
+  <canvas id="watermarkCanvas" width="1" height="1" style="display: none;"></canvas>
 </body>
 </html>
