@@ -4,7 +4,7 @@ This roadmap outlines the planned evolution of Oblix for the remainder of 2025 (
 
 ## Guiding Principles
 
-*   **Self-Contained:** Remain within `index.html` with pure JS.
+*   **Self-Contained:** Remain within pure JS.
 *   **Educational:** Prioritize features that aid understanding and provide "Aha!" moments.
 *   **Interactive:** Focus on visualization and user control for exploration.
 *   **Maintainable:** Ensure code structure supports ongoing development by a solo developer (with AI assistance).
