@@ -1,35 +1,48 @@
-# Oblix 2025 Roadmap
+# Oblix 2025 Roadmap: The "Awesome" Educational Update
 
-This roadmap outlines planned features and improvements for Oblix, focusing on enhancing the core engine, improving user experience, and maintaining code quality within the single-file constraint.
+This roadmap outlines the planned evolution of Oblix for the remainder of 2025 (April - December), focusing on delivering an **"awesome" user experience** centered around unique **interactive and educational insights**. Our goal is to solidify Oblix as a go-to tool for visually understanding core machine learning concepts.
 
 ## Guiding Principles
 
 *   **Self-Contained:** Remain within `index.html` with pure JS.
-*   **Educational:** Prioritize features that aid understanding.
-*   **Interactive:** Focus on visualization and user control.
-*   **Maintainable:** Improve code structure for future development.
+*   **Educational:** Prioritize features that aid understanding and provide "Aha!" moments.
+*   **Interactive:** Focus on visualization and user control for exploration.
+*   **Maintainable:** Ensure code structure supports ongoing development by a solo developer (with AI assistance).
 
-## Q2/Q3 2025: Foundational Improvements
+## 2025 Roadmap: Focus on Deep Understanding
 
-*   [x] **[Core NN] Configurable Weight Initialization:** (Done 04042025)
-    *   Allow users to select between current (Glorot-like), He, or potentially others.
-*   [x] **[UX] Configurable Save Filenames:** (Done 04042025)
-    *   Prompt user for a filename when saving the model.
-*   [x] **[UX] Sample Datasets:** (Done 04042025)
-    *   Add built-in options to load classic datasets like XOR.
-*   [ ] **[UX] Improved Input Validation:**
-    *   Enhance pre-training checks for configuration errors (e.g., layer size mismatches, invalid parameters). Provide clearer error messages.
-*   [ ] **[Code Quality] UI/Logic Separation Refactor:**
-    *   Begin refactoring JavaScript to better separate DOM manipulation/event handling from the core `oblix` class logic.
+The focus for the rest of 2025 is on quality over quantity, delivering features that provide unique learning opportunities.
 
-## Future Considerations (Backlog / Potential Q4+)
+**Phase 1: Foundation & Core QoL (Target: April - June 2025)**
 
-*   Plot Validation Metrics on Loss Graph
-*   Weight/Gradient Histograms
-*   Enhanced Tooltips & External Links
-*   Pause/Resume Training
-*   More Optimizers/Activation Functions
-*   Data Preprocessing Options
-*   Advanced LR Scheduling
-*   Refactor Drawing Logic
-*   *See brainstorm list for more ideas...*
+*   [ ] **[Code Quality] Major Refactoring:** Improve UI/Logic separation and drawing logic for better maintainability and to facilitate future interactive features.
+*   [ ] **[Core UX] Pause/Resume Training:** Allow users to pause training, inspect the network state, and resume. Essential for deeper exploration.
+
+**Phase 2: Primary Awesome Feature (Target: July - September 2025)**
+
+*   [ ] **[Interactive Viz] Visual Backpropagation Step-Through:** Implement the ability to visually step through the backpropagation calculation for a single data point, clearly showing gradient flow and weight updates.
+
+**Phase 3: Supporting Feature & Polish (Target: October - December 2025)**
+
+*   [ ] **[Educational Feature] Guided Tutorials Framework:** Implement a system for creating in-tool tutorials.
+*   [ ] **[Educational Content] Initial Tutorials:** Create 1-2 tutorials demonstrating core concepts using the new Pause/Resume and Visual Backprop features.
+*   [ ] **[Polish] Buffer, Testing & Documentation:** Ensure features are robust, well-tested, and documented.
+
+**Potential Stretch Goal (If time permits in Q4 2025)**
+
+*   [ ] **[Interactive Viz] Side-by-Side Visual Comparison:** Allow running and visualizing two network configurations simultaneously to compare their behavior (e.g., different optimizers, learning rates).
+
+**Future Considerations / Backlog (Post-2025 or Opportunistic)**
+
+*(Ideas moved here from the prioritized list or previous backlog)*
+*   Visual Pitfall Illustration Mode: Modes/datasets to visually demo common training problems (vanishing/exploding gradients, overfitting).
+*   'What If?' Data Point Analysis: Interactively select data point to see its path, loss contribution, gradients; maybe simulate changes.
+*   Implement + Visualize Regularization: Add L1/L2/Dropout and visualize their effect on weights/activations.
+*   Shareable "Oblix Snapshots": Export full state (network, weights, data, settings) to a single, interactive HTML file.
+*   Weight/Gradient Histograms: Visualize weight/gradient distributions across layers.
+*   Plot Validation Metrics on Loss Graph: Add accuracy, R², etc. alongside loss curves on the training graph.
+*   Enhanced Tooltips & External Links: Add explanatory tooltips and links to external learning resources in the UI.
+*   More Optimizers/Activation Functions: Expand options beyond current defaults, potentially with specific visualizations.
+*   Data Preprocessing Options: Add normalization/standardization with potential visualization of effect.
+*   Advanced LR Scheduling + Visualization: Implement cosine annealing, cyclical LR, etc., and visualize the schedule.
+*   *... and other ideas from brainstorming.*
