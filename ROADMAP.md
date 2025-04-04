@@ -11,15 +11,15 @@ This roadmap outlines planned features and improvements for Oblix, focusing on e
 
 ## Q2/Q3 2025: Foundational Improvements
 
-*   **[Core NN] Configurable Weight Initialization:**
+*   [x] **[Core NN] Configurable Weight Initialization:** (Done 04042025)
     *   Allow users to select between current (Glorot-like), He, or potentially others.
-*   **[UX] Configurable Save Filenames:**
+*   [x] **[UX] Configurable Save Filenames:** (Done 04042025)
     *   Prompt user for a filename when saving the model.
-*   **[UX] Sample Datasets:**
+*   [x] **[UX] Sample Datasets:** (Done 04042025)
     *   Add built-in options to load classic datasets like XOR.
-*   **[UX] Improved Input Validation:**
+*   [ ] **[UX] Improved Input Validation:**
     *   Enhance pre-training checks for configuration errors (e.g., layer size mismatches, invalid parameters). Provide clearer error messages.
-*   **[Code Quality] UI/Logic Separation Refactor:**
+*   [ ] **[Code Quality] UI/Logic Separation Refactor:**
     *   Begin refactoring JavaScript to better separate DOM manipulation/event handling from the core `oblix` class logic.
 
 ## Future Considerations (Backlog / Potential Q4+)

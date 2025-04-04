@@ -19,7 +19,7 @@
       display: grid;
       grid-template-columns: minmax(400px, 1.5fr) minmax(300px, 2fr); /* Adjusted ratios */
       gap: 20px; /* Increased gap */
-      opacity: 0; transform: translateY(20px);
+      opacity: 0.0; transform: translateY(20px);
       animation: fadeInUp 0.5s ease-out forwards;
     }
     .widget {
@@ -222,6 +222,18 @@
         <label for="noiseLevel" title="Amount of random noise to add (0-1)">Noise Level:</label>
         <input type="number" id="noiseLevel" value="0.05" min="0" max="1" step="0.01">
       </div>
+      <!-- {{ Insert Pattern Selector Dropdown }} -->
+      <div class="input-group">
+        <label for="dataPattern" title="Select the type of data pattern to generate">Data Pattern:</label>
+        <select id="dataPattern">
+            <option value="random" selected>Default Random</option>
+            <option value="xor">XOR</option>
+            <option value="linear">Linear</option>
+            <option value="circular">Circular</option>
+            <option value="blobs">Gaussian Blobs</option>
+        </select>
+      </div>
+      <!-- {{ End Pattern Selector Dropdown }} -->
     </div>
     <div class="button-group" style="margin-top: 10px;">
       <button id="generateDataBtn">Generate Data</button>
@@ -1260,8 +1272,93 @@
             const mul = Math.sqrt(-2.0 * Math.log(s) / s);
             this._gaussian_spare = v * mul; // Store the second sample
             return u * mul; // Return the first sample
-        }
+        },
         // {{ End gaussianRandom helper }}
+
+        // --- Start Pattern Generation Functions ---
+        generateXORData: function(numSamples, noise) {
+            const data = [];
+            for (let i = 0; i < numSamples; i++) {
+                const x1 = Math.random() < 0.5 ? 0 : 1;
+                const x2 = Math.random() < 0.5 ? 0 : 1;
+                const raw_output = (x1 + x2) % 2; // XOR logic
+                const noisy_x1 = x1 + (oblixUtils.gaussianRandom() * noise * 0.5); // Use gaussian noise
+                const noisy_x2 = x2 + (oblixUtils.gaussianRandom() * noise * 0.5); // Use gaussian noise
+                data.push({ input: [noisy_x1, noisy_x2], output: [raw_output] });
+            }
+            return data;
+        },
+
+        generateLinearData: function(numSamples, noise, inputDims = 1, outputDims = 1) {
+            const data = [];
+            const weights = Array.from({ length: inputDims }, () => (Math.random() - 0.5) * 2); // Random weights [-1, 1]
+            const bias = (Math.random() - 0.5);
+
+            for (let i = 0; i < numSamples; i++) {
+                const input = Array.from({ length: inputDims }, () => Math.random() * 2 - 1); // Input features [-1, 1]
+                let linearCombination = bias;
+                for (let d = 0; d < inputDims; d++) {
+                    linearCombination += input[d] * weights[d];
+                }
+                // Create potentially multiple outputs based on the combination
+                const output = Array.from({ length: outputDims }, (_, idx) => {
+                    // Add some slight variation if multiple outputs, plus noise
+                    return linearCombination * (1 + idx * 0.05) + (oblixUtils.gaussianRandom() * noise);
+                });
+                data.push({ input: input, output: output });
+            }
+            return data;
+        },
+
+        generateCircularData: function(numSamples, noise) {
+            const data = [];
+            const radiusSeparation = 2; // Base separation between centers of distributions
+            const numInner = Math.floor(numSamples / 2);
+            const numOuter = numSamples - numInner;
+
+            // Inner circle (class 0)
+            for (let i = 0; i < numInner; i++) {
+                const angle = Math.random() * 2 * Math.PI;
+                const radius = Math.random() * radiusSeparation * 0.4; // Inner points closer to center
+                const x = radius * Math.cos(angle) + oblixUtils.gaussianRandom() * noise;
+                const y = radius * Math.sin(angle) + oblixUtils.gaussianRandom() * noise;
+                data.push({ input: [x, y], output: [0] });
+            }
+
+            // Outer ring (class 1)
+            for (let i = 0; i < numOuter; i++) {
+                const angle = Math.random() * 2 * Math.PI;
+                // Ensure outer radius starts clearly outside inner radius + noise buffer
+                const radius = radiusSeparation * 0.7 + Math.random() * radiusSeparation * 0.4;
+                const x = radius * Math.cos(angle) + oblixUtils.gaussianRandom() * noise;
+                const y = radius * Math.sin(angle) + oblixUtils.gaussianRandom() * noise;
+                data.push({ input: [x, y], output: [1] });
+            }
+            return data;
+        },
+
+        generateGaussianBlobs: function(numSamples, noise, numClasses = 2) {
+            const data = [];
+            const centers = [];
+            const centerSpread = 4; // How far apart centers can be
+            for (let c = 0; c < numClasses; c++) {
+                centers.push([(Math.random() - 0.5) * centerSpread, (Math.random() - 0.5) * centerSpread]);
+            }
+
+            for (let i = 0; i < numSamples; i++) {
+                const classIndex = Math.floor(Math.random() * numClasses);
+                const center = centers[classIndex];
+                // Use noise directly as standard deviation, add small base to prevent zero std dev
+                const stdDev = noise + 0.5;
+                const x = center[0] + oblixUtils.gaussianRandom() * stdDev;
+                const y = center[1] + oblixUtils.gaussianRandom() * stdDev;
+                // For blobs, output is usually the class index
+                const output = [classIndex];
+                data.push({ input: [x, y], output: output });
+            }
+            return data;
+        }
+        // --- End Pattern Generation Functions ---
     };
     // --- End Utility Namespace ---
 
@@ -2243,6 +2340,72 @@
         // {{ Add reference to template select }}
         const architectureTemplateSelect = document.getElementById('architectureTemplateSelect');
 
+        // --- UI Interaction Logic for Data Param UI ---
+        const dataPatternSelect = document.getElementById('dataPattern');
+        const numInputDimsInput = document.getElementById('numInputDims');
+        const numOutputDimsInput = document.getElementById('numOutputDims');
+        const numInputDimsGroup = numInputDimsInput.closest('.input-group'); // Find parent group for styling
+        const numOutputDimsGroup = numOutputDimsInput.closest('.input-group'); // Find parent group for styling
+        const inputDimsLabel = numInputDimsGroup?.querySelector('label');
+        const outputDimsLabel = numOutputDimsGroup?.querySelector('label');
+
+
+        function updateDataParamUI(selectedPattern) {
+            let ignoreDims = false;
+            let inputTitle = "Number of input features per sample";
+            let outputTitle = "Number of output values per sample";
+
+            switch(selectedPattern) {
+                case 'xor':
+                case 'circular':
+                    ignoreDims = true;
+                    inputTitle = "Input Dimensions (Fixed to 2 for this pattern)";
+                    outputTitle = "Output Dimensions (Fixed to 1 for this pattern)";
+                    if (numInputDimsInput) numInputDimsInput.value = 2; // Optionally set the value visually
+                    if (numOutputDimsInput) numOutputDimsInput.value = 1;
+                    break;
+                case 'blobs':
+                    ignoreDims = true;
+                    inputTitle = "Input Dimensions (Fixed to 2 for blobs)";
+                    // Output dim determines classes, but let's keep the input disabled
+                    // User controls classes via the output dim input BEFORE selecting 'blobs'
+                    outputTitle = "Number of Classes (Output Dim controls this)";
+                    if (numInputDimsInput) numInputDimsInput.value = 2;
+                    // Don't force outputDim for blobs, it's used for numClasses
+                    break;
+                case 'linear':
+                case 'random':
+                default:
+                    ignoreDims = false;
+                    // Titles revert to default
+                    break;
+            }
+
+            // Update disabled state and class for visual styling
+            if (numInputDimsInput) numInputDimsInput.disabled = ignoreDims;
+            if (numOutputDimsInput) numOutputDimsInput.disabled = ignoreDims;
+
+            if (numInputDimsGroup) numInputDimsGroup.classList.toggle('ignored-param', ignoreDims);
+            if (numOutputDimsGroup) numOutputDimsGroup.classList.toggle('ignored-param', ignoreDims);
+
+             // Update label tooltips
+             if (inputDimsLabel) inputDimsLabel.title = inputTitle;
+             if (outputDimsLabel) outputDimsLabel.title = outputTitle;
+        }
+
+        // Add event listener and call initially
+        if (dataPatternSelect) {
+            dataPatternSelect.addEventListener('change', (event) => {
+                updateDataParamUI(event.target.value);
+            });
+            // Initial call to set state based on default selection
+            updateDataParamUI(dataPatternSelect.value);
+        } else {
+            console.error("Data Pattern select element not found.");
+        }
+        // --- End UI Interaction Logic ---
+
+
         // {{ Define Architecture Templates }}
         const architectureTemplates = {
             'mlp': {
@@ -2303,35 +2466,130 @@
         } catch (e) { console.error("Watermark err:", e); }
         // --- End Watermark ---
 
+        // {{ Helper to format new data structure to CSV array }}
+        function formatGeneratedDataToCSV(dataArray) {
+            if (!Array.isArray(dataArray)) return [];
+            return dataArray.map(sample => {
+                if (!sample || !Array.isArray(sample.input) || !Array.isArray(sample.output)) {
+                    console.warn("Skipping invalid sample in formatGeneratedDataToCSV");
+                    return null; // Skip invalid samples
+                }
+                // Combine input and output, ensuring all are numbers, format to 3 decimals
+                return [...sample.input, ...sample.output]
+                    .map(v => (typeof v === 'number' && isFinite(v)) ? v.toFixed(3) : 'NaN')
+                    .join(', ');
+            }).filter(row => row !== null); // Filter out skipped samples
+        }
+        // {{ End helper }}
+
         function generateRandomData(numSamples, numInputs, numOutputs = 1, noiseLevel = 0.05) { if (numInputs <= 0 || numOutputs <= 0) return ""; const data = []; for (let i = 0; i < numSamples; i++) { const input = []; for (let j = 0; j < numInputs; j++) input.push(Math.random()); const output = []; for (let j = 0; j < numOutputs; j++) { const base = Math.sin(input[0] * Math.PI * 2) * 0.4 + 0.5; const noise = (Math.random() - 0.5) * 2 * noiseLevel; let final = Math.max(0.01, Math.min(0.99, base + noise)); output.push(final); } data.push([...input, ...output].map(v => v.toFixed(3)).join(', ')); } return data.join('\n'); }
-        document.getElementById("generateDataBtn").addEventListener('click', () => { 
+        document.getElementById("generateDataBtn").addEventListener('click', () => {
             // Read values from inputs, with fallbacks to original defaults
-            const numTrain = parseInt(document.getElementById("numTrainSamples").value) || 100;
-            const numTest = parseInt(document.getElementById("numTestSamples").value) || 25;
+            const numTrainInput = parseInt(document.getElementById("numTrainSamples").value) || 100;
+            const numTestInput = parseInt(document.getElementById("numTestSamples").value) || 25;
             const numIn = parseInt(document.getElementById("numInputDims").value) || 3;
             const numOut = parseInt(document.getElementById("numOutputDims").value) || 1;
             const noise = parseFloat(document.getElementById("noiseLevel").value) || 0.05;
-            
+            const selectedPattern = document.getElementById("dataPattern").value;
+
             // Validate within reasonable ranges
-            const safeNumTrain = Math.max(1, Math.min(1000, numTrain));
-            const safeNumTest = Math.max(1, Math.min(500, numTest));
+            const safeNumTrain = Math.max(1, Math.min(5000, numTrainInput)); // Increased max limit
+            const safeNumTest = Math.max(0, Math.min(1000, numTestInput)); // Allow 0 test samples
             const safeNumIn = Math.max(1, Math.min(50, numIn));
             const safeNumOut = Math.max(1, Math.min(20, numOut));
             const safeNoise = Math.max(0, Math.min(1, noise));
-            
-            // Generate data with the configured parameters
-            trainingDataTextarea.value = generateRandomData(safeNumTrain, safeNumIn, safeNumOut, safeNoise);
-            testDataTextarea.value = generateRandomData(safeNumTest, safeNumIn, safeNumOut, safeNoise);
-            
-            // Update UI feedback
-            statsEl.innerHTML = `Generated ${safeNumTrain}/${safeNumTest} random samples with ${safeNumIn} inputs, ${safeNumOut} outputs, and ${safeNoise.toFixed(2)} noise.`;
-            
+
+            const totalSamples = safeNumTrain + safeNumTest;
+            let generatedData = []; // Will hold array of {input:[], output:[]} objects or CSV strings
+            let patternDesc = "Default Random"; // Description for status message
+            let finalInputDims = safeNumIn;
+            let finalOutputDims = safeNumOut;
+
             try {
-                const sample = parseCSV(trainingDataTextarea.value)[0];
-                if(sample && nn.layers && nn.layers.length > 0) nn.predict(sample.input);
-            } catch (e) {}
-            
-            drawNetwork();
+                 switch (selectedPattern) {
+                     case 'xor':
+                         generatedData = oblixUtils.generateXORData(totalSamples, safeNoise);
+                         patternDesc = "XOR";
+                         finalInputDims = 2; finalOutputDims = 1;
+                         break;
+                     case 'linear':
+                         generatedData = oblixUtils.generateLinearData(totalSamples, safeNoise, safeNumIn, safeNumOut);
+                         patternDesc = "Linear";
+                         // Uses safeNumIn, safeNumOut
+                         break;
+                     case 'circular':
+                         generatedData = oblixUtils.generateCircularData(totalSamples, safeNoise);
+                         patternDesc = "Circular";
+                         finalInputDims = 2; finalOutputDims = 1;
+                         break;
+                     case 'blobs':
+                         // Use safeNumOut to determine number of classes, default to 2 if <= 1
+                         const numClasses = Math.max(2, safeNumOut);
+                         generatedData = oblixUtils.generateGaussianBlobs(totalSamples, safeNoise, numClasses);
+                         patternDesc = `${numClasses}-Class Gaussian Blobs`;
+                         finalInputDims = 2; finalOutputDims = 1; // Output is class index
+                         break;
+                     case 'random':
+                     default:
+                          // Keep old random generation logic but adapt output format
+                          const randomCsvString = generateRandomData(totalSamples, safeNumIn, safeNumOut, safeNoise);
+                          generatedData = randomCsvString.split('\n'); // Store as array of strings
+                          patternDesc = "Default Random";
+                          break;
+                 }
+
+                 let csvRows = [];
+                 if (selectedPattern === 'random') {
+                     csvRows = generatedData; // Already array of CSV strings
+                 } else {
+                     csvRows = formatGeneratedDataToCSV(generatedData);
+                 }
+
+                 // Split data into training and test sets
+                 if (csvRows.length < totalSamples) {
+                     console.warn(`Generated fewer rows (${csvRows.length}) than requested (${totalSamples}). Adjusting counts.`);
+                 }
+                 const actualTotal = csvRows.length;
+                 const actualTrainCount = Math.min(safeNumTrain, actualTotal);
+                 const actualTestCount = Math.min(safeNumTest, actualTotal - actualTrainCount);
+
+                 // Shuffle the rows before splitting
+                 for (let i = actualTotal - 1; i > 0; i--) {
+                     const j = Math.floor(Math.random() * (i + 1));
+                     [csvRows[i], csvRows[j]] = [csvRows[j], csvRows[i]];
+                 }
+
+                 const trainCsvString = csvRows.slice(0, actualTrainCount).join('\n');
+                 const testCsvString = csvRows.slice(actualTrainCount, actualTrainCount + actualTestCount).join('\n');
+
+                 trainingDataTextarea.value = trainCsvString;
+                 testDataTextarea.value = testCsvString;
+
+                 // Update UI feedback
+                 statsEl.innerHTML = `Generated ${actualTrainCount}/${actualTestCount} samples using <strong>${patternDesc}</strong> pattern (${finalInputDims} inputs, ${finalOutputDims} outputs, ${safeNoise.toFixed(2)} noise).`;
+
+                 // Trigger network redraw based on potential new input/output dimensions
+                 // Try predicting with the first sample to update visualization
+                 try {
+                     const firstSample = parseCSV(trainCsvString)[0];
+                     if (firstSample && nn.layers && nn.layers.length > 0) {
+                         // Important: Ensure the model's expected input size matches the generated data
+                         if (nn.layers[0]?.inputSize === firstSample.input.length) {
+                             nn.predict(firstSample.input);
+                         } else {
+                             console.warn("Model input size doesn't match newly generated data. Skipping predict/redraw.");
+                             // Optionally clear the network viz if sizes mismatch significantly?
+                             // Or just let drawNetwork handle the empty state if predict isn't called.
+                         }
+                     }
+                 } catch (e) { console.warn("Error during post-generation predict:", e); }
+
+                 drawNetwork(); // Always call drawNetwork, it handles model/data state
+
+             } catch (error) {
+                 console.error("Error during data generation:", error);
+                 statsEl.innerHTML = `<span class="error">Generation Error: ${error.message}</span>`;
+             }
         });
         function parseCSV(csvString) { if (!csvString || typeof csvString !== 'string') return []; return csvString.trim().split('\n').map(r=>r.trim()).filter(r=>r.length>0).map((r,idx)=>{ const v=r.split(',').map(v=>parseFloat(v.trim())); if(v.some(isNaN)){console.warn(`R ${idx+1} NaN`);return null;} if(v.length<2){console.warn(`R ${idx+1} <2 vals`);return null;} const i=v.slice(0,-1), o=v.slice(-1); if(i.length===0){console.warn(`R ${idx+1} no input`);return null;} return {input:i,output:o}; }).filter(i=>i!==null); }
         function drawLossGraph() { if (!lossCtx || !lossCanvas) return; lossCtx.clearRect(0, 0, lossCanvas.width, lossCanvas.height); if (lossHistory.length < 2) return; const trainL=lossHistory.map(h=>h.train).filter(l=>l!==null&&isFinite(l)); const testL=lossHistory.map(h=>h.test).filter(l=>l!==null&&isFinite(l)); let maxL=0.1; if(trainL.length>0)maxL=Math.max(maxL,...trainL); if(testL.length>0)maxL=Math.max(maxL,...testL); maxL=Math.max(maxL,0.1); const W=lossCanvas.width,H=lossCanvas.height,nPts=lossHistory.length,pH=H*0.9,yOff=H*0.05; const plot=(ctx,pts,c)=>{ ctx.strokeStyle=c; ctx.lineWidth=1.5; ctx.beginPath(); let first=true; pts.forEach((p,i)=>{if(p!==null&&isFinite(p)){const x=(i/Math.max(1,nPts-1))*W; const y=H-(p/maxL)*pH-yOff; if(first){ctx.moveTo(x,y);first=false;}else{ctx.lineTo(x,y);}}else{first=true;}}); ctx.stroke(); }; const trainC=getComputedStyle(document.body).getPropertyValue('--text')?.trim()||'#fff'; plot(lossCtx,lossHistory.map(h=>h.train),trainC); plot(lossCtx,lossHistory.map(h=>h.test),'#87CEEB'); }
@@ -2788,7 +3046,42 @@
         }
         window.addEventListener('resize', resizeCanvases); setTimeout(resizeCanvases, 150);
 
-        saveButton.addEventListener('click', () => { if (!nn.layers || nn.layers.length === 0) { statsEl.innerHTML = '<span class="error">No model to save.</span>'; return; } nn.save('oblix_model'); statsEl.innerHTML = 'Model saved.'; });
+        saveButton.addEventListener('click', () => {
+          if (!nn.layers || nn.layers.length === 0) {
+            statsEl.innerHTML = '<span class="error">No model to save.</span>';
+            return;
+          }
+
+          // Prompt for filename
+          const userProvidedName = window.prompt("Enter filename base (e.g., my_model):", "oblix_model");
+
+          // Handle cancellation explicitly
+          if (userProvidedName === null) {
+            statsEl.innerHTML = 'Save cancelled.';
+            return; // Abort save
+          }
+
+          let filenameBase;
+          if (userProvidedName.trim() === "") {
+            // User entered empty string - generate default
+            const now = new Date();
+            const year = now.getUTCFullYear();
+            const month = (now.getUTCMonth() + 1).toString().padStart(2, '0');
+            const day = now.getUTCDate().toString().padStart(2, '0');
+            const hours = now.getUTCHours().toString().padStart(2, '0');
+            const minutes = now.getUTCMinutes().toString().padStart(2, '0');
+            const seconds = now.getUTCSeconds().toString().padStart(2, '0');
+            filenameBase = `oblix_${year}${month}${day}_${hours}${minutes}${seconds}Z`;
+            statsEl.innerHTML = `Using default filename: ${filenameBase}.json`; // Inform user
+          } else {
+            filenameBase = userProvidedName.trim(); // Use user's input (trimmed)
+          }
+
+          // Call save with the chosen/generated base name
+          nn.save(filenameBase); // nn.save will add .json
+          statsEl.innerHTML = `Model saved as ${filenameBase}.json`; // Update status
+        });
+
         loadButton.addEventListener('click', () => { statsEl.innerHTML = 'Loading...'; nn.load((error) => { if (error) { statsEl.innerHTML = `<span class="error">Load failed: ${error.message}</span>`; return; } const params = nn.getTotalParameters(); statsEl.innerHTML = `<strong>Model loaded!</strong> Params: ${params.toLocaleString()}`; try { const d = nn.details?.training; const l = nn.layers || []; usePositionalEncodingCheckbox.checked = nn.usePositionalEncoding || false; if (d) { epochsInput.value=d.epochs||50; learningRateInput.value=d.learningRate||0.01; batchSizeInput.value=d.batchSize||8; optimizerSelect.value=d.optimizer||'adam'; lossFunctionSelect.value=d.lossFunction||'mse'; l2LambdaInput.value=d.l2Lambda||0; decayRateInput.value=d.decayRate||0.9; gradientClipValueInput.value=d.gradientClipValue||0; optimizerSelect.dispatchEvent(new Event('change')); } const numHid = Math.max(0, l.length - 1); numHiddenLayersInput.value = numHid; createLayerConfigUI(numHid); l.slice(0, numHid).forEach((layer, i) => { const setV=(s,v)=>{const e=hiddenLayersConfigContainer.querySelector(s); if(e&&v!==undefined)e.value=v;}; const setC=(s,c)=>{const e=hiddenLayersConfigContainer.querySelector(s); if(e&&c!==undefined)e.checked=c;}; setV(`select[data-layer-index="${i}"][data-config-type="type"]`, layer.type||'dense'); const ts=hiddenLayersConfigContainer.querySelector(`select[data-layer-index="${i}"][data-config-type="type"]`); if(ts)ts.dispatchEvent(new Event('change',{bubbles:true})); switch(layer.type){ case 'dense': setV(`input[data-layer-index="${i}"][data-config-type="size"]`, layer.outputSize); setV(`select[data-layer-index="${i}"][data-config-type="activation"]`, layer.activation); setC(`input[data-layer-index="${i}"][data-config-type="useBias"]`, layer.useBias); break; case 'attention': setV(`input[data-layer-index="${i}"][data-config-type="numHeads"]`, layer.numHeads); break; case 'dropout': setV(`input[data-layer-index="${i}"][data-config-type="rate"]`, layer.rate); break; } });
                 // {{ Set template dropdown to Custom after load }}
                 architectureTemplateSelect.value = 'custom';
