@@ -265,6 +265,16 @@
               <option value="adamw">AdamW</option>
           </select>
          </div>
+        <!-- {{ Add Weight Init Dropdown }} -->
+        <div class="config-item">
+            <label for="weightInit" title="Method used to initialize dense layer weights. Glorot is often good for tanh/sigmoid, He for ReLU.">Weight Init:</label>
+            <select id="weightInit">
+                <option value="glorot" selected>Glorot (Xavier)</option>
+                <option value="he">He</option>
+                <!-- Add more options here later if needed -->
+            </select>
+        </div>
+        <!-- {{ End Weight Init Dropdown }} -->
         <div class="input-group">
           <label for="learningRate" title="How much the model weights are adjusted each update. Too high can diverge, too low is slow.">Learning Rate:</label>
           <input type="number" id="learningRate" value="0.01" step="0.001" min="0">
@@ -1229,9 +1239,29 @@
                 return (ssRes === 0) ? 1.0 : NaN;
             }
             return 1 - (ssRes / ssTot);
-        }
+        },
 
         // Add other utils here later if needed
+
+        // {{ Add gaussianRandom helper using Box-Muller }}
+        _gaussian_spare: null, // Cache for Box-Muller
+        gaussianRandom: function() {
+            if (this._gaussian_spare !== null) {
+                const spare = this._gaussian_spare;
+                this._gaussian_spare = null;
+                return spare;
+            }
+            let u, v, s;
+            do {
+                u = Math.random() * 2 - 1; // (-1, 1)
+                v = Math.random() * 2 - 1; // (-1, 1)
+                s = u * u + v * v;
+            } while (s >= 1 || s === 0);
+            const mul = Math.sqrt(-2.0 * Math.log(s) / s);
+            this._gaussian_spare = v * mul; // Store the second sample
+            return u * mul; // Return the first sample
+        }
+        // {{ End gaussianRandom helper }}
     };
     // --- End Utility Namespace ---
 
@@ -1280,14 +1310,16 @@
       }
 
       layer(config) {
-        const { type = 'dense', inputSize, outputSize, activation = 'tanh', numHeads = 2, useBias = true, rate = 0.5 } = config;
+        // {{ Update signature to include weightInit }}
+        const { type = 'dense', inputSize, outputSize, activation = 'tanh', numHeads = 2, useBias = true, rate = 0.5, weightInit = 'glorot' } = config;
         if (typeof inputSize !== 'number' || inputSize <= 0) throw new Error(`Layer ${this.layers.length}: Invalid inputSize: ${inputSize}.`);
         if (this.layers.length > 0) { const prevLayer = this.layers[this.layers.length - 1]; if (inputSize !== prevLayer.outputSize) throw new Error(`Layer ${this.layers.length} (${type}): Input size ${inputSize} doesn't match previous layer's output size ${prevLayer.outputSize}.`); }
         let actualOutputSize = outputSize;
         switch (type) { case 'dense': if (typeof outputSize !== 'number' || outputSize <= 0) throw new Error(`Dense Layer ${this.layers.length}: Invalid outputSize: ${outputSize}.`); break; case 'layernorm': case 'attention': case 'dropout': case 'softmax': actualOutputSize = inputSize; if (outputSize !== undefined && outputSize !== inputSize) console.warn(`${type} layer ${this.layers.length}: Output size ignored.`); break; default: throw new Error(`Unknown layer type: ${type}`); }
         if (type === 'attention' && inputSize % numHeads !== 0) throw new Error(`Attention layer ${this.layers.length}: Input size ${inputSize} not divisible by numHeads ${numHeads}.`);
         if (type === 'dropout' && (rate < 0 || rate >= 1)) throw new Error(`Dropout layer ${this.layers.length}: Rate ${rate} must be >= 0 and < 1.`);
-        const layerConfig = { type, inputSize, outputSize: actualOutputSize, activation, numHeads, useBias, rate };
+        // {{ Pass weightInit to layerConfig }}
+        const layerConfig = { type, inputSize, outputSize: actualOutputSize, activation, numHeads, useBias, rate, weightInit };
         const layerIndex = this.layers.length; // Get index before pushing config
         this.layers.push(layerConfig);
 
@@ -1296,14 +1328,28 @@
         this.m_dw.push(null); this.v_dw.push(null); this.m_db.push(null); this.v_db.push(null); this.m_dgamma.push(null); this.v_dgamma.push(null); this.m_dbeta.push(null); this.v_dbeta.push(null); this.s_dw.push(null); this.s_db.push(null); this.s_dgamma.push(null); this.s_dbeta.push(null);
 
         if (type === 'dense') {
-            const limit = Math.sqrt(6 / (inputSize + actualOutputSize));
+            // {{ Implement Conditional Initialization }}
             const weightCount = actualOutputSize * inputSize;
             const weightsArray = new Float32Array(weightCount);
+            let initFunc;
+            if (weightInit === 'he') {
+                const stdDev = Math.sqrt(2 / inputSize); // fan_in is inputSize
+                initFunc = () => oblixUtils.gaussianRandom() * stdDev;
+                if (this.debug) console.log(`Phase 1 Refactor: L${layerIndex} Dense Weights init: He (stdDev=${stdDev.toFixed(4)})`);
+
+            } else { // Default to Glorot (Xavier)
+                const limit = Math.sqrt(6 / (inputSize + actualOutputSize));
+                initFunc = () => (Math.random() * 2 - 1) * limit;
+                 if (this.debug) console.log(`Phase 1 Refactor: L${layerIndex} Dense Weights init: Glorot (limit=${limit.toFixed(4)})`);
+            }
+
             for (let i = 0; i < weightCount; i++) {
-                weightsArray[i] = (Math.random() * 2 - 1) * limit;
+                weightsArray[i] = initFunc();
             }
             this.weights[layerIndex] = weightsArray; // Use layerIndex
-            if (this.debug) console.log(`Phase 1 Refactor: L${layerIndex} Dense Weights init: ${this.weights[layerIndex] instanceof Float32Array}, Length: ${this.weights[layerIndex]?.length}`);
+            // {{ Remove old Glorot calculation logging - now handled above }}
+            // if (this.debug) console.log(`Phase 1 Refactor: L${layerIndex} Dense Weights init: ${this.weights[layerIndex] instanceof Float32Array}, Length: ${this.weights[layerIndex]?.length}`);
+             // {{ End Conditional Initialization }}
 
             if (useBias) {
                  this.biases[layerIndex] = new Float32Array(actualOutputSize).fill(0.01); // Use layerIndex
@@ -2381,9 +2427,46 @@
         trainButton.addEventListener('click', async () => {
             statsEl.innerHTML = 'Starting training...'; trainButton.disabled = true; trainButton.textContent = 'Training...'; predictButton.disabled = true; saveButton.disabled = true; loadButton.disabled = true; unloadButton.disabled = true; epochBar.style.width = '0%'; lossHistory = []; drawLossGraph();
             try {
+                // {{ Read Weight Init Method }}
+                const weightInitMethod = document.getElementById('weightInit').value;
+
                 const trainingData = parseCSV(trainingDataTextarea.value); const testData = parseCSV(testDataTextarea.value); if (trainingData.length === 0) throw new Error("Training data empty/invalid."); if (!trainingData[0]?.input || !trainingData[0]?.output) throw new Error("Cannot get input/output size from data.");
                 nn.reset(); const numHidden = parseInt(numHiddenLayersInput.value); const layerCfgs = []; const numIns = trainingData[0].input.length; let curInSize = numIns;
-                for (let i = 0; i < numHidden; i++) { const getV=(s)=>hiddenLayersConfigContainer.querySelector(s)?.value; const getC=(s)=>hiddenLayersConfigContainer.querySelector(s)?.checked; const lType=getV(`select[data-layer-index="${i}"][data-config-type="type"]`) || 'dense'; let cfg={type:lType, inputSize:curInSize}; switch(lType){ case 'dense': cfg.outputSize=parseInt(getV(`input[data-layer-index="${i}"][data-config-type="size"]`)||1); if(cfg.outputSize<=0) throw new Error(`L${i+1} Dense: Invalid nodes.`); cfg.activation=getV(`select[data-layer-index="${i}"][data-config-type="activation"]`) || 'tanh'; cfg.useBias=getC(`input[data-layer-index="${i}"][data-config-type="useBias"]`)??true; break; case 'attention': cfg.numHeads=parseInt(getV(`input[data-layer-index="${i}"][data-config-type="numHeads"]`)||1); if(cfg.numHeads<=0) throw new Error(`L${i+1} Attn: Invalid heads.`); if(curInSize%cfg.numHeads!==0) throw new Error(`L${i+1} Attn: Input ${curInSize} not divisible by ${cfg.numHeads} heads.`); cfg.outputSize=curInSize; break; case 'dropout': cfg.rate=parseFloat(getV(`input[data-layer-index="${i}"][data-config-type="rate"]`)||0); if(cfg.rate<0||cfg.rate>=1) throw new Error(`L${i+1} Dropout: Invalid rate.`); cfg.outputSize=curInSize; break; case 'layernorm': case 'softmax': cfg.outputSize=curInSize; break; default: throw new Error(`L${i+1}: Unknown type "${lType}".`); } if(!cfg.outputSize) throw new Error(`L${i+1}: No output size.`); layerCfgs.push(cfg); curInSize=cfg.outputSize; }
+                for (let i = 0; i < numHidden; i++) { 
+                    const getV=(s)=>hiddenLayersConfigContainer.querySelector(s)?.value; 
+                    const getC=(s)=>hiddenLayersConfigContainer.querySelector(s)?.checked; 
+                    const lType=getV(`select[data-layer-index="${i}"][data-config-type="type"]`) || 'dense'; 
+                    // {{ Pass weightInitMethod to layer config }}
+                    let cfg={type:lType, inputSize:curInSize, weightInit: weightInitMethod }; 
+                    switch(lType){ 
+                        case 'dense': 
+                            cfg.outputSize=parseInt(getV(`input[data-layer-index="${i}"][data-config-type="size"]`)||1); 
+                            if(cfg.outputSize<=0) throw new Error(`L${i+1} Dense: Invalid nodes.`); 
+                            cfg.activation=getV(`select[data-layer-index="${i}"][data-config-type="activation"]`) || 'tanh'; 
+                            cfg.useBias=getC(`input[data-layer-index="${i}"][data-config-type="useBias"]`)??true; 
+                            break; 
+                        case 'attention': 
+                            cfg.numHeads=parseInt(getV(`input[data-layer-index="${i}"][data-config-type="numHeads"]`)||1); 
+                            if(cfg.numHeads<=0) throw new Error(`L${i+1} Attn: Invalid heads.`); 
+                            if(curInSize%cfg.numHeads!==0) throw new Error(`L${i+1} Attn: Input ${curInSize} not divisible by ${cfg.numHeads} heads.`); 
+                            cfg.outputSize=curInSize; 
+                            break; 
+                        case 'dropout': 
+                            cfg.rate=parseFloat(getV(`input[data-layer-index="${i}"][data-config-type="rate"]`)||0); 
+                            if(cfg.rate<0||cfg.rate>=1) throw new Error(`L${i+1} Dropout: Invalid rate.`); 
+                            cfg.outputSize=curInSize; 
+                            break; 
+                        case 'layernorm': 
+                            case 'softmax': 
+                            cfg.outputSize=curInSize; 
+                            break; 
+                        default: 
+                            throw new Error(`L${i+1}: Unknown type "${lType}".`); 
+                    } 
+                    if(!cfg.outputSize) throw new Error(`L${i+1}: No output size.`); 
+                    layerCfgs.push(cfg); 
+                    curInSize=cfg.outputSize; 
+                }
                 // {{ Adjust final layer based on template and data }}
                 const isAutoencoder = architectureTemplateSelect.value === 'autoencoder';
                 const numOuts = isAutoencoder ? numIns : trainingData[0].output.length;
