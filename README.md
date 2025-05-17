@@ -1,6 +1,6 @@
 # oblix
 
-**oblix** is a self-contained, browser-based neural network playground written entirely in pure JavaScript. It provides an interactive environment to build, train, visualize, and experiment with various neural network architectures and training parameters directly within a single HTML file.
+**oblix** is a self-contained, browser-based neural network playground written entirely in pure JavaScript. It provides an interactive environment to build, train, visualize, and experiment with various neural network architectures and training parameters. The main HTML page loads JavaScript modules from the `src` directory.
 
 ## Features
 
@@ -24,11 +24,11 @@
 
 ## How to Use
 
-Simply download the `index.html` file and open it in a modern web browser. No installation or build steps are required.
+Clone or download this repository (or at least the `index.html` file and accompanying `src` folder), then open `index.html` in a modern web browser. No installation or build steps are required.
 
 ## Technology
 
-Oblix is implemented in pure JavaScript with no external library dependencies for the core neural network logic. All functionality is contained within the single `index.html` file.
+Oblix is implemented in pure JavaScript with no external library dependencies for the core neural network logic. The `index.html` entry point imports modules from the `src` directory where all functionality resides.
 
 ## License
 
