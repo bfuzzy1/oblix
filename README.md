@@ -29,3 +29,7 @@ Simply download the `index.html` file and open it in a modern web browser. No in
 ## Technology
 
 Oblix is implemented in pure JavaScript with no external library dependencies for the core neural network logic. All functionality is contained within the single `index.html` file.
+
+## License
+
+Released under the [MIT License](LICENSE).
