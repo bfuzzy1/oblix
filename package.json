@@ -1,7 +1,0 @@
-{
-  "name": "oblix",
-  "type": "module",
-  "scripts": {
-    "test": "node tests/run-tests.js"
-  }
-}

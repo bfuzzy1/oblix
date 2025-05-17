@@ -15,7 +15,7 @@ The focus for the rest of 2025 is on quality over quantity, delivering features 
 
 **Phase 1: Foundation & Core QoL (Target: April - June 2025)**
 
-*   [x] **[Code Quality] Major Refactoring:** Improve UI/Logic separation and drawing logic for better maintainability and to facilitate future interactive features.
+*   [ ] **[Code Quality] Major Refactoring:** Improve UI/Logic separation and drawing logic for better maintainability and to facilitate future interactive features.
 *   [x] **[Core UX] Pause/Resume Training:** Allow users to pause training, inspect the network state, and resume. Essential for deeper exploration.
 
 **Phase 2: Primary Awesome Feature (Target: July - September 2025)**

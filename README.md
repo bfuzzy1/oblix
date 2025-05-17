@@ -24,13 +24,7 @@
 
 ## How to Use
 
-Simply download the repository (or the `index.html` with the `src` folder) and open `index.html` in a modern web browser. All modules are loaded directly without a bundler.
-
-## Project Structure
-
-- `src/core/` – neural network implementation (`network.js`)
-- `src/ui/` – DOM setup and event handling (`main.js`)
-- `src/visualization/` – canvas drawing utilities
+Simply download the `index.html` file and open it in a modern web browser. No installation or build steps are required.
 
 ## Technology
 
