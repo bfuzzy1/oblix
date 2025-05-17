@@ -147,6 +147,70 @@ if (typeof document !== "undefined") {
       ],
       finalActivationHint: "none",
     },
+    mlpDropout: {
+      numHidden: 4,
+      layers: [
+        { type: "dense", size: 16, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.2 },
+        { type: "dense", size: 8, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.2 },
+      ],
+      finalActivationHint: "none",
+    },
+    deepResidualMLP: {
+      numHidden: 5,
+      layers: [
+        { type: "layernorm" },
+        { type: "dense", size: 64, activation: "relu", useBias: true },
+        { type: "dense", size: 64, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.1 },
+        { type: "layernorm" },
+      ],
+      finalActivationHint: "none",
+    },
+    transformerStack: {
+      numHidden: 16,
+      layers: [
+        { type: "layernorm", size: null },
+        { type: "attention", numHeads: 3 },
+        { type: "dense", size: 32, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.1 },
+
+        { type: "layernorm", size: null },
+        { type: "attention", numHeads: 4 },
+        { type: "dense", size: 32, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.1 },
+
+        { type: "layernorm", size: null },
+        { type: "attention", numHeads: 3 },
+        { type: "dense", size: 32, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.1 },
+
+        { type: "layernorm", size: null },
+        { type: "attention", numHeads: 4 },
+        { type: "dense", size: 32, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.1 },
+      ],
+      finalActivationHint: "none",
+    },
+    autoencoderDropout: {
+      numHidden: 5,
+      layers: [
+        { type: "dense", size: 16, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.2 },
+        { type: "dense", size: 4, activation: "relu", useBias: true },
+        { type: "dropout", rate: 0.2 },
+        { type: "dense", size: 16, activation: "relu", useBias: true },
+      ],
+      finalActivationHint: "sigmoid",
+    },
+    softmaxClassifier: {
+      numHidden: 1,
+      layers: [
+        { type: "dense", size: 16, activation: "relu", useBias: true },
+      ],
+      finalActivationHint: "softmax",
+    },
   };
 
   try {
