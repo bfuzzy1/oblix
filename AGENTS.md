@@ -7,7 +7,8 @@
 ## Development notes
 - Keep the project fully self-contained in plain JavaScript (no build system or external dependencies).
 - Use 2-space indentation and semicolons, matching the style in the existing modules within `src`. ​:codex-file-citation[codex-file-citation]{line_range_start=1 line_range_end=20 path=src/main.js git_url="https://github.com/bfuzzy1/oblix/blob/main/src/main.js#L1-L20"}​
-- There are currently no automated tests or linters.
+- There are currently tests in `tests/`.
+- You must run tests AFTER each code change you make. Use `node tests/run.js`.
 - When adding features, ensure the UI remains simple and educational.
 - Documentation should be thorough and complete.
 
