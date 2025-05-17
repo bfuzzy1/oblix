@@ -1158,10 +1158,17 @@
                 const predVec = predictions[i];
                 const targetInfo = targets[i];
 
-                if (!predVec || !targetInfo) continue;                        
+                if (!predVec || !targetInfo) continue;
 
-                                                                              
-                const predictedIndex = predVec.indexOf(Math.max(...predVec));
+                let predictedIndex = -1;
+                let maxPredVal = -Infinity;
+                for (let j = 0; j < predVec.length; j++) {
+                    const v = predVec[j];
+                    if (typeof v === 'number' && isFinite(v) && v > maxPredVal) {
+                        maxPredVal = v;
+                        predictedIndex = j;
+                    }
+                }
 
                 let targetIndex = -1;
                                                                    
@@ -1170,10 +1177,14 @@
                 }
                                                       
                 else if (Array.isArray(targetInfo) && targetInfo.length === predVec.length) {
-                    targetIndex = targetInfo.indexOf(1);
-                                                                                                 
-                    if (targetIndex === -1) {
-                       targetIndex = targetInfo.indexOf(Math.max(...targetInfo));
+                    for (let j = 0; j < targetInfo.length; j++) {
+                        const t = targetInfo[j];
+                        if (t === 1) { targetIndex = j; break; }
+                        if (targetIndex === -1 && typeof t === "number" && isFinite(t)) {
+                            if (j === 0 || t > targetInfo[targetIndex]) {
+                                targetIndex = j;
+                            }
+                        }
                     }
                 } else {
                      console.warn(`Accuracy calc: Invalid target format at index ${i}`, targetInfo);
@@ -1205,11 +1216,11 @@
              }
 
                                                                         
-             if (typeof console !== 'undefined' && console.log) {
+            const targetMean = targets.reduce((sum, val) => sum + val, 0) / targets.length;
+            if (typeof console !== 'undefined' && console.log) {
                 console.log(`R² Func Check: Received preds[0]=${predictions[0]} (typeof: ${typeof predictions[0]}), targets[0]=${targets[0]} (typeof: ${typeof targets[0]})`);
-                const targetMean = targets.reduce((sum, val) => sum + val, 0) / targets.length;
                 console.log(`R² Func Check: Calculated targetMean = ${targetMean}`);
-             }
+            }
                                  
 
 
@@ -1241,8 +1252,6 @@
                 }
                                  
 
-                                                                                        
-                const targetMean = targets.reduce((sum, val) => sum + val, 0) / targets.length;                                                                                                                                                                   
                 ssTot += (targetVal - targetMean) ** 2;
                 ssRes += (targetVal - predVal) ** 2;
             }
