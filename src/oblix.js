@@ -1326,6 +1326,7 @@ class oblix {
     this.debug = debug;
     this.usePositionalEncoding = false;
     this.isTraining = false;
+    this.isPaused = false;
     this.beta1 = 0.9;
     this.beta2 = 0.999;
     this.epsilon = 1e-8;
@@ -1365,6 +1366,7 @@ class oblix {
     this.masks = [];
     this.details = {};
     this.isTraining = false;
+    this.isPaused = false;
     this.t = 0;
     this.m_dw = [];
     this.v_dw = [];
@@ -1734,6 +1736,9 @@ class oblix {
     let validationMetricName = "";
 
     for (let epoch = 0; epoch < epochs; epoch++) {
+      while (this.isPaused) {
+        await new Promise((r) => setTimeout(r, 50));
+      }
       const currentEpochLearningRate = this.getCurrentLearningRate(
         epoch,
         initialLearningRate,
@@ -1746,6 +1751,9 @@ class oblix {
         [trainSet[i], trainSet[j]] = [trainSet[j], trainSet[i]];
       }
       for (let b = 0; b < trainSet.length; b += effectiveBatchSize) {
+        while (this.isPaused) {
+          await new Promise((r) => setTimeout(r, 50));
+        }
         const batch = trainSet.slice(b, b + effectiveBatchSize);
         if (batch.length === 0) continue;
 
@@ -2301,6 +2309,14 @@ class oblix {
     return trainingSummary;
   }
 
+  pauseTraining() {
+    this.isPaused = true;
+  }
+
+  resumeTraining() {
+    this.isPaused = false;
+  }
+
   predict(input) {
     if (this.debug)
       console.log(" Starting prediction with native Float32Array logic.");
@@ -2727,7 +2743,8 @@ class oblix {
   }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+if (typeof document !== "undefined") {
+  document.addEventListener("DOMContentLoaded", () => {
   const nn = new oblix(true);
   let lossHistory = [];
   const lossCanvas = document.getElementById("lossGraph");
@@ -2736,6 +2753,8 @@ document.addEventListener("DOMContentLoaded", () => {
   const networkCtx = networkCanvas?.getContext("2d");
   const statsEl = document.getElementById("stats");
   const trainButton = document.getElementById("trainButton");
+  const pauseButton = document.getElementById("pauseButton");
+  const resumeButton = document.getElementById("resumeButton");
   const predictButton = document.getElementById("predictButton");
   const saveButton = document.getElementById("saveButton");
   const loadButton = document.getElementById("loadButton");
@@ -3477,6 +3496,8 @@ document.addEventListener("DOMContentLoaded", () => {
     statsEl.innerHTML = "Starting training...";
     trainButton.disabled = true;
     trainButton.textContent = "Training...";
+    pauseButton.disabled = false;
+    resumeButton.disabled = true;
     predictButton.disabled = true;
     saveButton.disabled = true;
     loadButton.disabled = true;
@@ -3723,7 +3744,22 @@ document.addEventListener("DOMContentLoaded", () => {
       saveButton.disabled = false;
       loadButton.disabled = false;
       unloadButton.disabled = false;
+      pauseButton.disabled = true;
+      resumeButton.disabled = true;
     }
+  });
+
+  pauseButton.addEventListener("click", () => {
+    nn.pauseTraining();
+    pauseButton.disabled = true;
+    resumeButton.disabled = false;
+    statsEl.innerHTML = "Training paused";
+  });
+
+  resumeButton.addEventListener("click", () => {
+    nn.resumeTraining();
+    pauseButton.disabled = false;
+    resumeButton.disabled = true;
   });
 
   function drawNetwork() {
@@ -4170,3 +4206,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 });
+}
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = oblix;
+}
