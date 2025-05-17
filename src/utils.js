@@ -78,10 +78,13 @@ export const oblixUtils = {
 
       let targetIndex = -1;
 
+      const isTypedArray =
+        ArrayBuffer.isView(targetInfo) && !(targetInfo instanceof DataView);
+
       if (typeof targetInfo === "number" && Number.isInteger(targetInfo)) {
         targetIndex = targetInfo;
       } else if (
-        Array.isArray(targetInfo) &&
+        (Array.isArray(targetInfo) || isTypedArray) &&
         targetInfo.length === predVec.length
       ) {
         for (let j = 0; j < targetInfo.length; j++) {
