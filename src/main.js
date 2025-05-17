@@ -385,7 +385,7 @@ if (typeof document !== "undefined") {
       statsEl.innerHTML = `Generated ${actualTrainCount}/${actualTestCount} samples using <strong>${patternDesc}</strong> pattern (${finalInputDims} inputs, ${finalOutputDims} outputs, ${safeNoise.toFixed(2)} noise).`;
 
       try {
-        const firstSample = parseCSV(trainCsvString)[0];
+        const firstSample = parseCSV(trainCsvString, finalOutputDims)[0];
         if (firstSample && nn.layers && nn.layers.length > 0) {
           if (nn.layers[0]?.inputSize === firstSample.input.length) {
             nn.predict(firstSample.input);
@@ -405,30 +405,31 @@ if (typeof document !== "undefined") {
       statsEl.innerHTML = `<span class="error">Generation Error: ${error.message}</span>`;
     }
   });
-  function parseCSV(csvString) {
+  function parseCSV(csvString, numOutputs = 1) {
     if (!csvString || typeof csvString !== "string") return [];
+    const outputs = Math.max(1, Math.floor(numOutputs));
     return csvString
       .trim()
       .split("\n")
       .map((r) => r.trim())
       .filter((r) => r.length > 0)
       .map((r, idx) => {
-        const v = r.split(",").map((v) => parseFloat(v.trim()));
-        if (v.some(isNaN)) {
+        const vals = r.split(",").map((v) => parseFloat(v.trim()));
+        if (vals.some(isNaN)) {
           console.warn(`R ${idx + 1} NaN`);
           return null;
         }
-        if (v.length < 2) {
-          console.warn(`R ${idx + 1} <2 vals`);
+        if (vals.length < outputs + 1) {
+          console.warn(`R ${idx + 1} insufficient vals`);
           return null;
         }
-        const i = v.slice(0, -1),
-          o = v.slice(-1);
-        if (i.length === 0) {
-          console.warn(`R ${idx + 1} no input`);
+        const input = vals.slice(0, vals.length - outputs);
+        const output = vals.slice(vals.length - outputs);
+        if (input.length === 0 || output.length !== outputs) {
+          console.warn(`R ${idx + 1} invalid io lens`);
           return null;
         }
-        return { input: i, output: o };
+        return { input: input, output: output };
       })
       .filter((i) => i !== null);
   }
@@ -830,8 +831,9 @@ if (typeof document !== "undefined") {
     try {
       const weightInitMethod = document.getElementById("weightInit").value;
 
-      const trainingData = parseCSV(trainingDataTextarea.value);
-      const testData = parseCSV(testDataTextarea.value);
+      const outDims = parseInt(numOutputDimsInput.value) || 1;
+      const trainingData = parseCSV(trainingDataTextarea.value, outDims);
+      const testData = parseCSV(testDataTextarea.value, outDims);
       if (trainingData.length === 0)
         throw new Error("Training data empty/invalid.");
       if (!trainingData[0]?.input || !trainingData[0]?.output)
@@ -1471,7 +1473,8 @@ if (typeof document !== "undefined") {
         drawLossGraph();
         predictionResultEl.innerHTML = "Result: -";
         try {
-          const sample = parseCSV(trainingDataTextarea.value)[0];
+          const sample =
+            parseCSV(trainingDataTextarea.value, parseInt(numOutputDimsInput.value) || 1)[0];
           if (sample) nn.predict(sample.input);
         } catch (e) {}
         drawNetwork();
