@@ -1772,6 +1772,9 @@ class oblix {
 
         let batchLossSum = 0;
         for (const data of batch) {
+          while (this.isPaused) {
+            await new Promise((r) => setTimeout(r, 50));
+          }
           let currentInput = data.input;
           if (!Array.isArray(currentInput) || !Array.isArray(data.output)) {
             console.warn("Skip invalid data");
@@ -2115,6 +2118,9 @@ class oblix {
         const allValTargets = [];
 
         for (const data of testSet) {
+          while (this.isPaused) {
+            await new Promise((r) => setTimeout(r, 50));
+          }
           const prediction = this.predict(data.input);
           if (
             prediction &&
