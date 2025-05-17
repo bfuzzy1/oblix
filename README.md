@@ -6,7 +6,7 @@
 
 *   **Interactive UI:** Build networks and configure training through a graphical interface.
 *   **Multiple Layer Types:** Supports Dense (fully connected), Layer Normalization, Self-Attention, Dropout, and Softmax layers.
-*   **Architecture Templates:** Quickly load predefined structures like Simple MLP, Basic Autoencoder, Transformer Encoder block, and Residual Attention block.
+*   **Architecture Templates:** Quickly load predefined structures like Simple MLP, Basic Autoencoder, Transformer Encoder block, Residual Attention block, and additional presets including MLP with Dropout, Deep Residual MLP, Transformer Stack, Autoencoder with Dropout, and a Softmax Classifier.
 *   **Configurable Training:**
     *   **Optimizers:** SGD, Adam, RMSprop, AdamW.
     *   **Loss Functions:** Mean Squared Error (MSE), Cross-Entropy.
