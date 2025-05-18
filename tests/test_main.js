@@ -1,8 +1,27 @@
 import assert from 'assert';
-import { dataUtils } from '../src/data-utils.js';
+import fs from 'fs';
+import path from 'path';
+
+function extractFunction(code, name) {
+  const startToken = `function ${name}`;
+  const startIdx = code.indexOf(startToken);
+  if (startIdx === -1) throw new Error(`Function ${name} not found`);
+  let i = code.indexOf('{', startIdx);
+  let count = 1;
+  while (count > 0 && ++i < code.length) {
+    const ch = code[i];
+    if (ch === '{') count++;
+    else if (ch === '}') count--;
+  }
+  const fnStr = code.slice(startIdx, i + 1);
+  return eval(`(${fnStr})`);
+}
 
 export async function run() {
-  const { generateRandomData, parseCSV, formatGeneratedDataToCSV } = dataUtils;
+  const code = fs.readFileSync(path.join('src', 'main.js'), 'utf8');
+  const generateRandomData = extractFunction(code, 'generateRandomData');
+  const parseCSV = extractFunction(code, 'parseCSV');
+  const formatGeneratedDataToCSV = extractFunction(code, 'formatGeneratedDataToCSV');
 
   const csvStr = generateRandomData(5, 2, 1, 0);
   const rows = csvStr.split('\n');
