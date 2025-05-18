@@ -38,14 +38,13 @@ utility helpers. Benchmarks are provided for the data generation routines
 `generateXORData`, `generateLinearData`, `generateCircularData` and
 `generateGaussianBlobs`. Additional scripts cover `gaussianRandom`,
 `positionalEncoding`, `calculateAccuracy`, `calculateRSquared` and
-`softmaxForward`.
+`softmaxForward`, and `dropoutForward`.
 
 Run all performance benchmarks with:
 
 ```bash
 node benchmark/run.js
 ```
-
 
 ## License
 
