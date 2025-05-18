@@ -33,7 +33,8 @@ Oblix is implemented in pure JavaScript with no external library dependencies fo
 
 Dropout layers generate masks using `crypto.getRandomValues` for performance. A
 custom `randomFillFn` can be attached to the network context to supply
-deterministic values during testing.
+deterministic values during testing. The helper `oblixUtils.fillRandomInts`
+implements this fallback logic.
 
 ## Benchmarks
 

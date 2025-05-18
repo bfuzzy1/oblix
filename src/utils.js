@@ -174,6 +174,21 @@ export const oblixUtils = {
     return 1 - ssRes / ssTot;
   },
 
+  fillRandomInts: function (arr, randomFillFn) {
+    if (typeof randomFillFn === 'function') {
+      randomFillFn(arr);
+    } else if (
+      typeof globalThis.crypto !== 'undefined' &&
+      typeof globalThis.crypto.getRandomValues === 'function'
+    ) {
+      globalThis.crypto.getRandomValues(arr);
+    } else {
+      for (let i = 0; i < arr.length; i++) {
+        arr[i] = (Math.random() * 0xffffffff) >>> 0;
+      }
+    }
+  },
+
   _TWO_PI: 2 * Math.PI,
   _gaussian_spare: null,
   gaussianRandom: function () {
