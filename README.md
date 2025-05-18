@@ -31,6 +31,10 @@ Clone or download this repository (or at least the `index.html` file and accompa
 
 Oblix is implemented in pure JavaScript with no external library dependencies for the core neural network logic. The `index.html` entry point imports modules from the `src` directory where all functionality resides.
 
+Dropout layers generate masks using `crypto.getRandomValues` for performance. A
+custom `randomFillFn` can be attached to the network context to supply
+deterministic values during testing.
+
 ## Benchmarks
 
 The `benchmark/` directory contains small scripts that measure the speed of the
