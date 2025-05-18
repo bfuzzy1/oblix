@@ -2,7 +2,7 @@ import { Oblix } from "./network.js";
 import { oblixUtils } from "./utils.js";
 
 if (typeof document !== "undefined") {
-  document.addEventListener("DOMContentLoaded", () => {
+  const init = () => {
   const nn = new Oblix(true);
   let lossHistory = [];
   let playbackHistory = [];
@@ -1596,6 +1596,11 @@ if (typeof document !== "undefined") {
       statsEl.innerHTML = `<span class="error">Unload error: ${error.message}</span>`;
     }
   });
-});
+  };
+  if (document.readyState !== "loading") {
+    init();
+  } else {
+    document.addEventListener("DOMContentLoaded", init);
+  }
 }
 
