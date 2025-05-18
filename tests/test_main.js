@@ -22,6 +22,7 @@ export async function run() {
   const generateRandomData = extractFunction(code, 'generateRandomData');
   const parseCSV = extractFunction(code, 'parseCSV');
   const formatGeneratedDataToCSV = extractFunction(code, 'formatGeneratedDataToCSV');
+  const interpretPrediction = extractFunction(code, 'interpretPrediction');
 
   const csvStr = generateRandomData(5, 2, 1, 0);
   const rows = csvStr.split('\n');
@@ -46,4 +47,10 @@ export async function run() {
     '0.100, 0.200, 1.000',
     '0.300, 0.400, 0.000'
   ]);
+
+  const classStr = interpretPrediction([0.1, 0.7, 0.2], 'softmax');
+  assert.strictEqual(classStr, 'Predicted class 1 (p=0.7000)');
+
+  const rawStr = interpretPrediction([0.34], 'none');
+  assert.strictEqual(rawStr, 'Result: [0.34000]');
 }
