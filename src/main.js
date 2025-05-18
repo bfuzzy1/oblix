@@ -433,6 +433,24 @@ if (typeof document !== "undefined") {
       })
       .filter((i) => i !== null);
   }
+
+  function interpretPrediction(pred, act) {
+    if (!Array.isArray(pred)) return "Result: -";
+    const activation = act || "";
+    if (activation === "softmax") {
+      let best = 0;
+      for (let i = 1; i < pred.length; i++) if (pred[i] > pred[best]) best = i;
+      const prob = pred[best];
+      return `Predicted class ${best} (p=${prob.toFixed(4)})`;
+    } else if (activation === "sigmoid" && pred.length === 1) {
+      const prob = pred[0];
+      const label = prob >= 0.5 ? 1 : 0;
+      return `Predicted class ${label} (p=${prob.toFixed(4)})`;
+    } else {
+      const predStr = pred.map((p) => p.toFixed(5)).join(", ");
+      return `Result: [${predStr}]`;
+    }
+  }
   function drawLossGraph() {
     if (!lossCtx || !lossCanvas) return;
     lossCtx.clearRect(0, 0, lossCanvas.width, lossCanvas.height);
@@ -1501,8 +1519,10 @@ if (typeof document !== "undefined") {
         );
       const pred = nn.predict(input);
       if (pred === null) throw new Error("Prediction failed.");
-      const predStr = pred.map((p) => p.toFixed(5)).join(", ");
-      predictionResultEl.innerHTML = `Result: [${predStr}]`;
+      const lastLayer = nn.layers[nn.layers.length - 1] || {};
+      const act = lastLayer.activation || "";
+      const resultText = interpretPrediction(pred, act);
+      predictionResultEl.innerHTML = resultText;
       drawNetwork();
     } catch (error) {
       console.error("Predict error:", error);
