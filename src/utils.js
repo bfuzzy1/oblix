@@ -174,6 +174,7 @@ export const oblixUtils = {
     return 1 - ssRes / ssTot;
   },
 
+  _TWO_PI: 2 * Math.PI,
   _gaussian_spare: null,
   gaussianRandom: function () {
     if (this._gaussian_spare !== null) {
@@ -181,10 +182,10 @@ export const oblixUtils = {
       this._gaussian_spare = null;
       return spare;
     }
-    const u1 = 1 - Math.random();
+    const u1 = Math.random();
     const u2 = Math.random();
-    const r = Math.sqrt(-2 * Math.log(u1));
-    const theta = 2 * Math.PI * u2;
+    const r = Math.sqrt(-2 * Math.log1p(-u1));
+    const theta = this._TWO_PI * u2;
     this._gaussian_spare = r * Math.sin(theta);
     return r * Math.cos(theta);
   },
