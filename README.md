@@ -52,12 +52,6 @@ Run all performance benchmarks with:
 node benchmark/run.js
 ```
 
-## Theme Switching
-
-Use the **Light Mode** checkbox at the top of the page to toggle between dark
-and light themes. The selection is saved in your browser so it persists when you
-reopen the page.
-
 ## License
 
 Released under the [MIT License](LICENSE).
