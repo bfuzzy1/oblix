@@ -37,7 +37,8 @@ The `benchmark/` directory contains small scripts that measure the speed of the
 utility helpers. Benchmarks are provided for the data generation routines
 `generateXORData`, `generateLinearData`, `generateCircularData` and
 `generateGaussianBlobs`. Additional scripts cover `gaussianRandom`,
-`positionalEncoding`, `calculateAccuracy` and `calculateRSquared`.
+`positionalEncoding`, `calculateAccuracy`, `calculateRSquared` and
+`softmaxForward`.
 
 Run all performance benchmarks with:
 
