@@ -34,8 +34,10 @@ Oblix is implemented in pure JavaScript with no external library dependencies fo
 ## Benchmarks
 
 The `benchmark/` directory contains small scripts that measure the speed of the
-data generation helpers such as `generateXORData`, `generateLinearData`,
-`generateCircularData` and `generateGaussianBlobs`.
+utility helpers. Benchmarks are provided for the data generation routines
+`generateXORData`, `generateLinearData`, `generateCircularData` and
+`generateGaussianBlobs`. Additional scripts cover `gaussianRandom`,
+`positionalEncoding`, `calculateAccuracy` and `calculateRSquared`.
 
 Run all performance benchmarks with:
 
