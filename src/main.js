@@ -1,5 +1,6 @@
 import { Oblix } from "./network.js";
 import { oblixUtils } from "./utils.js";
+import { dataUtils } from "./data-utils.js";
 
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", () => {
@@ -234,50 +235,6 @@ if (typeof document !== "undefined") {
     console.error("Watermark err:", e);
   }
 
-  function formatGeneratedDataToCSV(dataArray) {
-    if (!Array.isArray(dataArray)) return [];
-    return dataArray
-      .map((sample) => {
-        if (
-          !sample ||
-          !Array.isArray(sample.input) ||
-          !Array.isArray(sample.output)
-        ) {
-          console.warn("Skipping invalid sample in formatGeneratedDataToCSV");
-          return null;
-        }
-
-        return [...sample.input, ...sample.output]
-          .map((v) =>
-            typeof v === "number" && isFinite(v) ? v.toFixed(3) : "NaN",
-          )
-          .join(", ");
-      })
-      .filter((row) => row !== null);
-  }
-
-  function generateRandomData(
-    numSamples,
-    numInputs,
-    numOutputs = 1,
-    noiseLevel = 0.05,
-  ) {
-    if (numInputs <= 0 || numOutputs <= 0) return "";
-    const data = [];
-    for (let i = 0; i < numSamples; i++) {
-      const input = [];
-      for (let j = 0; j < numInputs; j++) input.push(Math.random());
-      const output = [];
-      for (let j = 0; j < numOutputs; j++) {
-        const base = Math.sin(input[0] * Math.PI * 2) * 0.4 + 0.5;
-        const noise = (Math.random() - 0.5) * 2 * noiseLevel;
-        let final = Math.max(0.01, Math.min(0.99, base + noise));
-        output.push(final);
-      }
-      data.push([...input, ...output].map((v) => v.toFixed(3)).join(", "));
-    }
-    return data.join("\n");
-  }
   document.getElementById("generateDataBtn").addEventListener("click", () => {
     const numTrainInput =
       parseInt(document.getElementById("numTrainSamples").value) || 100;
@@ -342,7 +299,7 @@ if (typeof document !== "undefined") {
           break;
         case "random":
         default:
-          const randomCsvString = generateRandomData(
+          const randomCsvString = dataUtils.generateRandomData(
             totalSamples,
             safeNumIn,
             safeNumOut,
@@ -357,7 +314,7 @@ if (typeof document !== "undefined") {
       if (selectedPattern === "random") {
         csvRows = generatedData;
       } else {
-        csvRows = formatGeneratedDataToCSV(generatedData);
+        csvRows = dataUtils.formatGeneratedDataToCSV(generatedData);
       }
 
       if (csvRows.length < totalSamples) {
@@ -388,7 +345,7 @@ if (typeof document !== "undefined") {
       statsEl.innerHTML = `Generated ${actualTrainCount}/${actualTestCount} samples using <strong>${patternDesc}</strong> pattern (${finalInputDims} inputs, ${finalOutputDims} outputs, ${safeNoise.toFixed(2)} noise).`;
 
       try {
-        const firstSample = parseCSV(trainCsvString, finalOutputDims)[0];
+        const firstSample = dataUtils.parseCSV(trainCsvString, finalOutputDims)[0];
         if (firstSample && nn.layers && nn.layers.length > 0) {
           if (nn.layers[0]?.inputSize === firstSample.input.length) {
             nn.predict(firstSample.input);
@@ -408,34 +365,6 @@ if (typeof document !== "undefined") {
       statsEl.innerHTML = `<span class="error">Generation Error: ${error.message}</span>`;
     }
   });
-  function parseCSV(csvString, numOutputs = 1) {
-    if (!csvString || typeof csvString !== "string") return [];
-    const outputs = Math.max(1, Math.floor(numOutputs));
-    return csvString
-      .trim()
-      .split("\n")
-      .map((r) => r.trim())
-      .filter((r) => r.length > 0)
-      .map((r, idx) => {
-        const vals = r.split(",").map((v) => parseFloat(v.trim()));
-        if (vals.some(isNaN)) {
-          console.warn(`R ${idx + 1} NaN`);
-          return null;
-        }
-        if (vals.length < outputs + 1) {
-          console.warn(`R ${idx + 1} insufficient vals`);
-          return null;
-        }
-        const input = vals.slice(0, vals.length - outputs);
-        const output = vals.slice(vals.length - outputs);
-        if (input.length === 0 || output.length !== outputs) {
-          console.warn(`R ${idx + 1} invalid io lens`);
-          return null;
-        }
-        return { input: input, output: output };
-      })
-      .filter((i) => i !== null);
-  }
   function drawLossGraph() {
     if (!lossCtx || !lossCanvas) return;
     lossCtx.clearRect(0, 0, lossCanvas.width, lossCanvas.height);
@@ -452,34 +381,6 @@ if (typeof document !== "undefined") {
     maxL = Math.max(maxL, 0.1);
     const W = lossCanvas.width,
       H = lossCanvas.height,
-      nPts = lossHistory.length,
-      pH = H * 0.9,
-      yOff = H * 0.05;
-    const plot = (ctx, pts, c) => {
-      ctx.strokeStyle = c;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      let first = true;
-      pts.forEach((p, i) => {
-        if (p !== null && isFinite(p)) {
-          const x = (i / Math.max(1, nPts - 1)) * W;
-          const y = H - (p / maxL) * pH - yOff;
-          if (first) {
-            ctx.moveTo(x, y);
-            first = false;
-          } else {
-            ctx.lineTo(x, y);
-          }
-        } else {
-          first = true;
-        }
-      });
-      ctx.stroke();
-    };
-    const trainC =
-      getComputedStyle(document.body).getPropertyValue("--text")?.trim() ||
-      "#fff";
-    plot(
       lossCtx,
       lossHistory.map((h) => h.train),
       trainC,
@@ -841,8 +742,8 @@ if (typeof document !== "undefined") {
       const weightInitMethod = document.getElementById("weightInit").value;
 
       const outDims = parseInt(numOutputDimsInput.value) || 1;
-      const trainingData = parseCSV(trainingDataTextarea.value, outDims);
-      const testData = parseCSV(testDataTextarea.value, outDims);
+      const trainingData = dataUtils.parseCSV(trainingDataTextarea.value, outDims);
+      const testData = dataUtils.parseCSV(testDataTextarea.value, outDims);
       if (trainingData.length === 0)
         throw new Error("Training data empty/invalid.");
       if (!trainingData[0]?.input || !trainingData[0]?.output)
@@ -1519,7 +1420,7 @@ if (typeof document !== "undefined") {
         predictionResultEl.innerHTML = "Result: -";
         try {
           const sample =
-            parseCSV(trainingDataTextarea.value, parseInt(numOutputDimsInput.value) || 1)[0];
+            dataUtils.parseCSV(trainingDataTextarea.value, parseInt(numOutputDimsInput.value) || 1)[0];
           if (sample) nn.predict(sample.input);
         } catch (e) {}
         drawNetwork();
