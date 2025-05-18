@@ -1,3 +1,5 @@
+import { oblixUtils } from './utils.js';
+
 export const oblixLayerOps = {
   attentionForward: function (context, input, numHeads = 2) {
     if (!(input instanceof Float32Array)) {
@@ -433,17 +435,7 @@ export const oblixLayerOps = {
       );
 
     const randInts = new Uint32Array(N);
-    const fill = context.randomFillFn;
-    if (typeof fill === 'function') {
-      fill(randInts);
-    } else if (typeof globalThis.crypto !== 'undefined' &&
-               typeof globalThis.crypto.getRandomValues === 'function') {
-      globalThis.crypto.getRandomValues(randInts);
-    } else {
-      for (let i = 0; i < N; i++) {
-        randInts[i] = (Math.random() * 0xffffffff) >>> 0;
-      }
-    }
+    oblixUtils.fillRandomInts(randInts, context.randomFillFn);
 
     const threshold = rate * 4294967296;
     for (let i = 0; i < N; i++) {
