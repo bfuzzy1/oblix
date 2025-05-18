@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node tests/run.js"
+    "test": "node tests/run.js",
+    "benchmark": "node benchmark/run.js"
   }
 }

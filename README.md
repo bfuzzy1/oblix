@@ -31,6 +31,15 @@ Clone or download this repository (or at least the `index.html` file and accompa
 
 Oblix is implemented in pure JavaScript with no external library dependencies for the core neural network logic. The `index.html` entry point imports modules from the `src` directory where all functionality resides.
 
+## Benchmarks
+
+Run all performance benchmarks with:
+
+```bash
+node benchmark/run.js
+```
+
+
 ## License
 
 Released under the [MIT License](LICENSE).
