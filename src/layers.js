@@ -432,8 +432,22 @@ export const oblixLayerOps = {
         ` Input type=${input.constructor.name}, len=${N}, Rate=${rate}, Scale=${scale.toFixed(4)}`,
       );
 
+    const randInts = new Uint32Array(N);
+    const fill = context.randomFillFn;
+    if (typeof fill === 'function') {
+      fill(randInts);
+    } else if (typeof globalThis.crypto !== 'undefined' &&
+               typeof globalThis.crypto.getRandomValues === 'function') {
+      globalThis.crypto.getRandomValues(randInts);
+    } else {
+      for (let i = 0; i < N; i++) {
+        randInts[i] = (Math.random() * 0xffffffff) >>> 0;
+      }
+    }
+
+    const threshold = rate * 4294967296;
     for (let i = 0; i < N; i++) {
-      if (Math.random() > rate) {
+      if (randInts[i] >= threshold) {
         mask[i] = scale;
         output[i] = input[i] * scale;
       } else {
