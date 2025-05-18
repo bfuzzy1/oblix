@@ -269,6 +269,15 @@
         min-height: 2.5em;
         color: #ccc;
       }
+      .playback-controls {
+        margin-top: 10px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .playback-controls input[type="range"] {
+        flex: 1;
+      }
       #stats strong {
         color: #76ff03;
       } /* Brighter green */
@@ -694,6 +703,16 @@
             <div id="epochBar" class="epoch-bar"></div>
           </div>
           <div id="stats">Status: Ready</div>
+          <div class="playback-controls">
+            <input
+              type="range"
+              id="playbackSlider"
+              min="0"
+              max="0"
+              value="0"
+            />
+            <span id="playbackEpochLabel">Epoch 0/0</span>
+          </div>
         </div>
 
         <div class="visualization-container widget" style="margin-top: 20px">
