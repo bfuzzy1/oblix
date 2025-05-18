@@ -367,29 +367,40 @@ if (typeof document !== "undefined") {
   });
   function drawLossGraph() {
     if (!lossCtx || !lossCanvas) return;
-    lossCtx.clearRect(0, 0, lossCanvas.width, lossCanvas.height);
+    const W = lossCanvas.width;
+    const H = lossCanvas.height;
+    lossCtx.clearRect(0, 0, W, H);
     if (lossHistory.length < 2) return;
+
     const trainL = lossHistory
       .map((h) => h.train)
       .filter((l) => l !== null && isFinite(l));
     const testL = lossHistory
       .map((h) => h.test)
       .filter((l) => l !== null && isFinite(l));
+
     let maxL = 0.1;
     if (trainL.length > 0) maxL = Math.max(maxL, ...trainL);
     if (testL.length > 0) maxL = Math.max(maxL, ...testL);
     maxL = Math.max(maxL, 0.1);
-    const W = lossCanvas.width,
-      H = lossCanvas.height,
-      lossCtx,
-      lossHistory.map((h) => h.train),
-      trainC,
-    );
-    plot(
-      lossCtx,
-      lossHistory.map((h) => h.test),
-      "#87CEEB",
-    );
+
+    function plot(ctx, values, color) {
+      if (values.length < 2) return;
+      ctx.beginPath();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1;
+      const stepX = W / (values.length - 1);
+      values.forEach((v, i) => {
+        const x = i * stepX;
+        const y = H - (v / maxL) * H;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    plot(lossCtx, trainL, "#fff");
+    plot(lossCtx, testL, "#87CEEB");
   }
 
   function createLayerConfigUI(numLayers) {
