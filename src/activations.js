@@ -11,12 +11,11 @@ export const oblixActivations = {
         return Math.max(0, x);
       case "leakyrelu":
         return x > 0 ? x : alpha * x;
-      case "gelu":
-        return (
-          0.5 *
-          x *
-          (1 + Math.tanh(Math.sqrt(2 / Math.PI) * (x + 0.044715 * x ** 3)))
-        );
+      case "gelu": {
+        const k = 0.7978845608; // sqrt(2/pi)
+        const x3 = x * x * x;
+        return 0.5 * x * (1 + Math.tanh(k * (x + 0.044715 * x3)));
+      }
       case "selu":
         const sa = 1.67326,
           ss = 1.0507;
@@ -48,13 +47,15 @@ export const oblixActivations = {
         return x > 0 ? 1 : 0;
       case "leakyrelu":
         return x > 0 ? 1 : alpha;
-      case "gelu":
-        const k = Math.sqrt(2 / Math.PI),
-          inner = k * (x + 0.044715 * x ** 3),
-          tanh_inner = Math.tanh(inner),
-          d_inner_dx = k * (1 + 0.134145 * x ** 2),
-          sech_sq_inner = 1 - tanh_inner ** 2;
-        return 0.5 * (1 + tanh_inner) + 0.5 * x * sech_sq_inner * d_inner_dx;
+      case "gelu": {
+        const k = 0.7978845608; // sqrt(2/pi)
+        const x2 = x * x;
+        const inner = k * (x + 0.044715 * x * x2);
+        const tanh_inner = Math.tanh(inner);
+        const sech_sq = 1 - tanh_inner * tanh_inner;
+        const d_inner_dx = k * (1 + 0.134145 * x2);
+        return 0.5 * (1 + tanh_inner) + 0.5 * x * sech_sq * d_inner_dx;
+      }
       case "selu":
         const sa = 1.67326,
           ss = 1.0507;

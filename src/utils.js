@@ -181,15 +181,12 @@ export const oblixUtils = {
       this._gaussian_spare = null;
       return spare;
     }
-    let u, v, s;
-    do {
-      u = Math.random() * 2 - 1;
-      v = Math.random() * 2 - 1;
-      s = u * u + v * v;
-    } while (s >= 1 || s === 0);
-    const mul = Math.sqrt((-2.0 * Math.log(s)) / s);
-    this._gaussian_spare = v * mul;
-    return u * mul;
+    const u1 = 1 - Math.random();
+    const u2 = Math.random();
+    const r = Math.sqrt(-2 * Math.log(u1));
+    const theta = 2 * Math.PI * u2;
+    this._gaussian_spare = r * Math.sin(theta);
+    return r * Math.cos(theta);
   },
 
   generateXORData: function (numSamples, noise) {
