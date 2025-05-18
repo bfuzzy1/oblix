@@ -20,6 +20,7 @@
 *   **Visualization:**
     *   Real-time loss graph (Training and Validation).
     *   Network graph showing structure, node activations, and connection weights/types.
+    *   Training history playback slider to step through epochs.
 *   **Manual Prediction:** Test the trained model with custom inputs.
 
 ## How to Use
