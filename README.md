@@ -38,7 +38,9 @@ utility helpers. Benchmarks are provided for the data generation routines
 `generateXORData`, `generateLinearData`, `generateCircularData` and
 `generateGaussianBlobs`. Additional scripts cover `gaussianRandom`,
 `positionalEncoding`, `calculateAccuracy`, `calculateRSquared` and
-`softmaxForward`, and `dropoutForward`.
+`softmaxForward`, and `dropoutForward`. Several functions, including the GELU
+activation and `gaussianRandom` helper, use optimized approximations for
+better performance.
 
 Run all performance benchmarks with:
 
