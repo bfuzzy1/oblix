@@ -10,22 +10,7 @@ if (typeof document !== "undefined") {
   const networkCanvas = document.getElementById("networkGraph");
   const lossCtx = lossCanvas?.getContext("2d");
   const networkCtx = networkCanvas?.getContext("2d");
-  const themeToggle = document.getElementById("themeToggle");
   const statsEl = document.getElementById("stats");
-  const storedTheme = localStorage.getItem("theme");
-  if (storedTheme === "light") {
-    document.body.classList.add("light");
-    if (themeToggle) themeToggle.checked = true;
-  }
-  themeToggle?.addEventListener("change", () => {
-    if (themeToggle.checked) {
-      document.body.classList.add("light");
-      localStorage.setItem("theme", "light");
-    } else {
-      document.body.classList.remove("light");
-      localStorage.setItem("theme", "dark");
-    }
-  });
   const trainButton = document.getElementById("trainButton");
   const pauseButton = document.getElementById("pauseButton");
   const resumeButton = document.getElementById("resumeButton");

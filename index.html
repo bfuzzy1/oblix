@@ -5,38 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>oblix</title>
     <style>
-      :root {
-        --background: #000;
-        --foreground: #222;
-        --widget-bg: #111;
-        --text: #fff;
-        --border: #333;
-        --input-bg: #222;
-        --input-border: #444;
-        --button-bg: #eee;
-        --button-text: #000;
-        --button-hover-bg: #222;
-      }
-      body.light {
-        --background: #f7f7f9;
-        --foreground: #fff;
-        --widget-bg: #fff;
-        --text: #222;
-        --border: #ccc;
-        --input-bg: #fff;
-        --input-border: #ccc;
-        --button-bg: #ddd;
-        --button-text: #000;
-        --button-hover-bg: #eaeaea;
-      }
-
       /* --- Base Styles --- */
       a {
-        color: var(--text);
+        color: white;
       }
       body {
-        background: var(--background);
-        color: var(--text);
+        background: #000000;
+        color: #fff;
         font-family: monospace;
         margin: 0;
         padding: 3% 5%; /* Adjusted padding */
@@ -62,8 +37,8 @@
         animation: fadeInUp 0.5s ease-out forwards;
       }
       .widget {
-        background: var(--widget-bg);
-        border: 1px solid var(--border);
+        background: #111;
+        border: 1px solid #333;
         border-radius: 10px;
         padding: 20px; /* Increased padding */
         box-sizing: border-box;
@@ -77,7 +52,7 @@
       .widget-title {
         font-size: 1.2em; /* Larger title */
         margin: 0 0 15px 0; /* Adjusted margin */
-        border-bottom: 1px solid var(--border); /* Lighter border */
+        border-bottom: 1px solid #444; /* Lighter border */
         padding-bottom: 10px;
         opacity: 0;
         transform: translateY(10px);
@@ -95,7 +70,7 @@
         display: block;
         margin-bottom: 5px; /* Increased margin */
         font-size: 0.9em;
-        color: var(--text);
+        color: #bbb; /* Lighter label */
         cursor: help; /* Indicate tooltips exist */
       }
       /* Checkbox label specific style */
@@ -130,9 +105,9 @@
         outline: none;
         width: 100%;
         padding: 8px; /* Increased padding */
-        background: var(--input-bg);
-        border: 1px solid var(--input-border);
-        color: var(--text);
+        background: #222;
+        border: 1px solid #444;
+        color: #fff;
         border-radius: 6px; /* Slightly less rounded */
         box-sizing: border-box;
         transition:
@@ -142,8 +117,8 @@
         font-size: 0.95em; /* Slightly larger font */
       }
       #loadDataBtn {
-        background-color: var(--button-bg);
-        color: var(--button-text);
+        background-color: #eee;
+        color: black;
         font-weight: 600;
         font-size: 12px;
         padding: 2px 5px;
@@ -152,26 +127,26 @@
         transition:
           background-color 0.2s,
           color 0.2s;
-        border: 1px solid var(--border);
+        border: 1px solid #888;
       }
       #loadDataBtn:hover {
-        background-color: var(--button-hover-bg);
+        background-color: #ccc;
       }
       input:focus,
       select:focus,
       textarea:focus {
-        background: var(--foreground);
-        border: 1px solid var(--border);
+        background: #333;
+        border: 1px solid #777;
       } /* Lighter focus */
       button {
-        background: var(--button-bg);
-        color: var(--button-text);
+        background: #eee;
+        color: #000;
         border: none;
         padding: 8px 15px; /* Increased padding */
         border-radius: 6px;
         cursor: pointer;
         transition: all 0.15s ease;
-        border: 1px solid var(--border);
+        border: 1px solid #888; /* Lighter border */
         opacity: 0;
         height: auto; /* Auto height */
         transform: translateY(10px);
@@ -184,19 +159,19 @@
       }
       button:hover:not(:disabled) {
         border: 1px solid white;
-        color: var(--text);
-        background: var(--button-hover-bg);
+        color: white;
+        background: #222; /* Darker hover */
       }
       button:disabled {
-        background: var(--input-bg);
+        background: #444;
         color: #888;
-        border-color: var(--input-bg);
+        border-color: #444;
         cursor: not-allowed;
       }
       .progress-container {
         height: 150px; /* Slightly shorter */
         position: relative;
-        border: 1px solid var(--border);
+        border: 1px solid #333;
         border-radius: 8px;
         margin-bottom: 10px;
         opacity: 0;
@@ -204,7 +179,7 @@
         animation: fadeInUp 0.5s ease-out forwards;
         animation-delay: 0.6s;
         overflow: hidden;
-        background-color: var(--foreground);
+        background-color: #1a1a1a;
       }
       .loss-graph,
       .network-graph {
@@ -227,13 +202,13 @@
         height: 8px;
       }
       #network-viz-container::-webkit-scrollbar-track {
-        background: var(--input-bg);
+        background: #222;
         border-radius: 4px;
       }
       #network-viz-container::-webkit-scrollbar-thumb {
         background-color: #555;
         border-radius: 4px;
-        border: 2px solid var(--input-bg);
+        border: 2px solid #222;
       }
       #network-viz-container::-webkit-scrollbar-thumb:hover {
         background-color: #777;
@@ -257,8 +232,8 @@
       .prediction-section,
       .visualization-container {
         flex: 1 1 300px; /* Flex basis */
-        background: var(--widget-bg);
-        border: 1px solid var(--border);
+        background: #111;
+        border: 1px solid #333;
         border-radius: 10px;
         padding: 20px;
         box-sizing: border-box;
@@ -277,7 +252,7 @@
 
       .epoch-progress {
         height: 6px;
-        background: var(--foreground); /* Darker background */
+        background: #333; /* Darker background */
         border-radius: 8px;
         overflow: hidden;
         margin-top: 8px;
@@ -285,14 +260,14 @@
       .epoch-bar {
         height: 100%;
         width: 0;
-        background: var(--button-bg);
+        background: #eee;
         transition: width 0.3s ease;
       }
       #stats {
         margin-top: 10px;
         font-size: 0.9em;
         min-height: 2.5em;
-        color: var(--text);
+        color: #ccc;
       }
       .playback-controls {
         margin-top: 10px;
@@ -317,7 +292,7 @@
         display: contents; /* Allow options to flow in parent grid */
       }
       #hiddenLayersConfig .settings-grid {
-        border-top: 1px solid var(--border);
+        border-top: 1px solid #444;
         padding-top: 15px;
         margin-top: 15px;
       }
@@ -362,10 +337,6 @@
   </head>
   <body>
     <h3>Oblix</h3>
-    <label class="input-group" style="width: max-content">
-      <input type="checkbox" id="themeToggle" />
-      <span>Light Mode</span>
-    </label>
     <p>a neural playground for anyone...</p>
     <p>Load dummy data:</p>
 
@@ -551,7 +522,7 @@
             style="
               display: none;
               grid-column: 1 / -1;
-              border-top: 1px solid var(--border);
+              border-top: 1px solid #444;
               margin-top: 5px;
               padding-top: 5px;
             "
@@ -592,7 +563,7 @@
             style="
               display: none;
               grid-column: 1 / -1;
-              border-top: 1px solid var(--border);
+              border-top: 1px solid #444;
               margin-top: 5px;
               padding-top: 5px;
             "
