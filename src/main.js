@@ -877,7 +877,7 @@ if (typeof document !== "undefined") {
         statsEl.innerHTML = `<span class="error">Error applying template: ${error.message}</span>`;
         architectureTemplateSelect.value = "custom";
       }
-    }, 0);
+    }, 20);
   });
 
   trainButton.addEventListener("click", async () => {
