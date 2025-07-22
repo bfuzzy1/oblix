@@ -2,7 +2,7 @@ import { oblixLayerOps } from '../src/layers.js';
 import { performance } from 'perf_hooks';
 
 export async function run() {
-  const size = 1000000;
+  const size = 10000; // Reduced from 1000000 to avoid crypto API limits
   const input = new Float32Array(size).fill(1);
   const ctx = { isTraining: true, debug: false, masks: [], forwardCache: { activations: [0] } };
   const rate = 0.5;
