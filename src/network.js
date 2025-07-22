@@ -496,9 +496,10 @@ class Oblix {
             let out;
 
             this.forwardCache.rawValues[i] = null;
-            this.forwardCache.layerNormIntermediates[i] = null;
-            this.forwardCache.attentionIntermediates[i] = null;
-            this.forwardCache.softmaxOutputs[i] = null;
+            // Initialize cache arrays - don't set to null as layer operations will assign objects
+            // this.forwardCache.layerNormIntermediates[i] = null;
+            // this.forwardCache.attentionIntermediates[i] = null;
+            // this.forwardCache.softmaxOutputs[i] = null;
 
             try {
               if (!(layerInput instanceof Float32Array))
