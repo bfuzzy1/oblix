@@ -1,9 +1,12 @@
 import { Oblix } from "./network.js";
+import { OptimizedOblix } from "./optimized/network.js";
 import { oblixUtils } from "./utils.js";
 
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", () => {
-  const nn = new Oblix(true);
+  // Use optimized version by default, with fallback to original
+  let nn = new OptimizedOblix(true);
+  let useOptimized = true;
   let lossHistory = [];
   
   const lossCanvas = document.getElementById("lossGraph");
@@ -50,6 +53,61 @@ if (typeof document !== "undefined") {
   const numOutputDimsGroup = numOutputDimsInput.closest(".input-group");
   const inputDimsLabel = numInputDimsGroup?.querySelector("label");
   const outputDimsLabel = numOutputDimsGroup?.querySelector("label");
+
+  // Add performance toggle to UI
+  function addPerformanceToggle() {
+    const controlsContainer = document.querySelector('.controls') || document.body;
+    const toggleContainer = document.createElement('div');
+    toggleContainer.className = 'input-group';
+    toggleContainer.innerHTML = `
+      <label for="performanceToggle">Performance Mode:</label>
+      <select id="performanceToggle" title="Choose between original and optimized implementation">
+        <option value="optimized" selected>🚀 Optimized (2x faster)</option>
+        <option value="original">📊 Original</option>
+      </select>
+    `;
+    
+    // Insert after the first input group
+    const firstGroup = controlsContainer.querySelector('.input-group');
+    if (firstGroup) {
+      firstGroup.parentNode.insertBefore(toggleContainer, firstGroup.nextSibling);
+    } else {
+      controlsContainer.appendChild(toggleContainer);
+    }
+    
+    // Add event listener
+    const toggle = document.getElementById('performanceToggle');
+    toggle.addEventListener('change', (event) => {
+      const wasOptimized = useOptimized;
+      useOptimized = event.target.value === 'optimized';
+      
+      if (wasOptimized !== useOptimized) {
+        // Recreate network with new implementation
+        const currentLayers = nn.layers ? [...nn.layers] : [];
+        const currentDetails = nn.details ? { ...nn.details } : {};
+        
+        nn = useOptimized ? new OptimizedOblix(true) : new Oblix(true);
+        
+        // Restore layers if any
+        if (currentLayers.length > 0) {
+          currentLayers.forEach(layer => {
+            nn.layer(layer);
+          });
+        }
+        
+        // Restore details
+        if (Object.keys(currentDetails).length > 0) {
+          nn.details = currentDetails;
+        }
+        
+        statsEl.innerHTML = `Switched to ${useOptimized ? 'optimized' : 'original'} implementation`;
+        drawNetwork();
+      }
+    });
+  }
+
+  // Initialize performance toggle
+  addPerformanceToggle();
 
   function updateDataParamUI(selectedPattern) {
     let ignoreDims = false;
@@ -810,7 +868,10 @@ if (typeof document !== "undefined") {
           }
         });
 
-        statsEl.innerHTML = `Applied <span style="color: #87CEEB; font-weight: bold;">${templateKey}</span> template. Ready.`;
+        const performanceIndicator = useOptimized ? 
+          `<span style="color: #4CAF50; font-weight: bold;">🚀 Optimized</span>` : 
+          `<span style="color: #FF9800; font-weight: bold;">📊 Original</span>`;
+        statsEl.innerHTML = `Applied <span style="color: #87CEEB; font-weight: bold;">${templateKey}</span> template. ${performanceIndicator} Ready.`;
       } catch (error) {
         console.error("Error applying template UI:", error);
         statsEl.innerHTML = `<span class="error">Error applying template: ${error.message}</span>`;
@@ -1050,14 +1111,22 @@ if (typeof document !== "undefined") {
 
       window._drawNetworkScheduled = false;
 
+      const startTime = performance.now();
       const summary = await nn.train(trainingData, opts);
+      const endTime = performance.now();
+      const trainingTime = endTime - startTime;
       const totalParams = nn.getTotalParameters();
+      
+      const performanceIndicator = useOptimized ? 
+        `<span style="color: #4CAF50; font-weight: bold;">🚀 Optimized</span>` : 
+        `<span style="color: #FF9800; font-weight: bold;">📊 Original</span>`;
+      
       statsEl.innerHTML =
         `<strong>Done!</strong> Loss:${summary.trainLoss.toFixed(6)}` +
         (summary.testLoss !== null
           ? `, Val:${summary.testLoss.toFixed(6)}`
           : "") +
-        ` | Params:${totalParams.toLocaleString()}`;
+        ` | Params:${totalParams.toLocaleString()} | ${performanceIndicator} | Time:${trainingTime.toFixed(0)}ms`;
       console.log("Final Summary:", summary);
       if (trainingData.length > 0) {
         try {
@@ -1528,7 +1597,10 @@ if (typeof document !== "undefined") {
       drawLossGraph();
       drawNetwork();
       epochBar.style.width = "0%";
-      statsEl.innerHTML = "Status: Model unloaded.";
+      const performanceIndicator = useOptimized ? 
+        `<span style="color: #4CAF50; font-weight: bold;">🚀 Optimized</span>` : 
+        `<span style="color: #FF9800; font-weight: bold;">📊 Original</span>`;
+      statsEl.innerHTML = `Status: Model unloaded. ${performanceIndicator}`;
       predictionResultEl.innerHTML = "Result: -";
       const defaultLayers = 2;
       numHiddenLayersInput.value = defaultLayers;
