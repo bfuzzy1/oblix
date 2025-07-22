@@ -124,14 +124,10 @@ class OptimizedOblix {
       const biasSize = useBias ? outputSize : 0;
       
       const weights = new Float32Array(weightSize);
-      const biases = useBias ? new Float32Array(biasSize) : null;
+      const biases = useBias ? new Float32Array(biasSize).fill(0.01) : null;
       
       // Initialize weights using optimized methods
       this.initializeWeights(weights, weightInit, inputSize, outputSize);
-      if (biases) {
-        biases.fill(0);
-      }
-      
       this.weights.push(weights);
       this.biases.push(biases);
     } else {
@@ -183,7 +179,7 @@ class OptimizedOblix {
     }
     
     const activations = [input];
-    this.forwardCache = { activations: [input] };
+    this.forwardCache = { activations: [input], rawValues: [] };
     
     for (let i = 0; i < this.layers.length; i++) {
       const layer = this.layers[i];
@@ -205,7 +201,7 @@ class OptimizedOblix {
           activation = oblixLayerOps.dropoutForward(this, prevActivation, layer.rate);
           break;
         case "softmax":
-          activation = optimizedMath.softmax(prevActivation);
+          activation = oblixLayerOps.softmaxForward(this, prevActivation);
           break;
         default:
           activation = prevActivation;
@@ -225,24 +221,27 @@ class OptimizedOblix {
     const biases = this.biases[layerIndex];
     
     // Use optimized matrix-vector multiplication
-    const output = optimizedMath.matrixVectorMultiply(
-      weights,
-      input,
-      layer.outputSize,
-      layer.inputSize
-    );
-    
-    // Add bias if present
-    if (biases) {
-      optimizedMath.vectorAdd(output, biases, output);
+    const outputSize = layer.outputSize;
+    const inputSize = layer.inputSize;
+    const rawSums = new Float32Array(outputSize);
+    for (let j = 0; j < outputSize; ++j) {
+      let sum = biases ? biases[j] : 0;
+      const weightRowOffset = j * inputSize;
+      for (let k = 0; k < inputSize; ++k) {
+        sum += input[k] * weights[weightRowOffset + k];
+      }
+      rawSums[j] = sum;
     }
-    
-    // Apply activation function using optimized batch operation
-    if (layer.activation !== "none") {
-      optimizedMath.batchActivation(output, layer.activation, output);
+    // Store pre-activation values for backward pass
+    if (this.forwardCache && this.forwardCache.rawValues) {
+      this.forwardCache.rawValues[layerIndex] = rawSums;
     }
-    
-    return output;
+    // Apply activation per original logic
+    const out = new Float32Array(outputSize);
+    for (let j = 0; j < outputSize; ++j) {
+      out[j] = oblixActivations.apply(rawSums[j], layer.activation);
+    }
+    return out;
   }
 
   async train(trainSet, options = {}) {
