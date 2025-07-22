@@ -5,7 +5,7 @@ if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", () => {
   const nn = new Oblix(true);
   let lossHistory = [];
-  let playbackHistory = [];
+  
   const lossCanvas = document.getElementById("lossGraph");
   const networkCanvas = document.getElementById("networkGraph");
   const lossCtx = lossCanvas?.getContext("2d");
@@ -19,8 +19,6 @@ if (typeof document !== "undefined") {
   const loadButton = document.getElementById("loadButton");
   const unloadButton = document.getElementById("unloadButton");
   const epochBar = document.getElementById("epochBar");
-  const playbackSlider = document.getElementById("playbackSlider");
-  const playbackEpochLabel = document.getElementById("playbackEpochLabel");
   const predictionResultEl = document.getElementById("predictionResult");
   const numHiddenLayersInput = document.getElementById("numHiddenLayers");
   const hiddenLayersConfigContainer =
@@ -833,12 +831,7 @@ if (typeof document !== "undefined") {
     unloadButton.disabled = true;
     epochBar.style.width = "0%";
     lossHistory = [];
-    playbackHistory = [];
-    if (playbackSlider) {
-      playbackSlider.max = 0;
-      playbackSlider.value = 0;
-    }
-    if (playbackEpochLabel) playbackEpochLabel.textContent = "Epoch 0/0";
+
     drawLossGraph();
     try {
       const weightInitMethod = document.getElementById("weightInit").value;
@@ -1005,20 +998,7 @@ if (typeof document !== "undefined") {
           drawLossGraph();
           epochBar.style.width = `${(ep / opts.epochs) * 100}%`;
 
-          if (playbackSlider) {
-            const wSnap = nn.weights.map((w) =>
-              w instanceof Float32Array ? Array.from(w) : null,
-            );
-            const aSnap =
-              lastForwardCache && lastForwardCache.activations
-                ? lastForwardCache.activations.map((a) => Array.from(a))
-                : [];
-            playbackHistory.push({ weights: wSnap, activations: aSnap });
-            playbackSlider.max = playbackHistory.length - 1;
-            playbackSlider.value = playbackHistory.length - 1;
-            if (playbackEpochLabel)
-              playbackEpochLabel.textContent = `Epoch ${playbackHistory.length}/${opts.epochs}`;
-          }
+
 
           const currentLR = nn.getCurrentLearningRate(
             ep - 1,
@@ -1113,20 +1093,7 @@ if (typeof document !== "undefined") {
     resumeButton.disabled = true;
   });
 
-  if (playbackSlider) {
-    playbackSlider.addEventListener("input", () => {
-      const idx = parseInt(playbackSlider.value, 10);
-      const snap = playbackHistory[idx];
-      if (!snap) return;
-      nn.weights = snap.weights.map((w) =>
-        w ? new Float32Array(w) : null,
-      );
-      nn.lastActivations = snap.activations.map((a) => new Float32Array(a));
-      if (playbackEpochLabel)
-        playbackEpochLabel.textContent = `Epoch ${idx + 1}/${playbackHistory.length}`;
-      drawNetwork();
-    });
-  }
+
 
   function drawNetwork() {
     if (!networkCtx || !networkCanvas) return;
@@ -1512,12 +1479,7 @@ if (typeof document !== "undefined") {
 
         architectureTemplateSelect.value = "custom";
         lossHistory = [];
-        playbackHistory = [];
-        if (playbackSlider) {
-          playbackSlider.max = 0;
-          playbackSlider.value = 0;
-        }
-        if (playbackEpochLabel) playbackEpochLabel.textContent = "Epoch 0/0";
+
         drawLossGraph();
         predictionResultEl.innerHTML = "Result: -";
         try {
@@ -1562,12 +1524,7 @@ if (typeof document !== "undefined") {
     try {
       nn.reset();
       lossHistory = [];
-      playbackHistory = [];
-      if (playbackSlider) {
-        playbackSlider.max = 0;
-        playbackSlider.value = 0;
-      }
-      if (playbackEpochLabel) playbackEpochLabel.textContent = "Epoch 0/0";
+
       drawLossGraph();
       drawNetwork();
       epochBar.style.width = "0%";
