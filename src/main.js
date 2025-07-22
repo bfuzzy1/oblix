@@ -266,7 +266,10 @@ if (typeof document !== "undefined") {
     const data = [];
     for (let i = 0; i < numSamples; i++) {
       const input = [];
-      for (let j = 0; j < numInputs; j++) input.push(Math.random());
+      for (let j = 0; j < numInputs; j++) {
+        // Ensure input values are between 0.01 and 0.99
+        input.push(0.01 + Math.random() * 0.98);
+      }
       const output = [];
       for (let j = 0; j < numOutputs; j++) {
         const base = Math.sin(input[0] * Math.PI * 2) * 0.4 + 0.5;

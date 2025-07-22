@@ -23,18 +23,17 @@ export const oblixOptimizers = {
       const w = context.weights[i];
       const reqW =
         cfg.type === "dense" &&
-        Array.isArray(w) &&
-        w.length > 0 &&
-        Array.isArray(w[0]);
+        w instanceof Float32Array &&
+        w.length > 0;
       const b = context.biases[i];
       const reqB =
-        cfg.type === "dense" && cfg.useBias && Array.isArray(b) && b.length > 0;
+        cfg.type === "dense" && cfg.useBias && b instanceof Float32Array && b.length > 0;
       const g = context.gammas[i];
       const beta = context.betas[i];
       const reqLN =
         cfg.type === "layernorm" &&
-        Array.isArray(g) &&
-        Array.isArray(beta) &&
+        g instanceof Float32Array &&
+        beta instanceof Float32Array &&
         g.length === beta.length &&
         g.length > 0;
 
@@ -45,13 +44,13 @@ export const oblixOptimizers = {
       ) {
         if (reqW) {
           try {
-            const z = () => w.map((r) => r.map(() => 0));
+            const size = w.length;
             if (optimizer === "adam" || optimizer === "adamw") {
-              context.m_dw[i] = z();
-              context.v_dw[i] = z();
+              context.m_dw[i] = new Float32Array(size).fill(0);
+              context.v_dw[i] = new Float32Array(size).fill(0);
             }
             if (optimizer === "rmsprop") {
-              context.s_dw[i] = z();
+              context.s_dw[i] = new Float32Array(size).fill(0);
             }
           } catch (e) {
             console.error(`InitOpt L${i} W err: ${e.message}`);
@@ -62,13 +61,13 @@ export const oblixOptimizers = {
         }
         if (reqB) {
           try {
-            const z = () => b.map(() => 0);
+            const size = b.length;
             if (optimizer === "adam" || optimizer === "adamw") {
-              context.m_db[i] = z();
-              context.v_db[i] = z();
+              context.m_db[i] = new Float32Array(size).fill(0);
+              context.v_db[i] = new Float32Array(size).fill(0);
             }
             if (optimizer === "rmsprop") {
-              context.s_db[i] = z();
+              context.s_db[i] = new Float32Array(size).fill(0);
             }
           } catch (e) {
             console.error(`InitOpt L${i} B err: ${e.message}`);
@@ -79,16 +78,16 @@ export const oblixOptimizers = {
         }
         if (reqLN) {
           try {
-            const z = () => g.map(() => 0);
+            const size = g.length;
             if (optimizer === "adam" || optimizer === "adamw") {
-              context.m_dgamma[i] = z();
-              context.v_dgamma[i] = z();
-              context.m_dbeta[i] = z();
-              context.v_dbeta[i] = z();
+              context.m_dgamma[i] = new Float32Array(size).fill(0);
+              context.v_dgamma[i] = new Float32Array(size).fill(0);
+              context.m_dbeta[i] = new Float32Array(size).fill(0);
+              context.v_dbeta[i] = new Float32Array(size).fill(0);
             }
             if (optimizer === "rmsprop") {
-              context.s_dgamma[i] = z();
-              context.s_dbeta[i] = z();
+              context.s_dgamma[i] = new Float32Array(size).fill(0);
+              context.s_dbeta[i] = new Float32Array(size).fill(0);
             }
           } catch (e) {
             console.error(`InitOpt L${i} LN err: ${e.message}`);

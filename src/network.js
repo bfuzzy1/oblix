@@ -39,6 +39,7 @@ class Oblix {
     this.decayRate = 0.9;
     this.lastActivations = null;
     this.forwardCache = null;
+    this.lastTrainLoss = null;
 
     if (this.debug)
       console.log(
@@ -74,6 +75,7 @@ class Oblix {
 
     this.lastActivations = null;
     this.forwardCache = null;
+    this.lastTrainLoss = null;
     if (this.debug) console.log("Oblix reset complete.");
   }
 
@@ -954,11 +956,14 @@ class Oblix {
       }
 
       await new Promise((resolve) => setTimeout(resolve, 0));
-      if (lastTrainLoss < earlyStopThreshold) {
+      
+      // Early stopping: check if loss improvement is below threshold
+      if (epoch > 0 && Math.abs(lastTrainLoss - this.lastTrainLoss) < earlyStopThreshold) {
         if (this.debug) console.log(`Early stopping @ Epoch ${epoch + 1}.`);
         epochs = epoch + 1;
         break;
       }
+      this.lastTrainLoss = lastTrainLoss;
     }
 
     const end = Date.now();
