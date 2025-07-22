@@ -342,8 +342,8 @@ export const oblixLayerOps = {
       };
     }
 
-    const epsilon = context.epsilon;
-    const invStddev = 1 / stddev;
+    const epsilon = context.epsilon || 1e-8;
+    const invStddev = stddev > 0 ? 1 / stddev : 0;
 
     const dGamma = new Float32Array(N);
     const dBeta = new Float32Array(dOutput);
@@ -410,6 +410,10 @@ export const oblixLayerOps = {
 
     const idx = (context.forwardCache?.activations?.length || 1) - 1;
     if (!context.isTraining || rate === 0) {
+      // Ensure masks array exists before accessing it
+      if (!context.masks) {
+        context.masks = [];
+      }
       context.masks[idx] = null;
       if (context.debug)
         console.log(
@@ -419,6 +423,10 @@ export const oblixLayerOps = {
     }
     if (rate < 0 || rate >= 1) {
       console.warn(`Dropout rate ${rate} invalid`);
+      // Ensure masks array exists before accessing it
+      if (!context.masks) {
+        context.masks = [];
+      }
       context.masks[idx] = null;
       return input;
     }
@@ -446,6 +454,11 @@ export const oblixLayerOps = {
         mask[i] = 0;
         output[i] = 0;
       }
+    }
+    
+    // Ensure masks array exists before accessing it
+    if (!context.masks) {
+      context.masks = [];
     }
     context.masks[idx] = mask;
 

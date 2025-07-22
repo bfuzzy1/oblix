@@ -2,6 +2,33 @@ export const oblixActivations = {
   apply: function (x, activation) {
     const alpha = 0.01;
     const softplus = (v) => Math.log(1 + Math.exp(v));
+    
+    // Handle non-finite inputs
+    if (!isFinite(x)) {
+      switch (activation) {
+        case "tanh":
+          return x > 0 ? 1 : -1;
+        case "sigmoid":
+          return x > 0 ? 1 : 0;
+        case "relu":
+          return x > 0 ? 1e6 : 0; // Cap at reasonable value
+        case "leakyrelu":
+          return x > 0 ? 1e6 : -1e4; // Cap at reasonable values
+        case "gelu":
+          return x > 0 ? 1e6 : 0; // Cap at reasonable value
+        case "selu":
+          return x > 0 ? 1.0507 * 1e6 : -1.0507 * 1.67326;
+        case "swish":
+          return x > 0 ? 1e6 : 0; // Cap at reasonable value
+        case "mish":
+          return x > 0 ? 1e6 : 0; // Cap at reasonable value
+        case "softmax":
+        case "none":
+        default:
+          return x;
+      }
+    }
+    
     switch (activation) {
       case "tanh":
         return Math.tanh(x);
@@ -36,6 +63,33 @@ export const oblixActivations = {
     const sigmoid = (v) => 1 / (1 + Math.exp(-v));
     const softplus = (v) => Math.log(1 + Math.exp(v));
     const dtanh_dx = (v) => 1 - Math.tanh(v) ** 2;
+    
+    // Handle non-finite inputs
+    if (!isFinite(x)) {
+      switch (activation) {
+        case "tanh":
+          return 0;
+        case "sigmoid":
+          return 0;
+        case "relu":
+          return x > 0 ? 1 : 0;
+        case "leakyrelu":
+          return x > 0 ? 1 : alpha;
+        case "gelu":
+          return x > 0 ? 1 : 0;
+        case "selu":
+          return x > 0 ? 1.0507 : 0;
+        case "swish":
+          return x > 0 ? 1 : 0;
+        case "mish":
+          return x > 0 ? 1 : 0;
+        case "softmax":
+        case "none":
+        default:
+          return 1;
+      }
+    }
+    
     switch (activation) {
       case "tanh":
         val = Math.tanh(x);
