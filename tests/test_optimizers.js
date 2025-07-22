@@ -59,6 +59,7 @@ export async function run() {
 
   // SGD update
   const ctxSgd = createCtx();
+  oblixOptimizers.initializeState(ctxSgd, 'sgd');
   oblixOptimizers.updateParameters(
     ctxSgd,
     [new Float32Array([0.1])],
@@ -81,8 +82,7 @@ export async function run() {
 
   // RMSprop update
   const ctxRms = createCtx();
-  ctxRms.s_dw[0] = new Float32Array([0]);
-  ctxRms.s_db[0] = new Float32Array([0]);
+  oblixOptimizers.initializeState(ctxRms, 'rmsprop');
   oblixOptimizers.updateParameters(
     ctxRms,
     [new Float32Array([0.1])],
@@ -109,10 +109,7 @@ export async function run() {
 
   // Adam update
   const ctxAdam = createCtx();
-  ctxAdam.m_dw[0] = new Float32Array([0]);
-  ctxAdam.v_dw[0] = new Float32Array([0]);
-  ctxAdam.m_db[0] = new Float32Array([0]);
-  ctxAdam.v_db[0] = new Float32Array([0]);
+  oblixOptimizers.initializeState(ctxAdam, 'adam');
   oblixOptimizers.updateParameters(
     ctxAdam,
     [new Float32Array([0.1])],
