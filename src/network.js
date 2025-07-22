@@ -1256,16 +1256,23 @@ class Oblix {
         );
       }
 
-      const blob = new Blob([jsonStr], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `${name}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      if (this.debug) console.log(`Model saved: ${name}.json`);
+      // Check if we're in a browser environment
+      if (typeof document !== 'undefined' && typeof URL !== 'undefined') {
+        const blob = new Blob([jsonStr], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${name}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        if (this.debug) console.log(`Model saved: ${name}.json`);
+      } else {
+        // Node.js environment - just log the data
+        if (this.debug) console.log(`Model data prepared for save: ${name}.json`);
+        console.log("Save functionality requires browser environment");
+      }
     } catch (e) {
       console.error("Save failed.", e);
       if (this.debug) console.error(" Error during stringify or download.");
@@ -1273,6 +1280,13 @@ class Oblix {
   }
 
   load(callback) {
+    // Check if we're in a browser environment
+    if (typeof document === 'undefined') {
+      console.log("Load functionality requires browser environment");
+      if (callback) callback(new Error("Load functionality requires browser environment"));
+      return;
+    }
+    
     const input = document.createElement("input");
     input.type = "file";
     input.accept = ".json";
