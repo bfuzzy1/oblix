@@ -9,16 +9,26 @@ export async function run() {
       { type: 'dense', inputSize: 1, outputSize: 1, useBias: true },
       { type: 'layernorm', inputSize: 1 },
     ],
-    weights: [[ [0.2] ] , null],
-    biases: [[0.1], null],
-    gammas: [null, [1, 1]],
-    betas: [null, [0, 0]],
+    weights: [new Float32Array([0.2]), null],
+    biases: [new Float32Array([0.1]), null],
+    gammas: [null, new Float32Array([1, 1])],
+    betas: [null, new Float32Array([0, 0])],
   };
   oblixOptimizers.initializeState(ctxInit, 'adam');
-  assert.deepStrictEqual(ctxInit.m_dw[0], [[0]]);
-  assert.deepStrictEqual(ctxInit.m_db[0], [0]);
-  assert.deepStrictEqual(ctxInit.m_dgamma[1], [0, 0]);
-  assert.deepStrictEqual(ctxInit.m_dbeta[1], [0, 0]);
+  assert.ok(ctxInit.m_dw[0] instanceof Float32Array);
+  assert.strictEqual(ctxInit.m_dw[0].length, 1);
+  assert.strictEqual(ctxInit.m_dw[0][0], 0);
+  assert.ok(ctxInit.m_db[0] instanceof Float32Array);
+  assert.strictEqual(ctxInit.m_db[0].length, 1);
+  assert.strictEqual(ctxInit.m_db[0][0], 0);
+  assert.ok(ctxInit.m_dgamma[1] instanceof Float32Array);
+  assert.strictEqual(ctxInit.m_dgamma[1].length, 2);
+  assert.strictEqual(ctxInit.m_dgamma[1][0], 0);
+  assert.strictEqual(ctxInit.m_dgamma[1][1], 0);
+  assert.ok(ctxInit.m_dbeta[1] instanceof Float32Array);
+  assert.strictEqual(ctxInit.m_dbeta[1].length, 2);
+  assert.strictEqual(ctxInit.m_dbeta[1][0], 0);
+  assert.strictEqual(ctxInit.m_dbeta[1][1], 0);
 
   function createCtx() {
     return {

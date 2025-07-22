@@ -131,12 +131,6 @@ export const oblixUtils = {
 
     const targetMean =
       targets.reduce((sum, val) => sum + val, 0) / targets.length;
-    if (typeof console !== "undefined" && console.log) {
-      console.log(
-        `R² Func Check: Received preds[0]=${predictions[0]} (typeof: ${typeof predictions[0]}), targets[0]=${targets[0]} (typeof: ${typeof targets[0]})`,
-      );
-      console.log(`R² Func Check: Calculated targetMean = ${targetMean}`);
-    }
 
     let ssTot = 0;
     let ssRes = 0;
@@ -144,18 +138,6 @@ export const oblixUtils = {
     for (let i = 0; i < targets.length; i++) {
       const targetVal = targets[i];
       const predVal = predictions[i];
-
-      if (typeof console !== "undefined" && console.log) {
-        const isTargetNum = typeof targetVal === "number";
-        const isPredNum = typeof predVal === "number";
-        const isTargetFinite = isFinite(targetVal);
-        const isPredFinite = isFinite(predVal);
-        if (i === 0) {
-          console.log(
-            `R² Func Loop i=${i}: Checks -> targetNum=${isTargetNum}, predNum=${isPredNum}, targetFinite=${isTargetFinite}, predFinite=${isPredFinite}`,
-          );
-        }
-      }
 
       if (!isFinite(targetVal) || !isFinite(predVal)) {
         console.warn(
