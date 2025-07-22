@@ -346,7 +346,7 @@ export const oblixLayerOps = {
     const invStddev = stddev > 0 ? 1 / stddev : 0;
 
     const dGamma = new Float32Array(N);
-    const dBeta = new Float32Array(dOutput);
+    const dBeta = new Float32Array(N);
     const dNorm = new Float32Array(N);
 
     if (context.debug)
