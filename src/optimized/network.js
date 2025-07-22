@@ -124,14 +124,10 @@ class OptimizedOblix {
       const biasSize = useBias ? outputSize : 0;
       
       const weights = new Float32Array(weightSize);
-      const biases = useBias ? new Float32Array(biasSize) : null;
+      const biases = useBias ? new Float32Array(biasSize).fill(0.01) : null;
       
       // Initialize weights using optimized methods
       this.initializeWeights(weights, weightInit, inputSize, outputSize);
-      if (biases) {
-        biases.fill(0);
-      }
-      
       this.weights.push(weights);
       this.biases.push(biases);
     } else {
@@ -183,7 +179,7 @@ class OptimizedOblix {
     }
     
     const activations = [input];
-    this.forwardCache = { activations: [input] };
+    this.forwardCache = { activations: [input], rawValues: [] };
     
     for (let i = 0; i < this.layers.length; i++) {
       const layer = this.layers[i];
@@ -205,7 +201,7 @@ class OptimizedOblix {
           activation = oblixLayerOps.dropoutForward(this, prevActivation, layer.rate);
           break;
         case "softmax":
-          activation = optimizedMath.softmax(prevActivation);
+          activation = oblixLayerOps.softmaxForward(this, prevActivation);
           break;
         default:
           activation = prevActivation;
@@ -225,24 +221,27 @@ class OptimizedOblix {
     const biases = this.biases[layerIndex];
     
     // Use optimized matrix-vector multiplication
-    const output = optimizedMath.matrixVectorMultiply(
-      weights,
-      input,
-      layer.outputSize,
-      layer.inputSize
-    );
-    
-    // Add bias if present
-    if (biases) {
-      optimizedMath.vectorAdd(output, biases, output);
+    const outputSize = layer.outputSize;
+    const inputSize = layer.inputSize;
+    const rawSums = new Float32Array(outputSize);
+    for (let j = 0; j < outputSize; ++j) {
+      let sum = biases ? biases[j] : 0;
+      const weightRowOffset = j * inputSize;
+      for (let k = 0; k < inputSize; ++k) {
+        sum += input[k] * weights[weightRowOffset + k];
+      }
+      rawSums[j] = sum;
     }
-    
-    // Apply activation function using optimized batch operation
-    if (layer.activation !== "none") {
-      optimizedMath.batchActivation(output, layer.activation, output);
+    // Store pre-activation values for backward pass
+    if (this.forwardCache && this.forwardCache.rawValues) {
+      this.forwardCache.rawValues[layerIndex] = rawSums;
     }
-    
-    return output;
+    // Apply activation per original logic
+    const out = new Float32Array(outputSize);
+    for (let j = 0; j < outputSize; ++j) {
+      out[j] = oblixActivations.apply(rawSums[j], layer.activation);
+    }
+    return out;
   }
 
   async train(trainSet, options = {}) {
@@ -330,19 +329,121 @@ class OptimizedOblix {
 
   async trainBatch(batch, learningRate, optimizer, lossFunction, l2Lambda, gradientClipValue) {
     let totalLoss = 0;
-    
+    // Allocate gradient accumulators
+    const gradsW = this.weights.map(w => w ? new Float32Array(w.length) : null);
+    const gradsB = this.biases.map(b => b ? new Float32Array(b.length) : null);
+    // (No gamma/beta for now)
+
     for (const sample of batch) {
       // Forward pass
       const prediction = this.forward(sample.input);
-      
-      // Compute loss
-      const loss = this.computeLoss(prediction, sample.output, lossFunction);
-      totalLoss += loss;
-      
-      // Backward pass (simplified for this example)
-      // In a full implementation, you would compute gradients here
+      // Compute loss and dLastErr
+      let dLastErr;
+      let loss = 0;
+      const target = sample.output;
+      const finalOut = prediction;
+      const eps_ce = 1e-9;
+      if (lossFunction === "crossentropy") {
+        const lastLyr = this.layers[this.layers.length - 1];
+        const wasSoftmax = lastLyr.type === "softmax" || (lastLyr.type === "dense" && lastLyr.activation === "softmax");
+        const wasSigmoid = lastLyr.type === "dense" && lastLyr.activation === "sigmoid";
+        if (wasSoftmax) {
+          const oneHotTarget = new Float32Array(finalOut.length).fill(0);
+          if (target.length === 1 && Number.isInteger(target[0]) && target[0] >= 0 && target[0] < finalOut.length) {
+            oneHotTarget[target[0]] = 1;
+          } else if (target.length === finalOut.length) {
+            for (let i = 0; i < target.length; ++i) oneHotTarget[i] = target[i];
+          } else {
+            throw new Error("CE target unclear");
+          }
+          for (let i = 0; i < finalOut.length; ++i)
+            loss -= oneHotTarget[i] * Math.log(finalOut[i] + eps_ce);
+          dLastErr = new Float32Array(finalOut.length);
+          for (let i = 0; i < finalOut.length; ++i)
+            dLastErr[i] = finalOut[i] - oneHotTarget[i];
+        } else if (wasSigmoid) {
+          if (finalOut.length !== 1 || target.length !== 1)
+            throw new Error("BCE needs single out/target");
+          const p = finalOut[0], t = target[0];
+          loss = -(t * Math.log(p + eps_ce) + (1 - t) * Math.log(1 - p + eps_ce));
+          dLastErr = new Float32Array([p - t]);
+        } else {
+          // fallback to MSE
+          dLastErr = new Float32Array(finalOut.length);
+          for (let i = 0; i < finalOut.length; ++i)
+            dLastErr[i] = finalOut[i] - target[i];
+          loss = 0.5 * dLastErr.reduce((s, e) => s + e * e, 0);
+        }
+      } else {
+        dLastErr = new Float32Array(finalOut.length);
+        for (let i = 0; i < finalOut.length; ++i) {
+          const diff = finalOut[i] - target[i];
+          dLastErr[i] = diff;
+          loss += diff * diff;
+        }
+        loss *= 0.5;
+      }
+      if (!isNaN(loss)) totalLoss += loss;
+
+      // Backward pass (dense layers only, optimized)
+      let dAct = dLastErr;
+      for (let i = this.layers.length - 1; i >= 0; i--) {
+        const cfg = this.layers[i];
+        if (cfg.type !== "dense") continue; // Only dense for now
+        const w = this.weights[i];
+        const b = this.biases[i];
+        const inSz = cfg.inputSize;
+        const outSz = cfg.outputSize;
+        const act = cfg.activation;
+        const act_prev = this.forwardCache.activations[i];
+        const raw = this.forwardCache.rawValues ? this.forwardCache.rawValues[i] : act_prev; // fallback
+        // Compute delta
+        const delta = new Float32Array(outSz);
+        for (let j = 0; j < outSz; ++j) {
+          const deriv = oblixActivations.derivative(raw[j], act);
+          delta[j] = dAct[j] * deriv;
+        }
+        // dIn for next layer
+        const dIn = new Float32Array(inSz);
+        for (let k = 0; k < inSz; k++) {
+          for (let j = 0; j < outSz; j++) {
+            dIn[k] += delta[j] * w[j * inSz + k];
+          }
+        }
+        // Accumulate gradients
+        if (gradsW[i]) {
+          for (let j = 0; j < outSz; j++) {
+            const weightRowOffset = j * inSz;
+            for (let k = 0; k < inSz; k++) {
+              gradsW[i][weightRowOffset + k] += delta[j] * act_prev[k];
+            }
+          }
+        }
+        if (gradsB[i]) {
+          for (let j = 0; j < outSz; j++) {
+            gradsB[i][j] += delta[j];
+          }
+        }
+        dAct = dIn;
+      }
     }
-    
+    // Update parameters after batch
+    oblixOptimizers.updateParameters(
+      this,
+      gradsW,
+      gradsB,
+      [],
+      [],
+      {
+        learningRate,
+        initialLearningRate: learningRate,
+        optimizer,
+        batchSize: batch.length,
+        l2Lambda,
+        gradientClipValue,
+        decayRate: this.decayRate,
+      }
+    );
     return totalLoss / batch.length;
   }
 
