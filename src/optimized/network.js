@@ -41,6 +41,7 @@ class OptimizedOblix {
     this.lastActivations = null;
     this.forwardCache = null;
     this.lastTrainLoss = null;
+    this.lastOptimizer = 'adam'; // Track last used optimizer
     
     if (this.debug) {
       console.log('Optimized Oblix instance created with performance optimizations');
@@ -139,6 +140,9 @@ class OptimizedOblix {
     this.gammas.push(null);
     this.betas.push(null);
     this.masks.push(null);
+    
+    // After adding a layer, re-initialize optimizer state arrays
+    this.initializeOptimizerState(this.lastOptimizer);
     
     return this;
   }
@@ -270,6 +274,8 @@ class OptimizedOblix {
       callback = null,
     } = options;
     
+    // Track the optimizer type for future state inits
+    this.lastOptimizer = optimizer;
     // Initialize optimizer state
     this.initializeOptimizerState(optimizer);
     
