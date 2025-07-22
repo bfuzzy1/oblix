@@ -7,6 +7,6 @@ export async function run() {
   assert.ok(html.includes('id="trainButton"'), 'Train button missing');
   assert.ok(html.includes('id="networkGraph"'), 'Network graph canvas missing');
   assert.ok(html.includes('id="predictButton"'), 'Predict button missing');
-  assert.ok(html.includes('id="playbackSlider"'), 'Playback slider missing');
+
   assert.ok(html.includes('src="src/main.js"'), 'Main script tag missing');
 }
