@@ -87,7 +87,19 @@ if (typeof document !== "undefined") {
         const currentDetails = nn.details ? { ...nn.details } : {};
         
         nn = useOptimized ? new OptimizedOblix(true) : new Oblix(true);
-        
+        // Reset optimizer state arrays
+        nn.m_dw = [];
+        nn.v_dw = [];
+        nn.m_db = [];
+        nn.v_db = [];
+        nn.m_dgamma = [];
+        nn.v_dgamma = [];
+        nn.m_dbeta = [];
+        nn.v_dbeta = [];
+        nn.s_dw = [];
+        nn.s_db = [];
+        nn.s_dgamma = [];
+        nn.s_dbeta = [];
         // Restore layers if any
         if (currentLayers.length > 0) {
           currentLayers.forEach(layer => {

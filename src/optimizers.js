@@ -36,6 +36,30 @@ export const oblixOptimizers = {
         beta instanceof Float32Array &&
         g.length === beta.length &&
         g.length > 0;
+      // Always initialize state arrays for layernorm, even if gamma/beta are missing or mismatched
+      if (cfg.type === "layernorm") {
+        const size = (g && g.length) || (beta && beta.length) || 0;
+        if (size > 0) {
+          if (optimizer === "adam" || optimizer === "adamw") {
+            context.m_dgamma[i] = new Float32Array(size).fill(0);
+            context.v_dgamma[i] = new Float32Array(size).fill(0);
+            context.m_dbeta[i] = new Float32Array(size).fill(0);
+            context.v_dbeta[i] = new Float32Array(size).fill(0);
+          }
+          if (optimizer === "rmsprop") {
+            context.s_dgamma[i] = new Float32Array(size).fill(0);
+            context.s_dbeta[i] = new Float32Array(size).fill(0);
+          }
+        } else {
+          console.error(`InitOpt L${i} LN err: gamma/beta missing or size 0`);
+          context.m_dgamma[i] = null;
+          context.v_dgamma[i] = null;
+          context.m_dbeta[i] = null;
+          context.v_dbeta[i] = null;
+          context.s_dgamma[i] = null;
+          context.s_dbeta[i] = null;
+        }
+      }
 
       if (
         optimizer === "adam" ||
@@ -74,29 +98,6 @@ export const oblixOptimizers = {
             context.m_db[i] = null;
             context.v_db[i] = null;
             context.s_db[i] = null;
-          }
-        }
-        if (reqLN) {
-          try {
-            const size = g.length;
-            if (optimizer === "adam" || optimizer === "adamw") {
-              context.m_dgamma[i] = new Float32Array(size).fill(0);
-              context.v_dgamma[i] = new Float32Array(size).fill(0);
-              context.m_dbeta[i] = new Float32Array(size).fill(0);
-              context.v_dbeta[i] = new Float32Array(size).fill(0);
-            }
-            if (optimizer === "rmsprop") {
-              context.s_dgamma[i] = new Float32Array(size).fill(0);
-              context.s_dbeta[i] = new Float32Array(size).fill(0);
-            }
-          } catch (e) {
-            console.error(`InitOpt L${i} LN err: ${e.message}`);
-            context.m_dgamma[i] = null;
-            context.v_dgamma[i] = null;
-            context.m_dbeta[i] = null;
-            context.v_dbeta[i] = null;
-            context.s_dgamma[i] = null;
-            context.s_dbeta[i] = null;
           }
         }
       }
