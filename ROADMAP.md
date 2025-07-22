@@ -1,37 +1,250 @@
-# oblix Roadmap (2025)
+# oblix Development Roadmap (2025-2026)
 
-**Last updated: May 17, 2025**
+**Last Updated:** January 2025
 
-oblix is a browser-based neural network playground written entirely in plain JavaScript. The app is intentionally self-contained so it can stay lightweight and remain hosted via GitHub Pages. Below is a high-level roadmap outlining planned improvements for the rest of 2025 and into 2026.
+oblix is a browser-based neural network playground written entirely in plain JavaScript. The project focuses on providing an educational, self-contained environment for neural network experimentation without external dependencies.
 
-## Current Highlights
+## 🎯 Current Status (Q1 2025)
 
-*   Interactive UI for constructing and training networks directly in the browser.
-*   Layer support: Dense, Layer Normalization, Self-Attention, Dropout and Softmax.
-*   Architecture templates for MLPs, Autoencoders and Transformer-style blocks.
-*   Training options with SGD, Adam, RMSprop and AdamW plus learning rate schedules.
-*   Built-in data generation, positional encoding and save/load of models.
-*   Real-time visualizations of loss curves and network graphs.
+### ✅ Completed Features
+- **Core Neural Network:** Complete implementation with forward/backward propagation
+- **Layer Types:** Dense, Layer Normalization, Self-Attention, Dropout, Softmax
+- **Optimizers:** SGD, Adam, RMSprop, AdamW with momentum and adaptive learning
+- **Activation Functions:** ReLU, tanh, sigmoid, GELU, SELU, Swish, Mish, LeakyReLU
+- **Training Features:** Learning rate scheduling, gradient clipping, L2 regularization
+- **Data Generation:** XOR, linear, circular, gaussian blobs, random data patterns
+- **Visualization:** Real-time loss graphs, interactive network visualization
+- **Model Persistence:** Save/load models as JSON files
+- **CSV Import/Export:** Load training data and export predictions
+- **Positional Encoding:** Add positional information to inputs
+- **Architecture Templates:** 9 predefined network structures
+- **Testing Suite:** Comprehensive unit and integration tests
+- **Performance Benchmarks:** Detailed performance measurements
 
-## Near Term Goals (Q2–Q3 2025)
+### 🔧 Current Architecture
+- **Self-Contained:** No external dependencies for core functionality
+- **ES6 Modules:** Modern JavaScript module system
+- **Float32Array:** Optimized typed arrays for numerical computations
+- **Canvas API:** Real-time visualization and graphing
+- **Web Crypto API:** Secure random number generation
 
-*   **Host on GitHub Pages** – keep deployment simple; update docs so anyone can clone and run `index.html`.
-*   **Enhanced documentation** – expand the README with step-by-step tutorials and link to example data sets.
-*   **CSV import/export** – drag and drop or select a file to load training data; allow exporting predictions as CSV.
-*   **Local storage** for models and training sessions so experiments persist across page reloads.
-*   **More visualization options** such as gradient norms or per-layer activation histograms.
+## 🚀 Near-Term Goals (Q2-Q3 2025)
 
-## Mid Term Goals (Q4 2025–Q1 2026)
+### High Priority
+- **GitHub Pages Deployment**
+  - Configure GitHub Pages hosting
+  - Ensure all modules load correctly in production
+  - Test cross-browser compatibility
+  - Optimize for web deployment
 
-*   **Additional layer types** including simple convolutional and recurrent layers written in pure JS.
-*   **Performance tweaks** – explore Web Workers for background computation and typed arrays to speed up math.
-*   **Dataset library** with built-in demos showcasing MNIST-like data or synthetic sequence data.
-*   **Improved UX**: progress bars, better model summary, and keyboard shortcuts for common actions.
+- **Enhanced Documentation**
+  - Create step-by-step tutorials
+  - Add interactive examples
+  - Document all API functions
+  - Provide usage patterns and best practices
+  - Create video tutorials for key features
 
-## Long Term Ideas (2026 and beyond)
+- **Local Storage Integration**
+  - Save training sessions to browser storage
+  - Persist model configurations across sessions
+  - Auto-save training progress
+  - Export/import training sessions
 
-*   **WebGPU/WebGL acceleration** when available while keeping a graceful fallback to CPU.
-*   **Plugin system** so the community can add custom layers, optimizers or visualizations.
-*   **Collaborative sharing** of saved models and configurations directly from the browser.
-*   **Educational content** including guided tutorials and lesson plans.
+### Medium Priority
+- **Improved CSV Handling**
+  - Drag-and-drop file upload
+  - Better CSV parsing with error handling
+  - Support for different CSV formats
+  - Data validation and preprocessing
+  - Export predictions with metadata
+
+- **Enhanced Visualizations**
+  - Gradient norm visualization
+  - Per-layer activation histograms
+  - Weight distribution plots
+  - Training progress indicators
+  - Interactive parameter tuning
+
+- **Performance Optimizations**
+  - Web Workers for heavy computations
+  - Typed array optimizations
+  - Memory usage improvements
+  - Faster mathematical operations
+
+### Low Priority
+- **UI/UX Improvements**
+  - Progress bars for long operations
+  - Better model summary display
+  - Keyboard shortcuts for common actions
+  - Responsive design improvements
+  - Dark/light theme toggle
+
+## 🎯 Mid-Term Goals (Q4 2025-Q1 2026)
+
+### New Layer Types
+- **Convolutional Layers**
+  - 1D and 2D convolutions
+  - Pooling operations (max, average)
+  - Stride and padding support
+  - Efficient implementation in pure JavaScript
+
+- **Recurrent Layers**
+  - Simple RNN implementation
+  - LSTM cells with gates
+  - GRU cells
+  - Bidirectional variants
+
+- **Advanced Attention**
+  - Multi-head attention improvements
+  - Relative positional encoding
+  - Cross-attention mechanisms
+  - Attention visualization tools
+
+### Dataset Library
+- **Built-in Datasets**
+  - MNIST-like digit recognition
+  - Synthetic sequence data
+  - Time series datasets
+  - Classification benchmarks
+
+- **Data Augmentation**
+  - Noise injection
+  - Data transformation tools
+  - Synthetic data generation
+  - Data preprocessing utilities
+
+### Advanced Training Features
+- **Transfer Learning**
+  - Pre-trained model loading
+  - Fine-tuning capabilities
+  - Feature extraction
+  - Model adaptation tools
+
+- **Advanced Regularization**
+  - Batch normalization
+  - Advanced dropout variants
+  - Weight regularization techniques
+  - Early stopping improvements
+
+## 🔮 Long-Term Vision (2026 and Beyond)
+
+### WebGPU Integration
+- **Hardware Acceleration**
+  - WebGPU implementation when available
+  - Graceful fallback to CPU computation
+  - Performance monitoring and comparison
+  - Cross-platform compatibility
+
+- **Advanced Computations**
+  - GPU-accelerated matrix operations
+  - Parallel training capabilities
+  - Real-time visualization improvements
+  - Large model support
+
+### Plugin System
+- **Extensibility Framework**
+  - Custom layer plugin system
+  - Optimizer plugin architecture
+  - Visualization plugin support
+  - Community contribution tools
+
+- **Plugin Marketplace**
+  - Curated plugin repository
+  - Plugin documentation and examples
+  - Community plugin sharing
+  - Plugin validation and testing
+
+### Collaborative Features
+- **Model Sharing**
+  - Direct model sharing from browser
+  - Model versioning and history
+  - Collaborative training sessions
+  - Model comparison tools
+
+- **Educational Content**
+  - Interactive tutorials
+  - Guided lesson plans
+  - Concept explanations
+  - Progressive difficulty levels
+
+### Advanced Analytics
+- **Training Analytics**
+  - Detailed training metrics
+  - Model performance analysis
+  - Hyperparameter optimization
+  - Automated model selection
+
+- **Visualization Enhancements**
+  - 3D network visualizations
+  - Interactive parameter exploration
+  - Real-time training animations
+  - Advanced plotting capabilities
+
+## 🛠️ Technical Debt & Maintenance
+
+### Code Quality
+- **Refactoring**
+  - Improve code organization
+  - Reduce code duplication
+  - Enhance error handling
+  - Optimize performance bottlenecks
+
+- **Testing Improvements**
+  - Increase test coverage
+  - Add integration tests
+  - Performance regression testing
+  - Automated testing pipeline
+
+### Documentation
+- **API Documentation**
+  - Complete JSDoc coverage
+  - Interactive API explorer
+  - Code examples for all functions
+  - Migration guides for updates
+
+- **User Documentation**
+  - Comprehensive user manual
+  - Video tutorials
+  - Troubleshooting guides
+  - FAQ and common issues
+
+## 📊 Success Metrics
+
+### User Engagement
+- **Adoption:** Number of active users
+- **Retention:** User session duration
+- **Feedback:** User satisfaction scores
+- **Community:** GitHub stars and contributions
+
+### Technical Performance
+- **Speed:** Training and inference performance
+- **Reliability:** Test coverage and bug reports
+- **Compatibility:** Browser support and stability
+- **Accessibility:** Usability across different devices
+
+### Educational Impact
+- **Learning Outcomes:** User comprehension metrics
+- **Feature Usage:** Most used features and patterns
+- **Community Growth:** Educational content creation
+- **Academic Adoption:** Use in educational institutions
+
+## 🔄 Release Strategy
+
+### Version Planning
+- **Patch Releases:** Bug fixes and minor improvements
+- **Minor Releases:** New features and enhancements
+- **Major Releases:** Breaking changes and major overhauls
+
+### Release Schedule
+- **Monthly:** Patch releases for bug fixes
+- **Quarterly:** Minor releases with new features
+- **Annually:** Major releases with significant changes
+
+### Quality Assurance
+- **Automated Testing:** CI/CD pipeline
+- **Manual Testing:** Cross-browser verification
+- **Performance Testing:** Benchmark regression checks
+- **User Testing:** Beta testing with community
+
+This roadmap provides a comprehensive guide for oblix development, balancing immediate improvements with long-term vision while maintaining the project's educational focus and technical excellence.
 
