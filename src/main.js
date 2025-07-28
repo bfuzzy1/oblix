@@ -2,7 +2,9 @@ import { Oblix } from './network.js';
 import { OptimizedOblix } from './optimized/network.js';
 import { oblixUtils } from './utils.js';
 import { getUIElements, addPerformanceToggle, updateDataParamUI, validateUIElements } from './ui-manager.js';
-import { generateRandomData, parseCSV, formatGeneratedDataToCSV, validateTrainingData } from './data-utils.js';
+import { drawLossGraph, drawNetwork } from './graph-utils.js';
+// Data utilities are imported but not yet used in the current refactoring phase
+// import { generateRandomData, parseCSV, formatGeneratedDataToCSV, validateTrainingData } from './data-utils.js';
 
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
@@ -465,57 +467,60 @@ if (typeof document !== 'undefined') {
         })
         .filter((i) => i !== null);
     }
-    function drawLossGraph() {
+    function drawLossGraphLocal() {
       if (!lossCtx || !lossCanvas) return;
       lossCtx.clearRect(0, 0, lossCanvas.width, lossCanvas.height);
       if (lossHistory.length < 2) return;
-      const trainL = lossHistory
-        .map((h) => h.train)
-        .filter((l) => l !== null && isFinite(l));
-      const testL = lossHistory
-        .map((h) => h.test)
-        .filter((l) => l !== null && isFinite(l));
-      let maxL = 0.1;
-      if (trainL.length > 0) maxL = Math.max(maxL, ...trainL);
-      if (testL.length > 0) maxL = Math.max(maxL, ...testL);
-      maxL = Math.max(maxL, 0.1);
-      const W = lossCanvas.width,
-        H = lossCanvas.height,
-        nPts = lossHistory.length,
-        pH = H * 0.9,
-        yOff = H * 0.05;
-      const plot = (ctx, pts, c) => {
-        ctx.strokeStyle = c;
-        ctx.lineWidth = 1.5;
-        ctx.beginPath();
-        let first = true;
-        pts.forEach((p, i) => {
-          if (p !== null && isFinite(p)) {
-            const x = (i / Math.max(1, nPts - 1)) * W;
-            const y = H - (p / maxL) * pH - yOff;
-            if (first) {
-              ctx.moveTo(x, y);
-              first = false;
+      
+      const trainLosses = lossHistory
+        .map((history) => history.train)
+        .filter((loss) => loss !== null && isFinite(loss));
+      const testLosses = lossHistory
+        .map((history) => history.test)
+        .filter((loss) => loss !== null && isFinite(loss));
+      
+      let maxLoss = 0.1;
+      if (trainLosses.length > 0) maxLoss = Math.max(maxLoss, ...trainLosses);
+      if (testLosses.length > 0) maxLoss = Math.max(maxLoss, ...testLosses);
+      maxLoss = Math.max(maxLoss, 0.1);
+      
+      const canvasWidth = lossCanvas.width;
+      const canvasHeight = lossCanvas.height;
+      const numPoints = lossHistory.length;
+      const plotHeight = canvasHeight * 0.9;
+      const yOffset = canvasHeight * 0.05;
+      
+      const plot = (context, points, color) => {
+        context.strokeStyle = color;
+        context.lineWidth = 1.5;
+        context.beginPath();
+        let isFirst = true;
+        points.forEach((point, index) => {
+          if (point !== null && isFinite(point)) {
+            const x = (index / Math.max(1, numPoints - 1)) * canvasWidth;
+            const y = canvasHeight - (point / maxLoss) * plotHeight - yOffset;
+            if (isFirst) {
+              context.moveTo(x, y);
+              isFirst = false;
             } else {
-              ctx.lineTo(x, y);
+              context.lineTo(x, y);
             }
           } else {
-            first = true;
+            isFirst = true;
           }
         });
-        ctx.stroke();
+        context.stroke();
       };
-      const trainC =
-      getComputedStyle(document.body).getPropertyValue('--text')?.trim() ||
-      '#fff';
+      
+      const trainColor = getComputedStyle(document.body).getPropertyValue('--text')?.trim() || '#fff';
       plot(
         lossCtx,
-        lossHistory.map((h) => h.train),
-        trainC
+        lossHistory.map((history) => history.train),
+        trainColor
       );
       plot(
         lossCtx,
-        lossHistory.map((h) => h.test),
+        lossHistory.map((history) => history.test),
         '#87CEEB'
       );
     }
@@ -1134,13 +1139,15 @@ if (typeof document !== 'undefined') {
 
 
 
-    function drawNetwork() {
+    function drawNetworkLocal() {
       if (!networkCtx || !networkCanvas) return;
       const networkContainer = networkCanvas.parentElement;
       if (!networkContainer) return;
       const containerWidth = networkContainer.clientWidth;
       const containerHeight = networkContainer.clientHeight;
-      networkCtx.clearRect(0, 0, networkCanvas.width, networkCanvas.height);
+      
+      drawNetwork(networkCtx, networkCanvas, nn, containerWidth, containerHeight);
+    }
       const hasModel =
       nn.lastActivations &&
       nn.lastActivations.length > 0 &&

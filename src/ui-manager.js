@@ -115,35 +115,35 @@ export function updateDataParamUI(selectedPattern, uiElements) {
   const outputDimsLabel = numOutputDimsGroup?.querySelector('label');
   
   switch (selectedPattern) {
-    case 'xor':
-      numInputDimsInput.value = '2';
-      numOutputDimsInput.value = '1';
-      if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions (XOR: 2)';
-      if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions (XOR: 1)';
-      break;
-    case 'linear':
-      numInputDimsInput.value = '1';
-      numOutputDimsInput.value = '1';
-      if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions (Linear: 1)';
-      if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions (Linear: 1)';
-      break;
-    case 'circular':
-      numInputDimsInput.value = '2';
-      numOutputDimsInput.value = '1';
-      if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions (Circular: 2)';
-      if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions (Circular: 1)';
-      break;
-    case 'blobs':
-      numInputDimsInput.value = '2';
-      numOutputDimsInput.value = '3';
-      if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions (Blobs: 2)';
-      if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions (Blobs: 3)';
-      break;
-    default:
-      numInputDimsInput.value = '2';
-      numOutputDimsInput.value = '1';
-      if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions';
-      if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions';
+  case 'xor':
+    numInputDimsInput.value = '2';
+    numOutputDimsInput.value = '1';
+    if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions (XOR: 2)';
+    if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions (XOR: 1)';
+    break;
+  case 'linear':
+    numInputDimsInput.value = '1';
+    numOutputDimsInput.value = '1';
+    if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions (Linear: 1)';
+    if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions (Linear: 1)';
+    break;
+  case 'circular':
+    numInputDimsInput.value = '2';
+    numOutputDimsInput.value = '1';
+    if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions (Circular: 2)';
+    if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions (Circular: 1)';
+    break;
+  case 'blobs':
+    numInputDimsInput.value = '2';
+    numOutputDimsInput.value = '3';
+    if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions (Blobs: 2)';
+    if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions (Blobs: 3)';
+    break;
+  default:
+    numInputDimsInput.value = '2';
+    numOutputDimsInput.value = '1';
+    if (inputDimsLabel) inputDimsLabel.textContent = 'Input Dimensions';
+    if (outputDimsLabel) outputDimsLabel.textContent = 'Output Dimensions';
   }
 }
 
