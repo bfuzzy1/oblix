@@ -1,4 +1,16 @@
+/**
+ * Utility functions for the Oblix neural network framework.
+ * Following Japanese-Level Code Quality principles: clear names, documented business rules.
+ */
 export const oblixUtils = {
+  /**
+   * Applies positional encoding to input data for sequence modeling.
+   * Business rule: Positional encoding helps the model understand sequence order.
+   * 
+   * @param {Float32Array|Array} input - Input data to encode
+   * @param {number} maxLen - Maximum sequence length (-1 for auto-detect)
+   * @returns {Float32Array} Input with positional encoding added
+   */
   positionalEncoding: function (input, maxLen = -1) {
     const dModel = input.length;
     if (dModel === 0) return new Float32Array(0);
@@ -48,6 +60,14 @@ export const oblixUtils = {
     return output;
   },
 
+  /**
+   * Calculates classification accuracy between predictions and targets.
+   * Business rule: Accuracy measures how often the model predicts the correct class.
+   * 
+   * @param {Array<Array<number>>} predictions - Model predictions (one-hot or probability vectors)
+   * @param {Array<Array<number>|number>} targets - True labels (one-hot vectors or class indices)
+   * @returns {number} Accuracy as a fraction between 0 and 1
+   */
   calculateAccuracy: function (predictions, targets) {
     if (
       !predictions ||
@@ -114,6 +134,14 @@ export const oblixUtils = {
     return predictions.length > 0 ? correct / predictions.length : 0.0;
   },
 
+  /**
+   * Calculates R-squared (coefficient of determination) for regression tasks.
+   * Business rule: R-squared measures how well the model explains variance in the data.
+   * 
+   * @param {Array<number>} predictions - Model predictions
+   * @param {Array<number>} targets - True target values
+   * @returns {number} R-squared value between 0 and 1 (NaN if invalid)
+   */
   calculateRSquared: function (predictions, targets) {
     if (
       !predictions ||

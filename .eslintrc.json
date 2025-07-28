@@ -1,0 +1,64 @@
+{
+  "env": {
+    "browser": true,
+    "es2022": true,
+    "node": true
+  },
+  "extends": [
+    "eslint:recommended",
+    "prettier"
+  ],
+  "plugins": [
+    "jsdoc"
+  ],
+  "parserOptions": {
+    "ecmaVersion": 2022,
+    "sourceType": "module"
+  },
+  "rules": {
+    // Monozukuri - Craftsmanship rules
+    "complexity": ["error", 10],
+    "max-lines-per-function": ["error", 50],
+    "max-depth": ["error", 4],
+    "max-params": ["error", 5],
+    
+    // Kaizen - Continuous improvement
+    "no-console": "warn",
+    "no-debugger": "error",
+    "no-alert": "error",
+    
+    // Wabi-sabi - Graceful imperfection
+    "prefer-const": "error",
+    "no-var": "error",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    
+    // Clear, full words principle
+    "id-length": ["error", { "min": 2, "exceptions": ["i", "j", "k", "x", "y", "z"] }],
+    
+    // Business rules documentation
+    "jsdoc/require-jsdoc": [
+      "warn",
+      {
+        "publicOnly": true,
+        "require": {
+          "FunctionDeclaration": true,
+          "MethodDefinition": true,
+          "ClassDeclaration": true
+        }
+      }
+    ],
+    
+    // Sustainable pace - readable code
+    "indent": ["error", 2],
+    "quotes": ["error", "single"],
+    "semi": ["error", "always"],
+    "comma-dangle": ["error", "never"],
+    "object-curly-spacing": ["error", "always"],
+    "array-bracket-spacing": ["error", "never"],
+    
+    // Zero-defect policy
+    "no-undef": "error",
+    "no-unreachable": "error",
+    "no-constant-condition": "error"
+  }
+}

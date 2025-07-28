@@ -4,6 +4,19 @@
   "type": "module",
   "scripts": {
     "test": "node tests/run.js",
-    "benchmark": "node benchmark/run.js"
+    "benchmark": "node benchmark/run.js",
+    "lint": "eslint src/ tests/ --ext .js",
+    "lint:fix": "eslint src/ tests/ --ext .js --fix",
+    "format": "prettier --write src/ tests/",
+    "format:check": "prettier --check src/ tests/",
+    "quality": "npm run lint && npm run format:check && npm run test",
+    "kaizen": "node scripts/daily-kaizen.js",
+    "kaizen:quick": "npm run quality && echo '✅ Daily kaizen complete - code quality maintained'"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-jsdoc": "^48.2.1",
+    "prettier": "^3.2.5"
   }
 }

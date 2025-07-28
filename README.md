@@ -2,6 +2,31 @@
 
 **oblix** is a self-contained, browser-based neural network playground written entirely in pure JavaScript. It provides an interactive environment to build, train, visualize, and experiment with various neural network architectures and training parameters. The main HTML page loads JavaScript modules from the `src` directory.
 
+## 🎯 Japanese-Level Code Quality
+
+This project follows the **Japanese-Level Code Quality Rule-Book** principles:
+
+- **Monozukuri (ものづくり)** - Treating every line as a product meant to last decades
+- **Kaizen (改善)** - 1% better every day through continuous improvement
+- **Sustainable Pace** - Work rhythm that can be maintained for 20 years
+- **Wabi-sabi (侘寂)** - Graceful imperfection, shipping the simplest code that solves today's need
+
+### Quality Gates
+- ✅ **Zero-Defect Policy** - Tests cover happy path and edge cases
+- ✅ **Peer Review = Craftsmanship Review** - Focus on clarity over cleverness
+- ✅ **Continuous Integration** - Pipeline fails on any warning or regression
+
+### Daily Kaizen Process
+```bash
+# Run daily quality checks and get improvement suggestions
+npm run kaizen
+
+# Quick quality check
+npm run kaizen:quick
+```
+
+See [KAIZEN_LOG.md](./KAIZEN_LOG.md) for tracking improvements and [CODE_REVIEW_CHECKLIST.md](./CODE_REVIEW_CHECKLIST.md) for review guidelines.
+
 ## 🚀 Features
 
 ### Core Neural Network Capabilities
