@@ -321,14 +321,13 @@ class Oblix {
   /**
    *
    */
-  initializeOptimizerState(optimizer) {
-    const numLayers = this.layers.length;
-    if (this.debug)
-      console.log(
-        `Init optimizer state (${optimizer}) for ${numLayers} layers. Creating Float32Arrays.`
-      );
-    this.t = 0;
-
+  /**
+   * Ensures optimizer state arrays have the correct length.
+   * Business rule: State arrays must match the number of layers.
+   *
+   * @param {number} numLayers - Number of layers
+   */
+  ensureOptimizerStateArrays(numLayers) {
     const ensureLen = (arrName) => {
       if (!this[arrName] || this[arrName].length !== numLayers) {
         this[arrName] = Array(numLayers).fill(null);
@@ -348,96 +347,175 @@ class Oblix {
       's_dgamma',
       's_dbeta'
     ].forEach(ensureLen);
+  },
+
+  /**
+   * Determines which optimizer states are needed for a layer.
+   * Business rule: State requirements depend on layer type and parameters.
+   *
+   * @param {Object} cfg - Layer configuration
+   * @param {Float32Array} weights - Weight array
+   * @param {Float32Array} biases - Bias array
+   * @param {Float32Array} gammas - Gamma array
+   * @param {Float32Array} betas - Beta array
+   * @returns {Object} State requirements
+   */
+  determineStateRequirements(cfg, weights, biases, gammas, betas) {
+    const needsWeightState = cfg.type === 'dense' && weights instanceof Float32Array;
+    const needsBiasState = cfg.type === 'dense' && cfg.useBias && biases instanceof Float32Array;
+    const needsLayerNormState = cfg.type === 'layernorm' && 
+      gammas instanceof Float32Array && 
+      betas instanceof Float32Array;
+
+    return { needsWeightState, needsBiasState, needsLayerNormState };
+  },
+
+  /**
+   * Initializes weight optimizer state for a layer.
+   * Business rule: Weight state arrays must match weight array dimensions.
+   *
+   * @param {number} layerIndex - Layer index
+   * @param {Float32Array} weights - Weight array
+   * @param {string} optimizer - Optimizer type
+   */
+  initializeWeightOptimizerState(layerIndex, weights, optimizer) {
+    const size = weights.length;
+    if (optimizer === 'adam' || optimizer === 'adamw') {
+      if (!this.m_dw[layerIndex]) this.m_dw[layerIndex] = new Float32Array(size).fill(0);
+      if (!this.v_dw[layerIndex]) this.v_dw[layerIndex] = new Float32Array(size).fill(0);
+    }
+    if (optimizer === 'rmsprop') {
+      if (!this.s_dw[layerIndex]) this.s_dw[layerIndex] = new Float32Array(size).fill(0);
+    }
+
+    if (this.debug) {
+      console.log(
+        `L${layerIndex} Dense W Opt State (${optimizer}) init: ${this.m_dw[layerIndex]?.length || this.s_dw[layerIndex]?.length} elements`
+      );
+    }
+  },
+
+  /**
+   * Initializes bias optimizer state for a layer.
+   * Business rule: Bias state arrays must match bias array dimensions.
+   *
+   * @param {number} layerIndex - Layer index
+   * @param {Float32Array} biases - Bias array
+   * @param {string} optimizer - Optimizer type
+   */
+  initializeBiasOptimizerState(layerIndex, biases, optimizer) {
+    const size = biases.length;
+    if (optimizer === 'adam' || optimizer === 'adamw') {
+      if (!this.m_db[layerIndex]) this.m_db[layerIndex] = new Float32Array(size).fill(0);
+      if (!this.v_db[layerIndex]) this.v_db[layerIndex] = new Float32Array(size).fill(0);
+    }
+    if (optimizer === 'rmsprop') {
+      if (!this.s_db[layerIndex]) this.s_db[layerIndex] = new Float32Array(size).fill(0);
+    }
+
+    if (this.debug) {
+      console.log(
+        `L${layerIndex} Dense B Opt State (${optimizer}) init: ${this.m_db[layerIndex]?.length || this.s_db[layerIndex]?.length} elements`
+      );
+    }
+  },
+
+  /**
+   * Initializes layer normalization optimizer state for a layer.
+   * Business rule: Layer norm state arrays must match gamma/beta array dimensions.
+   *
+   * @param {number} layerIndex - Layer index
+   * @param {Float32Array} gammas - Gamma array
+   * @param {Float32Array} betas - Beta array
+   * @param {string} optimizer - Optimizer type
+   */
+  initializeLayerNormOptimizerState(layerIndex, gammas, betas, optimizer) {
+    const size = gammas.length;
+    if (optimizer === 'adam' || optimizer === 'adamw') {
+      if (!this.m_dgamma[layerIndex]) this.m_dgamma[layerIndex] = new Float32Array(size).fill(0);
+      if (!this.v_dgamma[layerIndex]) this.v_dgamma[layerIndex] = new Float32Array(size).fill(0);
+      if (!this.m_dbeta[layerIndex]) this.m_dbeta[layerIndex] = new Float32Array(size).fill(0);
+      if (!this.v_dbeta[layerIndex]) this.v_dbeta[layerIndex] = new Float32Array(size).fill(0);
+    }
+    if (optimizer === 'rmsprop') {
+      if (!this.s_dgamma[layerIndex]) this.s_dgamma[layerIndex] = new Float32Array(size).fill(0);
+      if (!this.s_dbeta[layerIndex]) this.s_dbeta[layerIndex] = new Float32Array(size).fill(0);
+    }
+
+    if (this.debug) {
+      console.log(
+        `L${layerIndex} LN Opt State (${optimizer}) init: ${this.m_dgamma[layerIndex]?.length || this.s_dgamma[layerIndex]?.length} elements`
+      );
+    }
+  },
+
+  /**
+   * Handles errors during optimizer state initialization.
+   * Business rule: Failed state initialization should be handled gracefully.
+   *
+   * @param {number} layerIndex - Layer index
+   * @param {string} optimizer - Optimizer type
+   * @param {Error} error - Error object
+   */
+  handleOptimizerStateError(layerIndex, optimizer, error) {
+    console.error(`InitOpt State Err L${layerIndex} (${optimizer}): ${error.message}`);
+
+    this.m_dw[layerIndex] = null;
+    this.v_dw[layerIndex] = null;
+    this.s_dw[layerIndex] = null;
+    this.m_db[layerIndex] = null;
+    this.v_db[layerIndex] = null;
+    this.s_db[layerIndex] = null;
+    this.m_dgamma[layerIndex] = null;
+    this.v_dgamma[layerIndex] = null;
+    this.s_dgamma[layerIndex] = null;
+    this.m_dbeta[layerIndex] = null;
+    this.v_dbeta[layerIndex] = null;
+    this.s_dbeta[layerIndex] = null;
+  },
+
+  /**
+   * Initializes optimizer state for all layers.
+   * Business rule: Optimizer state must be properly initialized for training.
+   *
+   * @param {string} optimizer - Optimizer type
+   */
+  initializeOptimizerState(optimizer) {
+    const numLayers = this.layers.length;
+    if (this.debug) {
+      console.log(
+        `Init optimizer state (${optimizer}) for ${numLayers} layers. Creating Float32Arrays.`
+      );
+    }
+    this.t = 0;
+
+    this.ensureOptimizerStateArrays(numLayers);
 
     for (let i = 0; i < numLayers; i++) {
       const cfg = this.layers[i];
       if (!cfg) continue;
-      const w = this.weights[i];
-      const b = this.biases[i];
-      const g = this.gammas[i];
-      const beta = this.betas[i];
 
-      const needsWState = cfg.type === 'dense' && w instanceof Float32Array;
-      const needsBState =
-        cfg.type === 'dense' && cfg.useBias && b instanceof Float32Array;
-      const needsLNState =
-        cfg.type === 'layernorm' &&
-        g instanceof Float32Array &&
-        beta instanceof Float32Array;
+      const weights = this.weights[i];
+      const biases = this.biases[i];
+      const gammas = this.gammas[i];
+      const betas = this.betas[i];
 
-      if (
-        optimizer === 'adam' ||
-        optimizer === 'rmsprop' ||
-        optimizer === 'adamw'
-      ) {
+      const { needsWeightState, needsBiasState, needsLayerNormState } = 
+        this.determineStateRequirements(cfg, weights, biases, gammas, betas);
+
+      if (optimizer === 'adam' || optimizer === 'rmsprop' || optimizer === 'adamw') {
         try {
-          if (needsWState) {
-            const size = w.length;
-            if (optimizer === 'adam' || optimizer === 'adamw') {
-              if (!this.m_dw[i]) this.m_dw[i] = new Float32Array(size).fill(0);
-              if (!this.v_dw[i]) this.v_dw[i] = new Float32Array(size).fill(0);
-            }
-            if (optimizer === 'rmsprop') {
-              if (!this.s_dw[i]) this.s_dw[i] = new Float32Array(size).fill(0);
-            }
-
-            if (this.debug)
-              console.log(
-                `L${i} Dense W Opt State (${optimizer}) init: ${this.m_dw[i]?.length || this.s_dw[i]?.length} elements`
-              );
+          if (needsWeightState) {
+            this.initializeWeightOptimizerState(i, weights, optimizer);
           }
-          if (needsBState) {
-            const size = b.length;
-            if (optimizer === 'adam' || optimizer === 'adamw') {
-              if (!this.m_db[i]) this.m_db[i] = new Float32Array(size).fill(0);
-              if (!this.v_db[i]) this.v_db[i] = new Float32Array(size).fill(0);
-            }
-            if (optimizer === 'rmsprop') {
-              if (!this.s_db[i]) this.s_db[i] = new Float32Array(size).fill(0);
-            }
-            if (this.debug)
-              console.log(
-                `L${i} Dense B Opt State (${optimizer}) init: ${this.m_db[i]?.length || this.s_db[i]?.length} elements`
-              );
+          if (needsBiasState) {
+            this.initializeBiasOptimizerState(i, biases, optimizer);
           }
-          if (needsLNState) {
-            const size = g.length;
-            if (optimizer === 'adam' || optimizer === 'adamw') {
-              if (!this.m_dgamma[i])
-                this.m_dgamma[i] = new Float32Array(size).fill(0);
-              if (!this.v_dgamma[i])
-                this.v_dgamma[i] = new Float32Array(size).fill(0);
-              if (!this.m_dbeta[i])
-                this.m_dbeta[i] = new Float32Array(size).fill(0);
-              if (!this.v_dbeta[i])
-                this.v_dbeta[i] = new Float32Array(size).fill(0);
-            }
-            if (optimizer === 'rmsprop') {
-              if (!this.s_dgamma[i])
-                this.s_dgamma[i] = new Float32Array(size).fill(0);
-              if (!this.s_dbeta[i])
-                this.s_dbeta[i] = new Float32Array(size).fill(0);
-            }
-            if (this.debug)
-              console.log(
-                `L${i} LN Opt State (${optimizer}) init: ${this.m_dgamma[i]?.length || this.s_dgamma[i]?.length} elements`
-              );
+          if (needsLayerNormState) {
+            this.initializeLayerNormOptimizerState(i, gammas, betas, optimizer);
           }
-        } catch (e) {
-          console.error(`InitOpt State Err L${i} (${optimizer}): ${e.message}`);
-
-          this.m_dw[i] = null;
-          this.v_dw[i] = null;
-          this.s_dw[i] = null;
-          this.m_db[i] = null;
-          this.v_db[i] = null;
-          this.s_db[i] = null;
-          this.m_dgamma[i] = null;
-          this.v_dgamma[i] = null;
-          this.s_dgamma[i] = null;
-          this.m_dbeta[i] = null;
-          this.v_dbeta[i] = null;
-          this.s_dbeta[i] = null;
+        } catch (error) {
+          this.handleOptimizerStateError(i, optimizer, error);
         }
       }
     }
@@ -1150,6 +1228,219 @@ class Oblix {
   /**
    *
    */
+  /**
+   * Validates loaded model data.
+   * Business rule: Model validation prevents runtime errors.
+   *
+   * @param {Object} data - Loaded model data
+   * @returns {boolean} True if valid
+   */
+  validateLoadedModel(data) {
+    if (!data.layers || !Array.isArray(data.layers)) {
+      throw new Error('Invalid model: \'layers\' missing.');
+    }
+    return true;
+  },
+
+  /**
+   * Reconstructs Float32Array from serialized object.
+   * Business rule: Float32Array reconstruction must handle various input formats.
+   *
+   * @param {*} item - Item to reconstruct
+   * @param {string} arrName - Array name for logging
+   * @param {number} index - Item index for logging
+   * @returns {Float32Array|null} Reconstructed array or null
+   */
+  reconstructFloat32Array(item, arrName, index) {
+    if (item !== null && typeof item === 'object' && item.hasOwnProperty('0')) {
+      const values = Object.values(item);
+      const allNumbers = values.every(v => typeof v === 'number' && isFinite(v));
+
+      if (allNumbers) {
+        const reconstructed = new Float32Array(values);
+        if (this.debug) {
+          console.log(` Reconstructed Float32Array for ${arrName}[${index}], Length: ${reconstructed.length}`);
+        }
+        return reconstructed;
+      } else {
+        this.logInvalidFloat32ArrayValues(item, arrName, index, values);
+        return null;
+      }
+    } else if (item instanceof Float32Array) {
+      if (this.debug) {
+        console.log(` Item ${arrName}[${index}] is already Float32Array? Length: ${item.length}`);
+      }
+      return item;
+    } else if (item === null) {
+      return null;
+    } else {
+      console.warn(` Unexpected item type for ${arrName}[${index}] (Type: ${typeof item}). Setting to null. Value:`, item);
+      return null;
+    }
+  },
+
+  /**
+   * Logs invalid Float32Array values for debugging.
+   * Business rule: Detailed logging helps diagnose serialization issues.
+   *
+   * @param {Object} item - Invalid item
+   * @param {string} arrName - Array name
+   * @param {number} index - Item index
+   * @param {Array} values - Values array
+   */
+  logInvalidFloat32ArrayValues(item, arrName, index, values) {
+    console.warn(` Object for ${arrName}[${index}] looks like Float32Array but check failed. Logging values:`);
+
+    let loggedCount = 0;
+    for (let k = 0; k < values.length && loggedCount < 5; k++) {
+      const value = values[k];
+      if (typeof value !== 'number' || !isFinite(value)) {
+        console.warn(`  - ${arrName}[${index}], Value[${k}]: Type=${typeof value}, Value=${value}`);
+        loggedCount++;
+      }
+    }
+    if (loggedCount === 0 && values.length > 0) {
+      console.warn(`  - ${arrName}[${index}]: Check failed but couldn't find non-numeric/non-finite value? First value:`, values[0]);
+    }
+  },
+
+  /**
+   * Loads and reconstructs an array from serialized data.
+   * Business rule: Array reconstruction must handle length mismatches gracefully.
+   *
+   * @param {string} arrName - Array name
+   * @param {Object} sourceObj - Source object containing the array
+   * @param {number} expectedLen - Expected array length
+   * @returns {Array} Reconstructed array
+   */
+  loadAndReconstructArray(arrName, sourceObj, expectedLen) {
+    let loadedArr = sourceObj?.[arrName] || [];
+    if (!Array.isArray(loadedArr)) {
+      console.warn(` ${arrName} in loaded data is not an array, creating default.`);
+      loadedArr = [];
+    }
+
+    if (loadedArr.length !== expectedLen) {
+      console.warn(` ${arrName} length mismatch (expected ${expectedLen}, got ${loadedArr.length}). Adjusting...`);
+      const adjustedArr = Array(expectedLen).fill(null);
+      for (let i = 0; i < Math.min(expectedLen, loadedArr.length); ++i) {
+        adjustedArr[i] = loadedArr[i];
+      }
+      loadedArr = adjustedArr;
+    }
+
+    return loadedArr.map((item, index) => this.reconstructFloat32Array(item, arrName, index));
+  },
+
+  /**
+   * Loads model parameters from data.
+   * Business rule: Parameter loading must handle all parameter types consistently.
+   *
+   * @param {Object} data - Loaded model data
+   * @param {number} numLayers - Number of layers
+   */
+  loadModelParameters(data, numLayers) {
+    this.weights = this.loadAndReconstructArray('weights', data, numLayers);
+    this.biases = this.loadAndReconstructArray('biases', data, numLayers);
+    this.gammas = this.loadAndReconstructArray('gammas', data, numLayers);
+    this.betas = this.loadAndReconstructArray('betas', data, numLayers);
+    this.masks = Array(numLayers).fill(null);
+  },
+
+  /**
+   * Loads optimizer state from data.
+   * Business rule: Optimizer state loading must handle all state types consistently.
+   *
+   * @param {Object} data - Loaded model data
+   * @param {number} numLayers - Number of layers
+   */
+  loadOptimizerState(data, numLayers) {
+    const optState = data.optimizerState || {};
+    this.t = optState.t || 0;
+    
+    if (this.debug) console.log(' Loading optimizer state...');
+    
+    this.m_dw = this.loadAndReconstructArray('m_dw', optState, numLayers);
+    this.v_dw = this.loadAndReconstructArray('v_dw', optState, numLayers);
+    this.m_db = this.loadAndReconstructArray('m_db', optState, numLayers);
+    this.v_db = this.loadAndReconstructArray('v_db', optState, numLayers);
+    this.m_dgamma = this.loadAndReconstructArray('m_dgamma', optState, numLayers);
+    this.v_dgamma = this.loadAndReconstructArray('v_dgamma', optState, numLayers);
+    this.m_dbeta = this.loadAndReconstructArray('m_dbeta', optState, numLayers);
+    this.v_dbeta = this.loadAndReconstructArray('v_dbeta', optState, numLayers);
+    this.s_dw = this.loadAndReconstructArray('s_dw', optState, numLayers);
+    this.s_db = this.loadAndReconstructArray('s_db', optState, numLayers);
+    this.s_dgamma = this.loadAndReconstructArray('s_dgamma', optState, numLayers);
+    this.s_dbeta = this.loadAndReconstructArray('s_dbeta', optState, numLayers);
+  },
+
+  /**
+   * Handles file reading and model loading.
+   * Business rule: File reading must handle errors gracefully.
+   *
+   * @param {File} file - File to read
+   * @param {Function} callback - Callback function
+   * @param {Function} cleanup - Cleanup function
+   */
+  handleFileLoad(file, callback, cleanup) {
+    const reader = new FileReader();
+    
+    reader.onload = (e) => {
+      const text = e.target.result;
+      try {
+        if (this.debug) console.log(' Reading file text...');
+        const data = JSON.parse(text);
+        this.validateLoadedModel(data);
+        
+        if (this.debug) console.log(' Parsed data, layers found:', data.layers.length);
+
+        this.reset();
+        this.layers = data.layers;
+        this.details = data.details || {};
+        this.usePositionalEncoding = data.usePositionalEncoding || false;
+        const numLayers = this.layers.length;
+
+        this.loadModelParameters(data, numLayers);
+        this.loadOptimizerState(data, numLayers);
+
+        this.lastActivations = null;
+        this.forwardCache = null;
+        this.isTraining = false;
+        
+        if (callback) callback();
+        
+        if (this.debug) {
+          console.log(' Model loaded successfully. Stored parameters/states should be Float32Arrays or null.');
+          if (this.weights.length > 0) {
+            console.log(' Sample loaded weight type:', this.weights[0] instanceof Float32Array ? 'Float32Array' : typeof this.weights[0]);
+          }
+        }
+      } catch (err) {
+        console.error('Load failed:', err);
+        alert(`Error loading model: ${err.message}`);
+        if (this.debug) console.error(' Error during parsing or reconstruction.');
+        if (callback) callback(err);
+      } finally {
+        cleanup();
+      }
+    };
+    
+    reader.onerror = (err) => {
+      console.error('File read error:', err);
+      alert('Error reading file.');
+      cleanup();
+      if (callback) callback(err);
+    };
+    
+    reader.readAsText(file);
+  },
+
+  /**
+   * Loads a model from a file.
+   * Business rule: Model loading must work in browser environments only.
+   *
+   * @param {Function} callback - Callback function
+   */
   load(callback) {
     // Check if we're in a browser environment
     if (typeof document === 'undefined') {
@@ -1162,168 +1453,21 @@ class Oblix {
     input.type = 'file';
     input.accept = '.json';
     input.style.display = 'none';
+    
     const handleListener = (event) => {
       const file = event.target.files[0];
       if (!file) {
         cleanup();
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const text = e.target.result;
-        try {
-          if (this.debug) console.log(' Reading file text...');
-          const data = JSON.parse(text);
-          if (!data.layers || !Array.isArray(data.layers))
-            throw new Error('Invalid model: \'layers\' missing.');
-          if (this.debug)
-            console.log(' Parsed data, layers found:', data.layers.length);
-
-          this.reset();
-          this.layers = data.layers;
-          this.details = data.details || {};
-          this.usePositionalEncoding = data.usePositionalEncoding || false;
-          const numLayers = this.layers.length;
-
-          const loadAndReconstruct = (arrName, sourceObj, expectedLen) => {
-            let loadedArr = sourceObj?.[arrName] || [];
-            if (!Array.isArray(loadedArr)) {
-              console.warn(
-                ` ${arrName} in loaded data is not an array, creating default.`
-              );
-              loadedArr = [];
-            }
-
-            if (loadedArr.length !== expectedLen) {
-              console.warn(
-                ` ${arrName} length mismatch (expected ${expectedLen}, got ${loadedArr.length}). Adjusting...`
-              );
-              const adjustedArr = Array(expectedLen).fill(null);
-              for (let i = 0; i < Math.min(expectedLen, loadedArr.length); ++i)
-                adjustedArr[i] = loadedArr[i];
-              loadedArr = adjustedArr;
-            }
-
-            return loadedArr.map((item, index) => {
-              if (
-                item !== null &&
-                typeof item === 'object' &&
-                item.hasOwnProperty('0')
-              ) {
-                const values = Object.values(item);
-
-                const allNumbers = values.every(
-                  (v) => typeof v === 'number' && isFinite(v)
-                );
-
-                if (allNumbers) {
-                  const reconstructed = new Float32Array(values);
-                  if (this.debug)
-                    console.log(
-                      ` Reconstructed Float32Array for ${arrName}[${index}], Length: ${reconstructed.length}`
-                    );
-                  return reconstructed;
-                } else {
-                  console.warn(
-                    ` Object for ${arrName}[${index}] looks like Float32Array but check failed. Logging values:`
-                  );
-
-                  let loggedCount = 0;
-                  for (let k = 0; k < values.length && loggedCount < 5; k++) {
-                    const v = values[k];
-                    if (typeof v !== 'number' || !isFinite(v)) {
-                      console.warn(
-                        `  - ${arrName}[${index}], Value[${k}]: Type=${typeof v}, Value=${v}`
-                      );
-                      loggedCount++;
-                    }
-                  }
-                  if (loggedCount === 0 && values.length > 0) {
-                    console.warn(
-                      `  - ${arrName}[${index}]: Check failed but couldn't find non-numeric/non-finite value? First value:`,
-                      values[0]
-                    );
-                  }
-
-                  return null;
-                }
-              } else if (item instanceof Float32Array) {
-                if (this.debug)
-                  console.log(
-                    ` Item ${arrName}[${index}] is already Float32Array? Length: ${item.length}`
-                  );
-                return item;
-              } else if (item === null) {
-                return null;
-              } else {
-                console.warn(
-                  ` Unexpected item type for ${arrName}[${index}] (Type: ${typeof item}). Setting to null. Value:`,
-                  item
-                );
-                return null;
-              }
-            });
-          };
-
-          this.weights = loadAndReconstruct('weights', data, numLayers);
-          this.biases = loadAndReconstruct('biases', data, numLayers);
-          this.gammas = loadAndReconstruct('gammas', data, numLayers);
-          this.betas = loadAndReconstruct('betas', data, numLayers);
-          this.masks = Array(numLayers).fill(null);
-
-          const optState = data.optimizerState || {};
-          this.t = optState.t || 0;
-          if (this.debug) console.log(' Loading optimizer state...');
-          this.m_dw = loadAndReconstruct('m_dw', optState, numLayers);
-          this.v_dw = loadAndReconstruct('v_dw', optState, numLayers);
-          this.m_db = loadAndReconstruct('m_db', optState, numLayers);
-          this.v_db = loadAndReconstruct('v_db', optState, numLayers);
-          this.m_dgamma = loadAndReconstruct('m_dgamma', optState, numLayers);
-          this.v_dgamma = loadAndReconstruct('v_dgamma', optState, numLayers);
-          this.m_dbeta = loadAndReconstruct('m_dbeta', optState, numLayers);
-          this.v_dbeta = loadAndReconstruct('v_dbeta', optState, numLayers);
-          this.s_dw = loadAndReconstruct('s_dw', optState, numLayers);
-          this.s_db = loadAndReconstruct('s_db', optState, numLayers);
-          this.s_dgamma = loadAndReconstruct('s_dgamma', optState, numLayers);
-          this.s_dbeta = loadAndReconstruct('s_dbeta', optState, numLayers);
-
-          this.lastActivations = null;
-          this.forwardCache = null;
-          this.isTraining = false;
-          if (callback) callback();
-          if (this.debug)
-            console.log(
-              ' Model loaded successfully. Stored parameters/states should be Float32Arrays or null.'
-            );
-          if (this.debug && this.weights.length > 0)
-            console.log(
-              ' Sample loaded weight type:',
-              this.weights[0] instanceof Float32Array
-                ? 'Float32Array'
-                : typeof this.weights[0]
-            );
-        } catch (err) {
-          console.error('Load failed:', err);
-          alert(`Error loading model: ${err.message}`);
-          if (this.debug)
-            console.error(' Error during parsing or reconstruction.');
-          if (callback) callback(err);
-        } finally {
-          cleanup();
-        }
-      };
-      reader.onerror = (err) => {
-        console.error('File read error:', err);
-        alert('Error reading file.');
-        cleanup();
-        if (callback) callback(err);
-      };
-      reader.readAsText(file);
+      this.handleFileLoad(file, callback, cleanup);
     };
+    
     const cleanup = () => {
       input.removeEventListener('change', handleListener);
       document.body.removeChild(input);
     };
+    
     input.addEventListener('change', handleListener);
     document.body.appendChild(input);
     input.click();

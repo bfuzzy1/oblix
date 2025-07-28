@@ -368,6 +368,202 @@ export const oblixOptimizers = {
    * @param {Array} gradsBeta - Beta gradients
    * @param {Object} options - Optimizer options
    */
+  /**
+   * Updates a single parameter using the appropriate optimizer.
+   * Business rule: Parameter updates depend on the optimizer type and gradient clipping.
+   *
+   * @param {number} param - Current parameter value
+   * @param {number} clippedGrad - Clipped gradient
+   * @param {number} mState - Momentum state
+   * @param {number} vState - Velocity state
+   * @param {number} sState - RMSprop state
+   * @param {Object} context - Optimizer context
+   * @param {string} optimizer - Optimizer type
+   * @param {number} stepLR - Learning rate
+   * @param {number} adamStepLR - Adam learning rate
+   * @param {number} l2Lambda - L2 regularization
+   * @param {number} decayRate - Decay rate
+   * @returns {Object} Updated parameter and state
+   */
+  updateSingleParameter: function (param, clippedGrad, mState, vState, sState, context, optimizer, stepLR, adamStepLR, l2Lambda, decayRate) {
+    if (!isFinite(clippedGrad)) {
+      return { newParam: param, newM: mState, newV: vState, newS: sState };
+    }
+
+    let result;
+    if (optimizer === 'adam' || optimizer === 'adamw') {
+      result = this.updateParameterWithAdam(param, clippedGrad, mState, vState, context, adamStepLR, l2Lambda, optimizer);
+    } else if (optimizer === 'rmsprop') {
+      result = this.updateParameterWithRMSprop(param, clippedGrad, sState, stepLR, decayRate, context);
+    } else {
+      result = this.updateParameterWithSGD(param, clippedGrad, mState, stepLR, l2Lambda, context);
+    }
+
+    return result;
+  },
+
+  /**
+   * Updates weights for a dense layer.
+   * Business rule: Weight updates use the full learning rate and L2 regularization.
+   *
+   * @param {Object} context - Optimizer context
+   * @param {number} layerIndex - Layer index
+   * @param {Array} gradsW - Weight gradients
+   * @param {Object} options - Optimizer options
+   * @param {number} batchMult - Batch multiplier
+   * @param {number} adamStepLR - Adam learning rate
+   * @param {number} stepLR - Learning rate
+   */
+  updateWeights: function (context, layerIndex, gradsW, options, batchMult, adamStepLR, stepLR) {
+    if (!gradsW[layerIndex]) return;
+
+    const { optimizer, l2Lambda, gradientClipValue, decayRate } = options;
+
+    for (let j = 0; j < gradsW[layerIndex].length; j++) {
+      const param = context.weights[layerIndex][j];
+      const grad = gradsW[layerIndex][j];
+      const mState = context.m_dw[layerIndex]?.[j];
+      const vState = context.v_dw[layerIndex]?.[j];
+      const sState = context.s_dw[layerIndex]?.[j];
+
+      const clippedGrad = this.applyGradientClipping(grad, batchMult, gradientClipValue);
+      const result = this.updateSingleParameter(param, clippedGrad, mState, vState, sState, context, optimizer, stepLR, adamStepLR, l2Lambda, decayRate);
+
+      context.weights[layerIndex][j] = result.newParam;
+      this.updateOptimizerState(context, 'weights', layerIndex, j, result, optimizer);
+    }
+  },
+
+  /**
+   * Updates biases for a dense layer.
+   * Business rule: Bias updates use zero L2 regularization.
+   *
+   * @param {Object} context - Optimizer context
+   * @param {number} layerIndex - Layer index
+   * @param {Array} gradsB - Bias gradients
+   * @param {Object} options - Optimizer options
+   * @param {number} batchMult - Batch multiplier
+   * @param {number} adamStepLR - Adam learning rate
+   * @param {number} stepLR - Learning rate
+   */
+  updateBiases: function (context, layerIndex, gradsB, options, batchMult, adamStepLR, stepLR) {
+    if (!gradsB[layerIndex]) return;
+
+    const { optimizer, gradientClipValue, decayRate } = options;
+
+    for (let j = 0; j < gradsB[layerIndex].length; j++) {
+      const param = context.biases[layerIndex][j];
+      const grad = gradsB[layerIndex][j];
+      const mState = context.m_db[layerIndex]?.[j];
+      const vState = context.v_db[layerIndex]?.[j];
+      const sState = context.s_db[layerIndex]?.[j];
+
+      const clippedGrad = this.applyGradientClipping(grad, batchMult, gradientClipValue);
+      const result = this.updateSingleParameter(param, clippedGrad, mState, vState, sState, context, optimizer, stepLR, adamStepLR, 0, decayRate);
+
+      context.biases[layerIndex][j] = result.newParam;
+      this.updateOptimizerState(context, 'biases', layerIndex, j, result, optimizer);
+    }
+  },
+
+  /**
+   * Updates layer normalization parameters.
+   * Business rule: Layer norm parameters use zero L2 regularization.
+   *
+   * @param {Object} context - Optimizer context
+   * @param {number} layerIndex - Layer index
+   * @param {Array} gradsGamma - Gamma gradients
+   * @param {Array} gradsBeta - Beta gradients
+   * @param {Object} options - Optimizer options
+   * @param {number} batchMult - Batch multiplier
+   * @param {number} adamStepLR - Adam learning rate
+   * @param {number} stepLR - Learning rate
+   */
+  updateLayerNormParameters: function (context, layerIndex, gradsGamma, gradsBeta, options, batchMult, adamStepLR, stepLR) {
+    const { optimizer, gradientClipValue, decayRate } = options;
+
+    // Update gamma parameters
+    if (gradsGamma[layerIndex]) {
+      for (let j = 0; j < gradsGamma[layerIndex].length; j++) {
+        const param = context.gammas[layerIndex][j];
+        const grad = gradsGamma[layerIndex][j];
+        const mState = context.m_dgamma[layerIndex]?.[j];
+        const vState = context.v_dgamma[layerIndex]?.[j];
+        const sState = context.s_dgamma[layerIndex]?.[j];
+
+        const clippedGrad = this.applyGradientClipping(grad, batchMult, gradientClipValue);
+        const result = this.updateSingleParameter(param, clippedGrad, mState, vState, sState, context, optimizer, stepLR, adamStepLR, 0, decayRate);
+
+        context.gammas[layerIndex][j] = result.newParam;
+        this.updateOptimizerState(context, 'gamma', layerIndex, j, result, optimizer);
+      }
+    }
+
+    // Update beta parameters
+    if (gradsBeta[layerIndex]) {
+      for (let j = 0; j < gradsBeta[layerIndex].length; j++) {
+        const param = context.betas[layerIndex][j];
+        const grad = gradsBeta[layerIndex][j];
+        const mState = context.m_dbeta[layerIndex]?.[j];
+        const vState = context.v_dbeta[layerIndex]?.[j];
+        const sState = context.s_dbeta[layerIndex]?.[j];
+
+        const clippedGrad = this.applyGradientClipping(grad, batchMult, gradientClipValue);
+        const result = this.updateSingleParameter(param, clippedGrad, mState, vState, sState, context, optimizer, stepLR, adamStepLR, 0, decayRate);
+
+        context.betas[layerIndex][j] = result.newParam;
+        this.updateOptimizerState(context, 'beta', layerIndex, j, result, optimizer);
+      }
+    }
+  },
+
+  /**
+   * Updates optimizer state arrays for a parameter.
+   * Business rule: State arrays must be properly initialized before updating.
+   *
+   * @param {Object} context - Optimizer context
+   * @param {string} paramType - Parameter type
+   * @param {number} layerIndex - Layer index
+   * @param {number} paramIndex - Parameter index
+   * @param {Object} result - Update result
+   * @param {string} optimizer - Optimizer type
+   */
+  updateOptimizerState: function (context, paramType, layerIndex, paramIndex, result, optimizer) {
+    const stateMap = {
+      weights: { m: 'm_dw', v: 'v_dw', s: 's_dw' },
+      biases: { m: 'm_db', v: 'v_db', s: 's_db' },
+      gamma: { m: 'm_dgamma', v: 'v_dgamma', s: 's_dgamma' },
+      beta: { m: 'm_dbeta', v: 'v_dbeta', s: 's_dbeta' }
+    };
+
+    const stateKeys = stateMap[paramType];
+    if (!stateKeys) return;
+
+    if (optimizer === 'adam' || optimizer === 'adamw') {
+      if (!context[stateKeys.m][layerIndex]) context[stateKeys.m][layerIndex] = [];
+      if (!context[stateKeys.v][layerIndex]) context[stateKeys.v][layerIndex] = [];
+      context[stateKeys.m][layerIndex][paramIndex] = result.newM;
+      context[stateKeys.v][layerIndex][paramIndex] = result.newV;
+    } else if (optimizer === 'rmsprop') {
+      if (!context[stateKeys.s][layerIndex]) context[stateKeys.s][layerIndex] = [];
+      context[stateKeys.s][layerIndex][paramIndex] = result.newS;
+    } else {
+      if (!context[stateKeys.m][layerIndex]) context[stateKeys.m][layerIndex] = [];
+      context[stateKeys.m][layerIndex][paramIndex] = result.newM;
+    }
+  },
+
+  /**
+   * Updates all parameters for all layers.
+   * Business rule: Parameter updates must be applied consistently across all layers and parameter types.
+   *
+   * @param {Object} context - Optimizer context
+   * @param {Array} gradsW - Weight gradients
+   * @param {Array} gradsB - Bias gradients
+   * @param {Array} gradsGamma - Gamma gradients
+   * @param {Array} gradsBeta - Beta gradients
+   * @param {Object} options - Optimizer options
+   */
   updateParameters: function (
     context,
     gradsW,
@@ -397,161 +593,20 @@ export const oblixOptimizers = {
     }
 
     const adamStepLR = this.calculateAdamLearningRate(learningRate, initialLearningRate, context);
+    const stepLR = learningRate;
 
     for (let i = 0; i < context.layers.length; i++) {
       const cfg = context.layers[i];
       const isDense = cfg.type === 'dense';
       const isLN = cfg.type === 'layernorm';
 
-      const stepLR = learningRate;
-
-      // Update weights for dense layers
-      if (isDense && gradsW[i]) {
-        for (let j = 0; j < gradsW[i].length; j++) {
-          const param = context.weights[i][j];
-          const grad = gradsW[i][j];
-          const mState = context.m_dw[i]?.[j];
-          const vState = context.v_dw[i]?.[j];
-          const sState = context.s_dw[i]?.[j];
-
-          const clippedGrad = this.applyGradientClipping(grad, batchMult, gradientClipValue);
-
-          if (!isFinite(clippedGrad)) {
-            continue;
-          }
-
-          let result;
-          if (optimizer === 'adam' || optimizer === 'adamw') {
-            result = this.updateParameterWithAdam(param, clippedGrad, mState, vState, context, adamStepLR, l2Lambda, optimizer);
-            context.weights[i][j] = result.newParam;
-            if (!context.m_dw[i]) context.m_dw[i] = [];
-            if (!context.v_dw[i]) context.v_dw[i] = [];
-            context.m_dw[i][j] = result.newM;
-            context.v_dw[i][j] = result.newV;
-          } else if (optimizer === 'rmsprop') {
-            result = this.updateParameterWithRMSprop(param, clippedGrad, sState, stepLR, decayRate, context);
-            context.weights[i][j] = result.newParam;
-            if (!context.s_dw[i]) context.s_dw[i] = [];
-            context.s_dw[i][j] = result.newS;
-          } else {
-            result = this.updateParameterWithSGD(param, clippedGrad, mState, stepLR, l2Lambda, context);
-            context.weights[i][j] = result.newParam;
-            if (!context.m_dw[i]) context.m_dw[i] = [];
-            context.m_dw[i][j] = result.newM;
-          }
-        }
+      if (isDense) {
+        this.updateWeights(context, i, gradsW, validatedOptions, batchMult, adamStepLR, stepLR);
+        this.updateBiases(context, i, gradsB, validatedOptions, batchMult, adamStepLR, stepLR);
       }
 
-      // Update biases for dense layers
-      if (isDense && gradsB[i]) {
-        for (let j = 0; j < gradsB[i].length; j++) {
-          const param = context.biases[i][j];
-          const grad = gradsB[i][j];
-          const mState = context.m_db[i]?.[j];
-          const vState = context.v_db[i]?.[j];
-          const sState = context.s_db[i]?.[j];
-
-          const clippedGrad = this.applyGradientClipping(grad, batchMult, gradientClipValue);
-
-          if (!isFinite(clippedGrad)) {
-            continue;
-          }
-
-          let result;
-          if (optimizer === 'adam' || optimizer === 'adamw') {
-            result = this.updateParameterWithAdam(param, clippedGrad, mState, vState, context, adamStepLR, 0, optimizer);
-            context.biases[i][j] = result.newParam;
-            if (!context.m_db[i]) context.m_db[i] = [];
-            if (!context.v_db[i]) context.v_db[i] = [];
-            context.m_db[i][j] = result.newM;
-            context.v_db[i][j] = result.newV;
-          } else if (optimizer === 'rmsprop') {
-            result = this.updateParameterWithRMSprop(param, clippedGrad, sState, stepLR, decayRate, context);
-            context.biases[i][j] = result.newParam;
-            if (!context.s_db[i]) context.s_db[i] = [];
-            context.s_db[i][j] = result.newS;
-          } else {
-            result = this.updateParameterWithSGD(param, clippedGrad, mState, stepLR, 0, context);
-            context.biases[i][j] = result.newParam;
-            if (!context.m_db[i]) context.m_db[i] = [];
-            context.m_db[i][j] = result.newM;
-          }
-        }
-      }
-
-      // Update layer normalization parameters
       if (isLN) {
-        if (gradsGamma[i]) {
-          for (let j = 0; j < gradsGamma[i].length; j++) {
-            const param = context.gammas[i][j];
-            const grad = gradsGamma[i][j];
-            const mState = context.m_dgamma[i]?.[j];
-            const vState = context.v_dgamma[i]?.[j];
-            const sState = context.s_dgamma[i]?.[j];
-
-            const clippedGrad = this.applyGradientClipping(grad, batchMult, gradientClipValue);
-
-            if (!isFinite(clippedGrad)) {
-              continue;
-            }
-
-            let result;
-            if (optimizer === 'adam' || optimizer === 'adamw') {
-              result = this.updateParameterWithAdam(param, clippedGrad, mState, vState, context, adamStepLR, 0, optimizer);
-              context.gammas[i][j] = result.newParam;
-              if (!context.m_dgamma[i]) context.m_dgamma[i] = [];
-              if (!context.v_dgamma[i]) context.v_dgamma[i] = [];
-              context.m_dgamma[i][j] = result.newM;
-              context.v_dgamma[i][j] = result.newV;
-            } else if (optimizer === 'rmsprop') {
-              result = this.updateParameterWithRMSprop(param, clippedGrad, sState, stepLR, decayRate, context);
-              context.gammas[i][j] = result.newParam;
-              if (!context.s_dgamma[i]) context.s_dgamma[i] = [];
-              context.s_dgamma[i][j] = result.newS;
-            } else {
-              result = this.updateParameterWithSGD(param, clippedGrad, mState, stepLR, 0, context);
-              context.gammas[i][j] = result.newParam;
-              if (!context.m_dgamma[i]) context.m_dgamma[i] = [];
-              context.m_dgamma[i][j] = result.newM;
-            }
-          }
-        }
-
-        if (gradsBeta[i]) {
-          for (let j = 0; j < gradsBeta[i].length; j++) {
-            const param = context.betas[i][j];
-            const grad = gradsBeta[i][j];
-            const mState = context.m_dbeta[i]?.[j];
-            const vState = context.v_dbeta[i]?.[j];
-            const sState = context.s_dbeta[i]?.[j];
-
-            const clippedGrad = this.applyGradientClipping(grad, batchMult, gradientClipValue);
-
-            if (!isFinite(clippedGrad)) {
-              continue;
-            }
-
-            let result;
-            if (optimizer === 'adam' || optimizer === 'adamw') {
-              result = this.updateParameterWithAdam(param, clippedGrad, mState, vState, context, adamStepLR, 0, optimizer);
-              context.betas[i][j] = result.newParam;
-              if (!context.m_dbeta[i]) context.m_dbeta[i] = [];
-              if (!context.v_dbeta[i]) context.v_dbeta[i] = [];
-              context.m_dbeta[i][j] = result.newM;
-              context.v_dbeta[i][j] = result.newV;
-            } else if (optimizer === 'rmsprop') {
-              result = this.updateParameterWithRMSprop(param, clippedGrad, sState, stepLR, decayRate, context);
-              context.betas[i][j] = result.newParam;
-              if (!context.s_dbeta[i]) context.s_dbeta[i] = [];
-              context.s_dbeta[i][j] = result.newS;
-            } else {
-              result = this.updateParameterWithSGD(param, clippedGrad, mState, stepLR, 0, context);
-              context.betas[i][j] = result.newParam;
-              if (!context.m_dbeta[i]) context.m_dbeta[i] = [];
-              context.m_dbeta[i][j] = result.newM;
-            }
-          }
-        }
+        this.updateLayerNormParameters(context, i, gradsGamma, gradsBeta, validatedOptions, batchMult, adamStepLR, stepLR);
       }
     }
   }
