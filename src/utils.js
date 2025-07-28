@@ -60,13 +60,15 @@ export const oblixUtils = {
     return output;
   },
 
+
+
   /**
-   * Calculates classification accuracy between predictions and targets.
-   * Business rule: Accuracy measures how often the model predicts the correct class.
-   * 
-   * @param {Array<Array<number>>} predictions - Model predictions (one-hot or probability vectors)
-   * @param {Array<Array<number>|number>} targets - True labels (one-hot vectors or class indices)
-   * @returns {number} Accuracy as a fraction between 0 and 1
+   * Calculates accuracy for classification tasks.
+   * Business rule: Accuracy measures the proportion of correct predictions.
+   *
+   * @param {Array<Array<number>>} predictions - Model predictions
+   * @param {Array<*>} targets - True target values
+   * @returns {number} Accuracy value between 0 and 1
    */
   calculateAccuracy: function (predictions, targets) {
     if (
@@ -86,6 +88,7 @@ export const oblixUtils = {
 
       if (!predVec || !targetInfo) continue;
 
+      // Find predicted index
       let predictedIndex = -1;
       let maxPredVal = -Infinity;
       for (let j = 0; j < predVec.length; j++) {
@@ -96,8 +99,8 @@ export const oblixUtils = {
         }
       }
 
+      // Find target index
       let targetIndex = -1;
-
       const isTypedArray =
         ArrayBuffer.isView(targetInfo) && !(targetInfo instanceof DataView);
 
@@ -131,6 +134,7 @@ export const oblixUtils = {
         correct++;
       }
     }
+    
     return predictions.length > 0 ? correct / predictions.length : 0.0;
   },
 

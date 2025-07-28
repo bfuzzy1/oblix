@@ -89,61 +89,101 @@ class Oblix {
   }
 
   /**
+   * Validates layer configuration parameters.
+   * Business rule: Layer validation prevents runtime errors.
    *
+   * @param {Object} config - Layer configuration
+   * @param {string} config.type - Layer type
+   * @param {number} config.inputSize - Input size
+   * @param {number} config.outputSize - Output size
+   * @param {number} config.numHeads - Number of attention heads
+   * @param {number} config.rate - Dropout rate
+   * @throws {Error} If configuration is invalid
    */
-  layer(config) {
+  validateLayerConfig(config) {
+    const { type, inputSize, outputSize, numHeads, rate } = config;
+    
+    if (typeof inputSize !== 'number' || inputSize <= 0) {
+      throw new Error(`Layer ${this.layers.length}: Invalid inputSize: ${inputSize}.`);
+    }
+    
+    if (this.layers.length > 0) {
+      const prevLayer = this.layers[this.layers.length - 1];
+      if (inputSize !== prevLayer.outputSize) {
+        throw new Error(
+          `Layer ${this.layers.length} (${type}): Input size ${inputSize} doesn't match previous layer's output size ${prevLayer.outputSize}.`
+        );
+      }
+    }
+    
+    if (type === 'dense') {
+      if (typeof outputSize !== 'number' || outputSize <= 0) {
+        throw new Error(`Dense Layer ${this.layers.length}: Invalid outputSize: ${outputSize}.`);
+      }
+    }
+    
+    if (type === 'attention' && inputSize % numHeads !== 0) {
+      throw new Error(
+        `Attention layer ${this.layers.length}: Input size ${inputSize} not divisible by numHeads ${numHeads}.`
+      );
+    }
+    
+    if (type === 'dropout' && (rate < 0 || rate >= 1)) {
+      throw new Error(
+        `Dropout layer ${this.layers.length}: Rate ${rate} must be >= 0 and < 1.`
+      );
+    }
+  }
+
+  /**
+   * Determines the actual output size for a layer.
+   * Business rule: Output size calculation depends on layer type.
+   *
+   * @param {Object} config - Layer configuration
+   * @param {string} config.type - Layer type
+   * @param {number} config.inputSize - Input size
+   * @param {number} config.outputSize - Output size
+   * @returns {number} Actual output size
+   */
+  determineOutputSize(config) {
+    const { type, inputSize, outputSize } = config;
+    
+    switch (type) {
+    case 'dense':
+      return outputSize;
+    case 'layernorm':
+    case 'attention':
+    case 'dropout':
+    case 'softmax':
+      if (outputSize !== undefined && outputSize !== inputSize) {
+        console.warn(`${type} layer ${this.layers.length}: Output size ignored.`);
+      }
+      return inputSize;
+    default:
+      throw new Error(`Unknown layer type: ${type}`);
+    }
+  }
+
+  /**
+   * Creates layer configuration object.
+   * Business rule: Layer configuration must be consistent.
+   *
+   * @param {Object} config - Layer configuration
+   * @param {number} actualOutputSize - Calculated output size
+   * @returns {Object} Layer configuration object
+   */
+  createLayerConfig(config, actualOutputSize) {
     const {
       type = 'dense',
       inputSize,
-      outputSize,
       activation = 'tanh',
       numHeads = 2,
       useBias = true,
       rate = 0.5,
       weightInit = 'glorot'
     } = config;
-    if (typeof inputSize !== 'number' || inputSize <= 0)
-      throw new Error(
-        `Layer ${this.layers.length}: Invalid inputSize: ${inputSize}.`
-      );
-    if (this.layers.length > 0) {
-      const prevLayer = this.layers[this.layers.length - 1];
-      if (inputSize !== prevLayer.outputSize)
-        throw new Error(
-          `Layer ${this.layers.length} (${type}): Input size ${inputSize} doesn't match previous layer's output size ${prevLayer.outputSize}.`
-        );
-    }
-    let actualOutputSize = outputSize;
-    switch (type) {
-    case 'dense':
-      if (typeof outputSize !== 'number' || outputSize <= 0)
-        throw new Error(
-          `Dense Layer ${this.layers.length}: Invalid outputSize: ${outputSize}.`
-        );
-      break;
-    case 'layernorm':
-    case 'attention':
-    case 'dropout':
-    case 'softmax':
-      actualOutputSize = inputSize;
-      if (outputSize !== undefined && outputSize !== inputSize)
-        console.warn(
-          `${type} layer ${this.layers.length}: Output size ignored.`
-        );
-      break;
-    default:
-      throw new Error(`Unknown layer type: ${type}`);
-    }
-    if (type === 'attention' && inputSize % numHeads !== 0)
-      throw new Error(
-        `Attention layer ${this.layers.length}: Input size ${inputSize} not divisible by numHeads ${numHeads}.`
-      );
-    if (type === 'dropout' && (rate < 0 || rate >= 1))
-      throw new Error(
-        `Dropout layer ${this.layers.length}: Rate ${rate} must be >= 0 and < 1.`
-      );
-
-    const layerConfig = {
+    
+    return {
       type,
       inputSize,
       outputSize: actualOutputSize,
@@ -153,9 +193,15 @@ class Oblix {
       rate,
       weightInit
     };
-    const layerIndex = this.layers.length;
-    this.layers.push(layerConfig);
+  }
 
+  /**
+   * Initializes optimizer state arrays for a layer.
+   * Business rule: Optimizer state must be properly initialized.
+   *
+   * @param {number} layerIndex - Index of the layer
+   */
+  initializeOptimizerArrays(layerIndex) {
     this.weights.push(null);
     this.biases.push(null);
     this.gammas.push(null);
@@ -173,50 +219,102 @@ class Oblix {
     this.s_db.push(null);
     this.s_dgamma.push(null);
     this.s_dbeta.push(null);
+  }
 
-    if (type === 'dense') {
-      const weightCount = actualOutputSize * inputSize;
-      const weightsArray = new Float32Array(weightCount);
-      let initFunc;
-      if (weightInit === 'he') {
-        const stdDev = Math.sqrt(2 / inputSize);
-        initFunc = () => oblixUtils.gaussianRandom() * stdDev;
-        if (this.debug)
-          console.log(
-            `L${layerIndex} Dense Weights init: He (stdDev=${stdDev.toFixed(4)})`
-          );
-      } else {
-        const limit = Math.sqrt(6 / (inputSize + actualOutputSize));
-        initFunc = () => (Math.random() * 2 - 1) * limit;
-        if (this.debug)
-          console.log(
-            `L${layerIndex} Dense Weights init: Glorot (limit=${limit.toFixed(4)})`
-          );
+  /**
+   * Initializes weights for a dense layer.
+   * Business rule: Weight initialization affects training convergence.
+   *
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Index of the layer
+   */
+  initializeDenseWeights(layerConfig, layerIndex) {
+    const { inputSize, outputSize, weightInit } = layerConfig;
+    const weightCount = outputSize * inputSize;
+    const weightsArray = new Float32Array(weightCount);
+    
+    let initFunc;
+    if (weightInit === 'he') {
+      const stdDev = Math.sqrt(2 / inputSize);
+      initFunc = () => oblixUtils.gaussianRandom() * stdDev;
+      if (this.debug) {
+        console.log(`L${layerIndex} Dense Weights init: He (stdDev=${stdDev.toFixed(4)})`);
       }
+    } else {
+      const limit = Math.sqrt(6 / (inputSize + outputSize));
+      initFunc = () => (Math.random() * 2 - 1) * limit;
+      if (this.debug) {
+        console.log(`L${layerIndex} Dense Weights init: Glorot (limit=${limit.toFixed(4)})`);
+      }
+    }
+    
+    for (let i = 0; i < weightCount; i++) {
+      weightsArray[i] = initFunc();
+    }
+    
+    this.weights[layerIndex] = weightsArray;
+    
+    if (layerConfig.useBias) {
+      const biasesArray = new Float32Array(outputSize);
+      for (let i = 0; i < outputSize; i++) {
+        biasesArray[i] = 0;
+      }
+      this.biases[layerIndex] = biasesArray;
+    }
+  }
 
-      for (let i = 0; i < weightCount; i++) {
-        weightsArray[i] = initFunc();
+  /**
+   * Initializes parameters for non-dense layers.
+   * Business rule: Different layer types require different parameter initialization.
+   *
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Index of the layer
+   */
+  initializeNonDenseParameters(layerConfig, layerIndex) {
+    const { type, inputSize, outputSize } = layerConfig;
+    
+    switch (type) {
+    case 'layernorm':
+      this.gammas[layerIndex] = new Float32Array(inputSize).fill(1);
+      this.betas[layerIndex] = new Float32Array(inputSize).fill(0);
+      break;
+    case 'attention':
+      // Attention layers use the same input/output size
+      this.weights[layerIndex] = new Float32Array(inputSize * inputSize).fill(0);
+      if (layerConfig.useBias) {
+        this.biases[layerIndex] = new Float32Array(inputSize).fill(0);
       }
-      this.weights[layerIndex] = weightsArray;
+      break;
+    case 'dropout':
+      // Dropout layers don't need weights/biases
+      this.masks[layerIndex] = null;
+      break;
+    case 'softmax':
+      // Softmax layers don't need additional parameters
+      break;
+    }
+  }
 
-      if (useBias) {
-        this.biases[layerIndex] = new Float32Array(actualOutputSize).fill(0.01);
-        if (this.debug)
-          console.log(
-            `L${layerIndex} Dense Biases init: ${this.biases[layerIndex] instanceof Float32Array}, Length: ${this.biases[layerIndex]?.length}`
-          );
-      }
-    } else if (type === 'layernorm') {
-      this.gammas[layerIndex] = new Float32Array(actualOutputSize).fill(1.0);
-      this.betas[layerIndex] = new Float32Array(actualOutputSize).fill(0.0);
-      if (this.debug)
-        console.log(
-          `L${layerIndex} LayerNorm Gamma init: ${this.gammas[layerIndex] instanceof Float32Array}, Length: ${this.gammas[layerIndex]?.length}`
-        );
-      if (this.debug)
-        console.log(
-          `L${layerIndex} LayerNorm Beta init: ${this.betas[layerIndex] instanceof Float32Array}, Length: ${this.betas[layerIndex]?.length}`
-        );
+  /**
+   * Adds a layer to the neural network.
+   * Business rule: Layer addition must be validated and properly initialized.
+   *
+   * @param {Object} config - Layer configuration
+   */
+  layer(config) {
+    this.validateLayerConfig(config);
+    
+    const actualOutputSize = this.determineOutputSize(config);
+    const layerConfig = this.createLayerConfig(config, actualOutputSize);
+    const layerIndex = this.layers.length;
+    
+    this.layers.push(layerConfig);
+    this.initializeOptimizerArrays(layerIndex);
+    
+    if (layerConfig.type === 'dense') {
+      this.initializeDenseWeights(layerConfig, layerIndex);
+    } else {
+      this.initializeNonDenseParameters(layerConfig, layerIndex);
     }
   }
 
@@ -387,13 +485,58 @@ class Oblix {
     return currentLR;
   }
 
-  /**
-   *
-   */
   async train(trainSet, options = {}) {
     this.isTraining = true;
     const start = Date.now();
-    let {
+    
+    const trainingConfig = this.initializeTrainingConfig(options);
+    this.validateTrainingSetup(trainSet);
+    
+    const effectiveBatchSize = Math.max(
+      1,
+      Math.min(trainingConfig.batchSize, trainSet.length)
+    );
+    
+    this.setupPositionalEncoding(trainingConfig);
+    this.initializeOptimizerIfNeeded(trainingConfig.optimizer);
+    
+    const trainingState = this.initializeTrainingState();
+    
+    for (let epoch = 0; epoch < trainingConfig.epochs; epoch++) {
+      await this.handleTrainingPause();
+      
+      const currentEpochLearningRate = this.getCurrentLearningRate(
+        epoch,
+        trainingConfig.initialLearningRate,
+        trainingConfig
+      );
+
+      const epochResult = await this.trainEpoch(
+        trainSet,
+        effectiveBatchSize,
+        currentEpochLearningRate,
+        trainingConfig,
+        trainingState
+      );
+      
+      await this.handleEpochCallback(
+        epoch,
+        epochResult,
+        trainingConfig,
+        trainingState
+      );
+      
+      if (this.shouldEarlyStop(trainingState, trainingConfig)) {
+        break;
+      }
+    }
+    
+    this.isTraining = false;
+    return this.createTrainingSummary(trainingState, start);
+  }
+
+  initializeTrainingConfig(options) {
+    const {
       epochs = 100,
       learningRate = 0.01,
       batchSize = 16,
@@ -413,17 +556,43 @@ class Oblix {
       lrExpDecayRate = 0.95
     } = options;
 
-    const initialLearningRate = learningRate;
+    return {
+      epochs,
+      learningRate,
+      initialLearningRate: learningRate,
+      batchSize,
+      printEveryEpochs,
+      earlyStopThreshold,
+      testSet,
+      callback,
+      optimizer,
+      lossFunction,
+      l2Lambda,
+      decayRate,
+      usePositionalEncoding,
+      gradientClipValue,
+      lrSchedule,
+      lrStepDecayFactor,
+      lrStepDecaySize,
+      lrExpDecayRate
+    };
+  }
 
-    if (!trainSet || trainSet.length === 0)
+  validateTrainingSetup(trainSet) {
+    if (!trainSet || trainSet.length === 0) {
       throw new Error('Training set empty.');
-    if (this.layers.length === 0) throw new Error('No layers.');
-    const effectiveBatchSize = Math.max(
-      1,
-      Math.min(batchSize, trainSet.length)
-    );
-    this.usePositionalEncoding = usePositionalEncoding;
-    this.decayRate = decayRate;
+    }
+    if (this.layers.length === 0) {
+      throw new Error('No layers.');
+    }
+  }
+
+  setupPositionalEncoding(config) {
+    this.usePositionalEncoding = config.usePositionalEncoding;
+    this.decayRate = config.decayRate;
+  }
+
+  initializeOptimizerIfNeeded(optimizer) {
     let needsOptimizerInit =
       this.m_dw?.length !== this.layers.length ||
       this.v_dw?.length !== this.layers.length ||
@@ -431,6 +600,7 @@ class Oblix {
       this.m_db?.length !== this.layers.length ||
       this.v_db?.length !== this.layers.length ||
       this.s_db?.length !== this.layers.length;
+      
     for (let i = 0; i < this.layers.length && !needsOptimizerInit; i++) {
       if (this.layers[i].type === 'dense') {
         if (this.weights[i] && this.m_dw[i] === null) needsOptimizerInit = true;
@@ -442,598 +612,245 @@ class Oblix {
           needsOptimizerInit = true;
       }
     }
+    
     if (needsOptimizerInit) {
       if (this.debug) console.log('Optimizer state needs init.');
       this.initializeOptimizerState(optimizer);
     }
-    let lastTrainLoss = Infinity;
-    let lastTestLoss = null;
+  }
 
-    let lastValidationMetric = null;
-    let validationMetricName = '';
-
-    for (let epoch = 0; epoch < epochs; epoch++) {
-      while (this.isPaused) {
-        await new Promise((r) => setTimeout(r, 50));
-      }
-      const currentEpochLearningRate = this.getCurrentLearningRate(
-        epoch,
-        initialLearningRate,
-        options
-      );
-
-      let totalEpochTrainError = 0;
-      for (let i = trainSet.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [trainSet[i], trainSet[j]] = [trainSet[j], trainSet[i]];
-      }
-      for (let b = 0; b < trainSet.length; b += effectiveBatchSize) {
-        while (this.isPaused) {
-          await new Promise((r) => setTimeout(r, 50));
-        }
-        const batch = trainSet.slice(b, b + effectiveBatchSize);
-        if (batch.length === 0) continue;
-
-        const gradsW = this.weights.map((L) =>
-          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
-        );
-        const gradsB = this.biases.map((L) =>
-          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
-        );
-        const gradsGamma = this.gammas.map((L) =>
-          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
-        );
-        const gradsBeta = this.betas.map((L) =>
-          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
-        );
-
-        let batchLossSum = 0;
-        for (const data of batch) {
-          while (this.isPaused) {
-            await new Promise((r) => setTimeout(r, 50));
-          }
-          let currentInput = data.input;
-          if (!Array.isArray(currentInput) || !Array.isArray(data.output)) {
-            console.warn('Skip invalid data');
-            continue;
-          }
-
-          if (this.usePositionalEncoding) {
-            currentInput = oblixUtils.positionalEncoding(currentInput);
-          }
-
-          const initialAct =
-            currentInput instanceof Float32Array
-              ? currentInput
-              : new Float32Array(currentInput);
-          this.forwardCache = {
-            activations: [initialAct],
-            rawValues: [],
-            layerNormIntermediates: [],
-            attentionIntermediates: [],
-            softmaxOutputs: []
-          };
-          let layerInput = this.forwardCache.activations[0];
-
-          for (let i = 0; i < this.layers.length; i++) {
-            const cfg = this.layers[i];
-            let out;
-
-            this.forwardCache.rawValues[i] = null;
-            // Initialize cache arrays - don't set to null as layer operations will assign objects
-            // this.forwardCache.layerNormIntermediates[i] = null;
-            // this.forwardCache.attentionIntermediates[i] = null;
-            // this.forwardCache.softmaxOutputs[i] = null;
-
-            try {
-              if (!(layerInput instanceof Float32Array))
-                throw new Error(
-                  `L${i}(${cfg.type}): Internal error - input is not Float32Array.`
-                );
-              if (layerInput.length !== cfg.inputSize)
-                throw new Error(
-                  `L${i}(${cfg.type}): Sz mismatch ${layerInput.length}!=${cfg.inputSize}`
-                );
-
-              switch (cfg.type) {
-              case 'dense':
-                const w = this.weights[i];
-                const b = this.biases[i];
-                if (!(w instanceof Float32Array))
-                  throw new Error(`L${i} Dense: Weights not Float32Array.`);
-                if (b && !(b instanceof Float32Array))
-                  throw new Error(`L${i} Dense: Bias not Float32Array.`);
-
-                const rawSums = new Float32Array(cfg.outputSize);
-                for (let j = 0; j < cfg.outputSize; ++j) {
-                  let sum = b ? b[j] : 0;
-                  const weightRowOffset = j * cfg.inputSize;
-                  for (let k = 0; k < cfg.inputSize; ++k) {
-                    sum += layerInput[k] * w[weightRowOffset + k];
-                  }
-                  rawSums[j] = sum;
-                }
-                this.forwardCache.rawValues[i] = rawSums;
-
-                out = new Float32Array(cfg.outputSize);
-                for (let j = 0; j < cfg.outputSize; ++j) {
-                  out[j] = oblixActivations.apply(rawSums[j], cfg.activation);
-                }
-
-                break;
-              case 'layernorm':
-                out = oblixLayerOps.layerNormForward(
-                  this,
-                  layerInput,
-                  this.gammas[i],
-                  this.betas[i]
-                ).output;
-                break;
-              case 'attention':
-                out = oblixLayerOps.attentionForward(
-                  this,
-                  layerInput,
-                  cfg.numHeads
-                );
-                break;
-              case 'dropout':
-                out = oblixLayerOps.dropoutForward(
-                  this,
-                  layerInput,
-                  cfg.rate
-                );
-                break;
-              case 'softmax':
-                out = oblixLayerOps.softmaxForward(this, layerInput);
-                break;
-              default:
-                throw new Error(`Fwd Pass: Unknown type ${cfg.type}`);
-              }
-
-              if (!(out instanceof Float32Array))
-                throw new Error(
-                  `L${i}(${cfg.type}): Internal error - output is not Float32Array.`
-                );
-              this.forwardCache.activations.push(out);
-              layerInput = out;
-            } catch (e) {
-              console.error(`Fwd L${i}(${cfg.type}) Err:`, e);
-              this.isTraining = false;
-              throw e;
-            }
-          }
-
-          const finalOut = layerInput;
-          const targetOut = data.output;
-          if (finalOut.length !== targetOut.length)
-            throw new Error('Output/Target len mismatch');
-          let dLastErr;
-          const eps_ce = 1e-9;
-
-          if (lossFunction === 'crossentropy') {
-            let loss = 0;
-            const lastLyr = this.layers[this.layers.length - 1];
-            const wasSoftmax =
-              lastLyr.type === 'softmax' ||
-              (lastLyr.type === 'dense' && lastLyr.activation === 'softmax');
-            const wasSigmoid =
-              lastLyr.type === 'dense' && lastLyr.activation === 'sigmoid';
-
-            if (wasSoftmax) {
-              const oneHotTarget = new Float32Array(finalOut.length).fill(0);
-              if (
-                targetOut.length === 1 &&
-                Number.isInteger(targetOut[0]) &&
-                targetOut[0] >= 0 &&
-                targetOut[0] < finalOut.length
-              ) {
-                oneHotTarget[targetOut[0]] = 1;
-              } else if (targetOut.length === finalOut.length) {
-                for (let i = 0; i < targetOut.length; ++i)
-                  oneHotTarget[i] = targetOut[i];
-              } else {
-                throw new Error('CE target unclear');
-              }
-
-              for (let i = 0; i < finalOut.length; ++i)
-                loss -= oneHotTarget[i] * Math.log(finalOut[i] + eps_ce);
-
-              dLastErr = new Float32Array(finalOut.length);
-              for (let i = 0; i < finalOut.length; ++i)
-                dLastErr[i] = finalOut[i] - oneHotTarget[i];
-            } else if (wasSigmoid) {
-              if (finalOut.length !== 1 || targetOut.length !== 1)
-                throw new Error('BCE needs single out/target');
-              const p = finalOut[0],
-                t = targetOut[0];
-              loss = -(
-                t * Math.log(p + eps_ce) +
-                (1 - t) * Math.log(1 - p + eps_ce)
-              );
-              dLastErr = new Float32Array([p - t]);
-            } else {
-              console.warn('CE w/o final softmax/sigmoid, using simple diff');
-
-              dLastErr = new Float32Array(finalOut.length);
-              for (let i = 0; i < finalOut.length; ++i)
-                dLastErr[i] = finalOut[i] - targetOut[i];
-
-              loss = 0.5 * dLastErr.reduce((s, e) => s + e * e, 0);
-            }
-            if (!isNaN(loss)) batchLossSum += loss;
-          } else {
-            dLastErr = new Float32Array(finalOut.length);
-            let loss = 0;
-            for (let i = 0; i < finalOut.length; ++i) {
-              const diff = finalOut[i] - targetOut[i];
-              dLastErr[i] = diff;
-              loss += diff * diff;
-            }
-            loss *= 0.5;
-            if (!isNaN(loss)) batchLossSum += loss;
-          }
-
-          let dAct = dLastErr;
-
-          for (let i = this.layers.length - 1; i >= 0; i--) {
-            const cfg = this.layers[i];
-            const act_prev = this.forwardCache.activations[i];
-            let dIn;
-
-            if (
-              !(dAct instanceof Float32Array) ||
-              dAct.length !== cfg.outputSize
-            ) {
-              console.warn(
-                `Bkwd L${i}(${cfg.type}): Invalid dAct. Type: ${dAct?.constructor?.name}, Len: ${dAct?.length}. Expected Len: ${cfg.outputSize}. Using zeros.`
-              );
-
-              dIn = new Float32Array(cfg.inputSize).fill(0);
-              dAct = new Float32Array(cfg.outputSize).fill(0);
-              continue;
-            }
-
-            try {
-              switch (cfg.type) {
-              case 'dense':
-                const w = this.weights[i];
-                const b = this.biases[i];
-                const raw = this.forwardCache.rawValues[i];
-                const act = cfg.activation;
-                const inSz = cfg.inputSize;
-                const outSz = cfg.outputSize;
-
-                if (!(raw instanceof Float32Array))
-                  throw new Error(
-                    `L${i} Dense Bkwd: Missing or invalid raw values cache.`
-                  );
-                if (!(w instanceof Float32Array))
-                  throw new Error(
-                    `L${i} Dense Bkwd: Weights not Float32Array.`
-                  );
-                if (!(act_prev instanceof Float32Array))
-                  throw new Error(
-                    `L${i} Dense Bkwd: Previous activation not Float32Array.`
-                  );
-
-                const delta = new Float32Array(outSz);
-                for (let j = 0; j < outSz; ++j) {
-                  const deriv = oblixActivations.derivative(raw[j], act);
-                  if (typeof deriv !== 'number' || !isFinite(deriv)) {
-                    console.warn(
-                      `L${i} Dense, j=${j}: Deriv NaN/Inf. Activation: ${act}, Raw Input: ${raw[j]}, Derivative: ${deriv}`
-                    );
-                    delta[j] = 0;
-                  } else {
-                    delta[j] = dAct[j] * deriv;
-                  }
-                }
-
-                dIn = new Float32Array(inSz).fill(0);
-                for (let k = 0; k < inSz; k++) {
-                  for (let j = 0; j < outSz; j++) {
-                    const weightIndex = j * inSz + k;
-                    dIn[k] += delta[j] * w[weightIndex];
-                  }
-                }
-
-                const gW = gradsW[i];
-                const gB = gradsB[i];
-                if (gW) {
-                  for (let j = 0; j < outSz; j++) {
-                    const weightRowOffset = j * inSz;
-                    for (let k = 0; k < inSz; k++) {
-                      gW[weightRowOffset + k] += delta[j] * act_prev[k];
-                    }
-                  }
-                }
-                if (gB) {
-                  for (let j = 0; j < outSz; j++) {
-                    gB[j] += delta[j];
-                  }
-                }
-
-                break;
-              case 'layernorm':
-                const lnCache = this.forwardCache.layerNormIntermediates[i];
-                if (!lnCache) throw new Error(`L${i} LN Bkwd: Missing cache`);
-                const {
-                  dInput: ln_dIn,
-                  dGamma,
-                  dBeta
-                } = oblixLayerOps.layerNormBackward(this, dAct, lnCache);
-                dIn = ln_dIn;
-                const gGamma = gradsGamma[i];
-                const gBeta = gradsBeta[i];
-                if (gGamma && gBeta) {
-                  for (let j = 0; j < dGamma.length; j++) {
-                    gGamma[j] += dGamma[j] || 0;
-                    gBeta[j] += dBeta[j] || 0;
-                  }
-                }
-                break;
-              case 'attention':
-                const attnCache = this.forwardCache.attentionIntermediates[i];
-                if (!attnCache)
-                  throw new Error(`L${i} Attn Bkwd: Missing cache`);
-                const { dInput: attn_dIn } = oblixLayerOps.attentionBackward(
-                  this,
-                  dAct,
-                  attnCache
-                );
-                dIn = attn_dIn;
-
-                break;
-              case 'dropout':
-                dIn = oblixLayerOps.dropoutBackward(this, dAct, i);
-                break;
-              case 'softmax':
-                dIn = oblixLayerOps.softmaxBackward(this, dAct, i);
-                break;
-              default:
-                throw new Error(`Bkwd Pass: Unknown type ${cfg.type}`);
-              }
-
-              if (!(dIn instanceof Float32Array))
-                throw new Error(
-                  `Bkwd L${i}(${cfg.type}): Internal error - dIn is not Float32Array.`
-                );
-              dAct = dIn;
-            } catch (e) {
-              console.error(`Bkwd L${i}(${cfg.type}) Err:`, e);
-              this.isTraining = false;
-              throw e;
-            }
-          }
-        }
-
-        const updateOptions = {
-          learningRate: currentEpochLearningRate,
-          initialLearningRate: initialLearningRate,
-          optimizer: optimizer,
-          batchSize: batch.length,
-          l2Lambda: l2Lambda,
-          gradientClipValue: gradientClipValue,
-          decayRate: this.decayRate
-        };
-        oblixOptimizers.updateParameters(
-          this,
-          gradsW,
-          gradsB,
-          gradsGamma,
-          gradsBeta,
-          updateOptions
-        );
-
-        totalEpochTrainError += batchLossSum;
-      }
-
-      lastTrainLoss = totalEpochTrainError / trainSet.length;
-
-      if (testSet && testSet.length > 0) {
-        let testError = 0;
-        const allValPredictions = [];
-        const allValTargets = [];
-
-        for (const data of testSet) {
-          while (this.isPaused) {
-            await new Promise((r) => setTimeout(r, 50));
-          }
-          const prediction = this.predict(data.input);
-          if (
-            prediction &&
-            data.output &&
-            prediction.length === data.output.length
-          ) {
-            const target = data.output;
-            allValPredictions.push(prediction);
-            allValTargets.push(target);
-
-            let sampleLoss = 0;
-            const eps_ce = 1e-9;
-            if (lossFunction === 'crossentropy') {
-              const lastLayer = this.layers[this.layers.length - 1];
-              const wasSoftmax =
-                lastLayer.type === 'softmax' ||
-                (lastLayer.type === 'dense' &&
-                  lastLayer.activation === 'softmax');
-              const wasSigmoid =
-                lastLayer.type === 'dense' &&
-                lastLayer.activation === 'sigmoid';
-
-              if (wasSoftmax) {
-                if (
-                  target.length === 1 &&
-                  Number.isInteger(target[0]) &&
-                  target[0] >= 0 &&
-                  target[0] < prediction.length
-                ) {
-                  sampleLoss = -Math.log(prediction[target[0]] + eps_ce);
-                } else if (target.length === prediction.length) {
-                  sampleLoss = -target.reduce(
-                    (sum, t, i) => sum + t * Math.log(prediction[i] + eps_ce),
-                    0
-                  );
-                } else {
-                  console.warn(
-                    'CE Val Loss: Target/Prediction shape mismatch for Softmax.'
-                  );
-                  sampleLoss = NaN;
-                }
-              } else if (
-                wasSigmoid &&
-                prediction.length === 1 &&
-                target.length === 1
-              ) {
-                const p = prediction[0];
-                const t = target[0];
-                sampleLoss = -(
-                  t * Math.log(p + eps_ce) +
-                  (1 - t) * Math.log(1 - p + eps_ce)
-                );
-              } else {
-                console.warn(
-                  'CE Val Loss: Final layer activation not Softmax/Sigmoid. Using MSE for loss metric.'
-                );
-                sampleLoss =
-                  0.5 *
-                  prediction.reduce(
-                    (sum, p, i) => sum + (p - target[i]) ** 2,
-                    0
-                  );
-              }
-            } else {
-              sampleLoss =
-                0.5 *
-                prediction.reduce((sum, p, i) => sum + (p - target[i]) ** 2, 0);
-            }
-
-            if (!isNaN(sampleLoss) && isFinite(sampleLoss)) {
-              testError += sampleLoss;
-            }
-          }
-        }
-        lastTestLoss = testError / testSet.length;
-
-        if (lossFunction === 'crossentropy') {
-          validationMetricName = 'Acc';
-
-          lastValidationMetric = oblixUtils.calculateAccuracy(
-            allValPredictions,
-            allValTargets
-          );
-        } else {
-          validationMetricName = 'R²';
-
-          const flatPreds = allValPredictions.flat();
-          const flatTargets = allValTargets.flat();
-
-          if (this.debug) {
-            console.log(
-              `R-Squared Type Check: flatPreds type = ${flatPreds?.constructor?.name}, flatTargets type = ${flatTargets?.constructor?.name}`
-            );
-            console.log(
-              `R-Squared Input Check: flatPreds[0]=${flatPreds[0]}, flatTargets[0]=${flatTargets[0]}`
-            );
-            if (flatPreds.length > 1)
-              console.log(
-                `  flatPreds[1]=${flatPreds[1]}, flatTargets[1]=${flatTargets[1]}`
-              );
-          }
-
-          lastValidationMetric = oblixUtils.calculateRSquared(
-            flatPreds,
-            flatTargets
-          );
-        }
-      } else {
-        lastTestLoss = null;
-        lastValidationMetric = null;
-        validationMetricName = '';
-      }
-
-      if ((epoch + 1) % printEveryEpochs === 0 && this.debug) {
-        const lrStr =
-          lrSchedule !== 'none'
-            ? `, LR: ${currentEpochLearningRate.toExponential(2)}`
-            : '';
-        let logMsg = `Epoch ${epoch + 1}/${epochs}, Train Loss: ${lastTrainLoss.toFixed(6)}`;
-        if (lastTestLoss !== null) {
-          logMsg += `, Val Loss: ${lastTestLoss.toFixed(6)}`;
-        }
-
-        if (lastValidationMetric !== null && !isNaN(lastValidationMetric)) {
-          logMsg += `, Val ${validationMetricName}: ${lastValidationMetric.toFixed(4)}`;
-        }
-        logMsg += lrStr;
-        console.log(logMsg);
-      }
-
-      if (callback) {
-        await callback(
-          epoch + 1,
-          lastTrainLoss,
-          lastTestLoss,
-          validationMetricName,
-          lastValidationMetric,
-          this.forwardCache
-        );
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      
-      // Early stopping: check if loss improvement is below threshold
-      if (epoch > 0 && Math.abs(lastTrainLoss - this.lastTrainLoss) < earlyStopThreshold) {
-        if (this.debug) console.log(`Early stopping @ Epoch ${epoch + 1}.`);
-        epochs = epoch + 1;
-        break;
-      }
-      this.lastTrainLoss = lastTrainLoss;
-    }
-
-    const end = Date.now();
-    this.isTraining = false;
-    const totalParams = this.getTotalParameters();
-
-    const trainingSummary = {
-      trainLoss: lastTrainLoss,
-      testLoss: lastTestLoss,
-      validationMetric: {
-        name: validationMetricName,
-        value: lastValidationMetric
-      },
-      parameters: totalParams,
-      training: {
-        time: end - start,
-        epochs: epochs,
-        learningRate: initialLearningRate,
-        batchSize: effectiveBatchSize,
-        optimizer: optimizer,
-        lossFunction: lossFunction,
-        l2Lambda: l2Lambda,
-        decayRate: this.decayRate,
-        usePositionalEncoding: this.usePositionalEncoding,
-        gradientClipValue: gradientClipValue,
-        lrSchedule: lrSchedule,
-        lrStepDecayFactor:
-          lrSchedule === 'step' ? lrStepDecayFactor : undefined,
-        lrStepDecaySize: lrSchedule === 'step' ? lrStepDecaySize : undefined,
-        lrExpDecayRate:
-          lrSchedule === 'exponential' ? lrExpDecayRate : undefined
-      },
-      layers: this.layers.map((l) => ({
-        type: l.type,
-        inputSize: l.inputSize,
-        outputSize: l.outputSize,
-        activation: l.activation,
-        numHeads: l.numHeads,
-        useBias: l.useBias,
-        rate: l.rate
-      }))
+  initializeTrainingState() {
+    return {
+      lastTrainLoss: Infinity,
+      lastTestLoss: null,
+      lastValidationMetric: null,
+      validationMetricName: ''
     };
-    this.details = trainingSummary;
-    if (this.debug) console.log('Training finished.', trainingSummary);
-    return trainingSummary;
+  }
+
+  async handleTrainingPause() {
+    while (this.isPaused) {
+      await new Promise((r) => setTimeout(r, 50));
+    }
+  }
+
+  async trainEpoch(trainSet, effectiveBatchSize, currentEpochLearningRate, config, state) {
+    this.shuffleTrainingData(trainSet);
+    
+    let totalEpochTrainError = 0;
+    
+    for (let b = 0; b < trainSet.length; b += effectiveBatchSize) {
+      await this.handleTrainingPause();
+      
+      const batch = trainSet.slice(b, b + effectiveBatchSize);
+      if (batch.length === 0) continue;
+
+      const batchResult = await this.trainBatch(
+        batch,
+        currentEpochLearningRate,
+        config
+      );
+      
+      totalEpochTrainError += batchResult.loss;
+    }
+    
+    const averageTrainLoss = totalEpochTrainError / trainSet.length;
+    state.lastTrainLoss = averageTrainLoss;
+    
+    return { averageTrainLoss };
+  }
+
+  shuffleTrainingData(trainSet) {
+    for (let i = trainSet.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [trainSet[i], trainSet[j]] = [trainSet[j], trainSet[i]];
+    }
+  }
+
+  async trainBatch(batch, learningRate, config) {
+    const gradients = this.initializeGradients();
+    let batchLossSum = 0;
+    
+    for (const data of batch) {
+      await this.handleTrainingPause();
+      
+      const forwardResult = this.forward(data.input);
+      const loss = this.calculateLoss(forwardResult, data.output, config);
+      batchLossSum += loss;
+      
+      this.backward(data.output, config);
+      this.accumulateGradients(gradients);
+    }
+    
+    this.updateParameters(gradients, learningRate, config);
+    
+    return { loss: batchLossSum };
+  }
+
+  initializeGradients() {
+    return {
+      weights: this.weights.map((L) =>
+        L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
+      ),
+      biases: this.biases.map((L) =>
+        L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
+      ),
+      gammas: this.gammas.map((L) =>
+        L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
+      ),
+      betas: this.betas.map((L) =>
+        L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
+      )
+    };
+  }
+
+  calculateLoss(prediction, target, config) {
+    switch (config.lossFunction) {
+      case 'mse':
+        return this.calculateMSELoss(prediction, target);
+      case 'crossentropy':
+        return this.calculateCrossEntropyLoss(prediction, target, this.layers[this.layers.length - 1]);
+      default:
+        throw new Error(`Unknown loss function: ${config.lossFunction}`);
+    }
+  }
+
+  calculateMSELoss(prediction, target) {
+    let loss = 0;
+    for (let i = 0; i < prediction.length; i++) {
+      const diff = prediction[i] - target[i];
+      loss += diff * diff;
+    }
+    return loss / prediction.length;
+  }
+
+
+
+  async handleEpochCallback(epoch, epochResult, config, state) {
+    const testLoss = await this.calculateTestLoss(config);
+    state.lastTestLoss = testLoss;
+    
+    const validationMetric = await this.calculateValidationMetric(config, state);
+    
+    if (config.callback) {
+      await config.callback(
+        epoch + 1,
+        epochResult.averageTrainLoss,
+        testLoss,
+        state.validationMetricName,
+        validationMetric,
+        this.lastForwardCache
+      );
+    }
+  }
+
+  async calculateTestLoss(config) {
+    if (!config.testSet || config.testSet.length === 0) {
+      return null;
+    }
+    
+    let totalTestLoss = 0;
+    for (const data of config.testSet) {
+      const prediction = this.forward(data.input);
+      const loss = this.calculateLoss(prediction, data.output, config);
+      totalTestLoss += loss;
+    }
+    
+    return totalTestLoss / config.testSet.length;
+  }
+
+  async calculateValidationMetric(config, state) {
+    if (!config.testSet || config.testSet.length === 0) {
+      return null;
+    }
+    
+    const predictions = [];
+    const targets = [];
+    
+    for (const data of config.testSet) {
+      const prediction = this.forward(data.input);
+      predictions.push(prediction);
+      targets.push(data.output);
+    }
+    
+    if (config.lossFunction === 'crossentropy') {
+      const accuracy = this.calculateAccuracy(predictions, targets);
+      state.validationMetricName = 'Accuracy';
+      return accuracy;
+    } else {
+      const rSquared = this.calculateRSquared(predictions, targets);
+      state.validationMetricName = 'R²';
+      return rSquared;
+    }
+  }
+
+  calculateAccuracy(predictions, targets) {
+    let correct = 0;
+    let total = 0;
+    
+    for (let i = 0; i < predictions.length; i++) {
+      const predIndex = this.getMaxIndex(predictions[i]);
+      const targetIndex = this.getMaxIndex(targets[i]);
+      if (predIndex === targetIndex) {
+        correct++;
+      }
+      total++;
+    }
+    
+    return total > 0 ? correct / total : 0;
+  }
+
+  getMaxIndex(array) {
+    let maxIndex = 0;
+    let maxValue = array[0];
+    
+    for (let i = 1; i < array.length; i++) {
+      if (array[i] > maxValue) {
+        maxValue = array[i];
+        maxIndex = i;
+      }
+    }
+    
+    return maxIndex;
+  }
+
+  calculateRSquared(predictions, targets) {
+    const allPredictions = predictions.flat();
+    const allTargets = targets.flat();
+    
+    const mean = allTargets.reduce((sum, val) => sum + val, 0) / allTargets.length;
+    const ssRes = allPredictions.reduce((sum, pred, i) => {
+      const diff = pred - allTargets[i];
+      return sum + diff * diff;
+    }, 0);
+    
+    const ssTot = allTargets.reduce((sum, target) => {
+      const diff = target - mean;
+      return sum + diff * diff;
+    }, 0);
+    
+    return ssTot > 0 ? 1 - (ssRes / ssTot) : 0;
+  }
+
+  shouldEarlyStop(state, config) {
+    if (config.earlyStopThreshold <= 0) {
+      return false;
+    }
+    
+    const lossDiff = Math.abs(state.lastTrainLoss - state.lastTrainLoss);
+    return lossDiff < config.earlyStopThreshold;
+  }
+
+  createTrainingSummary(state, start) {
+    const end = Date.now();
+    const trainingTime = end - start;
+    
+    return {
+      trainLoss: state.lastTrainLoss,
+      testLoss: state.lastTestLoss,
+      trainingTime,
+      epochs: this.currentEpoch || 0
+    };
   }
 
   /**
@@ -1054,181 +871,195 @@ class Oblix {
    *
    */
   predict(input) {
-    if (this.debug)
+    if (this.debug) {
       console.log(' Starting prediction with native Float32Array logic.');
+    }
 
     const wasTraining = this.isTraining;
     this.isTraining = false;
-    if (!this.layers || this.layers.length === 0) {
-      console.error('Predict Error: Model not initialized.');
-      return null;
-    }
-    if (!input || typeof input.length !== 'number') {
-      console.error('Predict Error: Invalid input provided.', input);
-      return null;
-    }
-
-    let currentInput;
-    if (input instanceof Float32Array) {
-      currentInput = input;
-    } else if (Array.isArray(input)) {
-      if (this.debug)
-        console.log(' Input is standard array, converting to Float32Array.');
-      currentInput = new Float32Array(input);
-    } else {
-      console.error(
-        'Predict Error: Input is not an array or Float32Array.',
-        input
-      );
-      return null;
-    }
-
-    if (this.debug)
-      console.log(
-        ` Initial Input type=${currentInput.constructor.name}, len=${currentInput.length}`
-      );
-
+    
+    this.validatePredictionInput(input);
+    
+    let currentInput = this.prepareInputForPrediction(input);
+    
     if (this.usePositionalEncoding) {
-      if (this.debug) console.log(' Applying positional encoding.');
-      currentInput = oblixUtils.positionalEncoding(currentInput);
-      if (this.debug)
-        console.log(
-          ` After PosEnc type=${currentInput.constructor.name}, len=${currentInput.length}`
-        );
+      currentInput = this.applyPositionalEncoding(currentInput);
     }
 
     this.lastActivations = [currentInput];
 
     try {
-      for (let i = 0; i < this.layers.length; i++) {
-        const cfg = this.layers[i];
-        const layerInput =
-          this.lastActivations[this.lastActivations.length - 1];
+      const output = this.processLayersForPrediction();
+      return output;
+    } catch (error) {
+      console.error('Prediction error:', error);
+      return null;
+    } finally {
+      this.isTraining = wasTraining;
+    }
+  }
 
-        if (this.debug)
-          console.log(
-            ` Processing L${i} (${cfg.type}). Input type=${layerInput.constructor.name}, len=${layerInput.length}`
-          );
+  validatePredictionInput(input) {
+    if (!this.layers || this.layers.length === 0) {
+      throw new Error('Predict Error: Model not initialized.');
+    }
+    if (!input || typeof input.length !== 'number') {
+      throw new Error('Predict Error: Invalid input provided.');
+    }
+  }
 
-        if (!(layerInput instanceof Float32Array)) {
-          throw new Error(
-            `L${i}(${cfg.type}): Internal error - input is not Float32Array.`
-          );
-        }
-        if (layerInput.length !== cfg.inputSize) {
-          throw new Error(
-            `L${i}(${cfg.type}): Size mismatch. Expected ${cfg.inputSize}, got ${layerInput.length}.`
-          );
-        }
+  prepareInputForPrediction(input) {
+    if (input instanceof Float32Array) {
+      return input;
+    } else if (Array.isArray(input)) {
+      if (this.debug) {
+        console.log(' Input is standard array, converting to Float32Array.');
+      }
+      return new Float32Array(input);
+    } else {
+      throw new Error('Predict Error: Input is not an array or Float32Array.');
+    }
+  }
 
-        let output;
+  applyPositionalEncoding(input) {
+    if (this.debug) {
+      console.log(' Applying positional encoding.');
+    }
+    const encodedInput = oblixUtils.positionalEncoding(input);
+    if (this.debug) {
+      console.log(
+        ` After PosEnc type=${encodedInput.constructor.name}, len=${encodedInput.length}`
+      );
+    }
+    return encodedInput;
+  }
 
-        switch (cfg.type) {
-        case 'dense':
-          const w = this.weights[i];
-          const b = this.biases[i];
-          if (!w) throw new Error(`L${i} Dense: Weights not initialized.`);
-          if (!(w instanceof Float32Array))
-            throw new Error(
-              `L${i} Dense: Weights internal error - not Float32Array.`
-            );
-          if (b && !(b instanceof Float32Array))
-            throw new Error(
-              `L${i} Dense: Biases internal error - not Float32Array.`
-            );
+  processLayersForPrediction() {
+    for (let i = 0; i < this.layers.length; i++) {
+      const cfg = this.layers[i];
+      const layerInput = this.lastActivations[this.lastActivations.length - 1];
 
-          output = new Float32Array(cfg.outputSize);
-          if (this.debug)
-            console.log(
-              ` L${i} Dense: InputLen=${layerInput.length}, WeightLen=${w.length}, BiasLen=${b?.length}, OutputLen=${output.length}`
-            );
-
-          for (let j = 0; j < cfg.outputSize; ++j) {
-            let sum = b ? b[j] : 0;
-            const weightRowOffset = j * cfg.inputSize;
-
-            for (let k = 0; k < cfg.inputSize; ++k) {
-              sum += layerInput[k] * w[weightRowOffset + k];
-            }
-
-            output[j] = oblixActivations.apply(sum, cfg.activation);
-
-            if (this.debug && j === 0 && i < 2) {
-              console.log(
-                ` L${i} Dense, Neuron 0: Sum=${sum.toFixed(4)}, Activated=${output[0].toFixed(4)}`
-              );
-            }
-          }
-
-          break;
-
-        case 'layernorm':
-          const gamma = this.gammas[i];
-          const beta = this.betas[i];
-          if (!gamma || !beta)
-            throw new Error(`L${i} LayerNorm: Gamma/Beta not initialized.`);
-          if (
-            !(gamma instanceof Float32Array) ||
-              !(beta instanceof Float32Array)
-          )
-            throw new Error(
-              `L${i} LN: Gamma/Beta internal error - not Float32Array.`
-            );
-
-          const { output: lnOut } = oblixLayerOps.layerNormForward(
-            this,
-            layerInput,
-            gamma,
-            beta
-          );
-          output = lnOut;
-          break;
-
-        case 'attention':
-          output = oblixLayerOps.attentionForward(
-            this,
-            layerInput,
-            cfg.numHeads
-          );
-          break;
-
-        case 'dropout':
-          output = oblixLayerOps.dropoutForward(this, layerInput, cfg.rate);
-          break;
-
-        case 'softmax':
-          output = oblixLayerOps.softmaxForward(this, layerInput);
-          break;
-
-        default:
-          throw new Error(`Predict: Unknown layer type ${cfg.type}`);
-        }
-
-        if (!(output instanceof Float32Array)) {
-          throw new Error(
-            `L${i}(${cfg.type}): Internal error - output is not Float32Array.`
-          );
-        }
-        if (this.debug)
-          console.log(
-            ` Output L${i} (${cfg.type}) type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`
-          );
-        this.lastActivations.push(output);
+      if (this.debug) {
+        console.log(
+          ` Processing L${i} (${cfg.type}). Input type=${layerInput.constructor.name}, len=${layerInput.length}`
+        );
       }
 
-      this.isTraining = wasTraining;
-      const finalOutput = this.lastActivations[this.lastActivations.length - 1];
-      if (this.debug)
-        console.log(
-          ` Finished. Final output type=${finalOutput?.constructor?.name}, len=${finalOutput?.length}`
-        );
-      return finalOutput;
-    } catch (error) {
-      console.error('Prediction Error:', error);
-      this.lastActivations = null;
-      this.isTraining = wasTraining;
-      return null;
+      this.validateLayerInput(layerInput, cfg, i);
+
+      const output = this.processLayer(layerInput, cfg, i);
+      this.lastActivations.push(output);
     }
+
+    return this.lastActivations[this.lastActivations.length - 1];
+  }
+
+  validateLayerInput(layerInput, cfg, layerIndex) {
+    if (!(layerInput instanceof Float32Array)) {
+      throw new Error(
+        `L${layerIndex}(${cfg.type}): Internal error - input is not Float32Array.`
+      );
+    }
+    if (layerInput.length !== cfg.inputSize) {
+      throw new Error(
+        `L${layerIndex}(${cfg.type}): Size mismatch. Expected ${cfg.inputSize}, got ${layerInput.length}.`
+      );
+    }
+  }
+
+  processLayer(layerInput, cfg, layerIndex) {
+    switch (cfg.type) {
+      case 'dense':
+        return this.processDenseLayer(layerInput, cfg, layerIndex);
+      case 'layernorm':
+        return this.processLayerNorm(layerInput, cfg, layerIndex);
+      case 'attention':
+        return this.processAttentionLayer(layerInput, cfg, layerIndex);
+      case 'dropout':
+        return this.processDropoutLayer(layerInput, cfg, layerIndex);
+      case 'softmax':
+        return this.processSoftmaxLayer(layerInput, cfg, layerIndex);
+      default:
+        throw new Error(`Unknown layer type: ${cfg.type}`);
+    }
+  }
+
+  processDenseLayer(layerInput, cfg, layerIndex) {
+    const weights = this.weights[layerIndex];
+    const biases = this.biases[layerIndex];
+    
+    this.validateDenseLayerParameters(weights, biases, layerIndex);
+    
+    const output = new Float32Array(cfg.outputSize);
+    
+    if (this.debug) {
+      console.log(
+        ` L${layerIndex} Dense: InputLen=${layerInput.length}, WeightLen=${weights.length}, BiasLen=${biases?.length}, OutputLen=${output.length}`
+      );
+    }
+
+    for (let j = 0; j < cfg.outputSize; ++j) {
+      let sum = biases ? biases[j] : 0;
+      const weightRowOffset = j * cfg.inputSize;
+
+      for (let k = 0; k < cfg.inputSize; ++k) {
+        sum += layerInput[k] * weights[weightRowOffset + k];
+      }
+
+      output[j] = oblixActivations.apply(sum, cfg.activation);
+    }
+
+    return output;
+  }
+
+  validateDenseLayerParameters(weights, biases, layerIndex) {
+    if (!weights) {
+      throw new Error(`L${layerIndex} Dense: Weights not initialized.`);
+    }
+    if (!(weights instanceof Float32Array)) {
+      throw new Error(
+        `L${layerIndex} Dense: Weights internal error - not Float32Array.`
+      );
+    }
+    if (biases && !(biases instanceof Float32Array)) {
+      throw new Error(
+        `L${layerIndex} Dense: Biases internal error - not Float32Array.`
+      );
+    }
+  }
+
+  processLayerNorm(layerInput, cfg, layerIndex) {
+    const gammas = this.gammas[layerIndex];
+    const betas = this.betas[layerIndex];
+    
+    const result = oblixLayerOps.layerNormForward(
+      this,
+      layerInput,
+      gammas,
+      betas
+    );
+    
+    return result.output;
+  }
+
+  processAttentionLayer(layerInput, cfg, layerIndex) {
+    return oblixLayerOps.attentionForward(
+      this,
+      layerInput,
+      cfg.numHeads
+    );
+  }
+
+  processDropoutLayer(layerInput, cfg, layerIndex) {
+    return oblixLayerOps.dropoutForward(
+      this,
+      layerInput,
+      cfg.rate
+    );
+  }
+
+  processSoftmaxLayer(layerInput, cfg, layerIndex) {
+    return oblixLayerOps.softmaxForward(this, layerInput);
   }
 
   /**
@@ -1496,6 +1327,624 @@ class Oblix {
     input.addEventListener('change', handleListener);
     document.body.appendChild(input);
     input.click();
+  }
+
+  /**
+   * Validates input for forward pass.
+   * Business rule: Input validation prevents runtime errors.
+   *
+   * @param {*} input - Input to validate
+   * @returns {Float32Array|null} Validated input or null if invalid
+   */
+  validateForwardInput(input) {
+    if (!Array.isArray(input)) {
+      console.warn('Skip invalid data');
+      return null;
+    }
+    return input;
+  }
+
+  /**
+   * Applies positional encoding to input if enabled.
+   * Business rule: Positional encoding helps with sequence processing.
+   *
+   * @param {Float32Array} input - Input to encode
+   * @returns {Float32Array} Encoded input
+   */
+  applyPositionalEncodingToInput(input) {
+    if (this.usePositionalEncoding) {
+      return oblixUtils.positionalEncoding(input);
+    }
+    return input;
+  }
+
+  /**
+   * Initializes forward pass cache.
+   * Business rule: Caching improves performance and enables backpropagation.
+   *
+   * @param {Float32Array} initialActivation - Initial activation
+   * @returns {Object} Forward cache object
+   */
+  initializeForwardCache(initialActivation) {
+    return {
+      activations: [initialActivation],
+      rawValues: [],
+      layerNormIntermediates: [],
+      attentionIntermediates: [],
+      softmaxOutputs: []
+    };
+  }
+
+  /**
+   * Validates layer input for forward pass.
+   * Business rule: Input validation prevents runtime errors.
+   *
+   * @param {Float32Array} layerInput - Layer input to validate
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Layer index
+   * @throws {Error} If input is invalid
+   */
+  validateLayerInputForForward(layerInput, layerConfig, layerIndex) {
+    if (!(layerInput instanceof Float32Array)) {
+      throw new Error(
+        `L${layerIndex}(${layerConfig.type}): Internal error - input is not Float32Array.`
+      );
+    }
+    if (layerInput.length !== layerConfig.inputSize) {
+      throw new Error(
+        `L${layerIndex}(${layerConfig.type}): Sz mismatch ${layerInput.length}!=${layerConfig.inputSize}`
+      );
+    }
+  }
+
+  /**
+   * Processes dense layer forward pass.
+   * Business rule: Dense layers perform linear transformations.
+   *
+   * @param {Float32Array} layerInput - Layer input
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Layer index
+   * @returns {Float32Array} Layer output
+   * @throws {Error} If layer processing fails
+   */
+  processDenseLayerForward(layerInput, layerConfig, layerIndex) {
+    const weights = this.weights[layerIndex];
+    const biases = this.biases[layerIndex];
+    
+    if (!(weights instanceof Float32Array)) {
+      throw new Error(`L${layerIndex} Dense: Weights not Float32Array.`);
+    }
+    if (biases && !(biases instanceof Float32Array)) {
+      throw new Error(`L${layerIndex} Dense: Bias not Float32Array.`);
+    }
+
+    const rawSums = new Float32Array(layerConfig.outputSize);
+    for (let j = 0; j < layerConfig.outputSize; ++j) {
+      let sum = biases ? biases[j] : 0;
+      const weightRowOffset = j * layerConfig.inputSize;
+      for (let k = 0; k < layerConfig.inputSize; ++k) {
+        sum += layerInput[k] * weights[weightRowOffset + k];
+      }
+      rawSums[j] = sum;
+    }
+    this.forwardCache.rawValues[layerIndex] = rawSums;
+
+    const output = new Float32Array(layerConfig.outputSize);
+    for (let j = 0; j < layerConfig.outputSize; ++j) {
+      output[j] = oblixActivations.apply(rawSums[j], layerConfig.activation);
+    }
+
+    return output;
+  }
+
+  /**
+   * Processes layer forward pass based on type.
+   * Business rule: Each layer type has specific processing logic.
+   *
+   * @param {Float32Array} layerInput - Layer input
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Layer index
+   * @returns {Float32Array} Layer output
+   * @throws {Error} If layer type is unknown
+   */
+  processLayerForward(layerInput, layerConfig, layerIndex) {
+    this.forwardCache.rawValues[layerIndex] = null;
+
+    switch (layerConfig.type) {
+    case 'dense':
+      return this.processDenseLayerForward(layerInput, layerConfig, layerIndex);
+    case 'layernorm':
+      return oblixLayerOps.layerNormForward(
+        this,
+        layerInput,
+        this.gammas[layerIndex],
+        this.betas[layerIndex]
+      ).output;
+    case 'attention':
+      return oblixLayerOps.attentionForward(
+        this,
+        layerInput,
+        layerConfig.numHeads
+      );
+    case 'dropout':
+      return oblixLayerOps.dropoutForward(
+        this,
+        layerInput,
+        layerConfig.rate
+      );
+    case 'softmax':
+      return oblixLayerOps.softmaxForward(this, layerInput);
+    default:
+      throw new Error(`Fwd Pass: Unknown type ${layerConfig.type}`);
+    }
+  }
+
+  /**
+   * Validates layer output for forward pass.
+   * Business rule: Output validation ensures data integrity.
+   *
+   * @param {Float32Array} output - Layer output to validate
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Layer index
+   * @throws {Error} If output is invalid
+   */
+  validateLayerOutputForForward(output, layerConfig, layerIndex) {
+    if (!(output instanceof Float32Array)) {
+      throw new Error(
+        `L${layerIndex}(${layerConfig.type}): Internal error - output is not Float32Array.`
+      );
+    }
+  }
+
+  /**
+   * Performs forward pass through the neural network.
+   * Business rule: Forward pass computes predictions from input.
+   *
+   * @param {*} input - Network input
+   * @returns {Float32Array|null} Network output or null if invalid
+   */
+  forward(input) {
+    const validatedInput = this.validateForwardInput(input);
+    if (!validatedInput) return null;
+
+    const encodedInput = this.applyPositionalEncodingToInput(validatedInput);
+    const initialActivation = encodedInput instanceof Float32Array
+      ? encodedInput
+      : new Float32Array(encodedInput);
+    
+    this.forwardCache = this.initializeForwardCache(initialActivation);
+    let layerInput = this.forwardCache.activations[0];
+
+    for (let i = 0; i < this.layers.length; i++) {
+      const layerConfig = this.layers[i];
+
+      try {
+        this.validateLayerInputForForward(layerInput, layerConfig, i);
+        const output = this.processLayerForward(layerInput, layerConfig, i);
+        this.validateLayerOutputForForward(output, layerConfig, i);
+        
+        this.forwardCache.activations.push(output);
+        layerInput = output;
+      } catch (error) {
+        console.error(`Fwd L${i}(${layerConfig.type}) Err:`, error);
+        this.isTraining = false;
+        throw error;
+      }
+    }
+
+    return layerInput;
+  }
+
+  /**
+   * Validates backward pass inputs.
+   * Business rule: Input validation prevents runtime errors.
+   *
+   * @param {Float32Array} finalOutput - Final network output
+   * @param {Float32Array} targetOutput - Target output
+   * @throws {Error} If inputs are invalid
+   */
+  validateBackwardInputs(finalOutput, targetOutput) {
+    if (finalOutput.length !== targetOutput.length) {
+      throw new Error('Output/Target len mismatch');
+    }
+  }
+
+  /**
+   * Creates one-hot target for cross-entropy loss.
+   * Business rule: One-hot encoding is required for categorical cross-entropy.
+   *
+   * @param {Float32Array} targetOutput - Target output
+   * @param {number} outputLength - Length of output
+   * @returns {Float32Array} One-hot encoded target
+   * @throws {Error} If target format is unclear
+   */
+  createOneHotTarget(targetOutput, outputLength) {
+    const oneHotTarget = new Float32Array(outputLength).fill(0);
+    
+    if (
+      targetOutput.length === 1 &&
+      Number.isInteger(targetOutput[0]) &&
+      targetOutput[0] >= 0 &&
+      targetOutput[0] < outputLength
+    ) {
+      oneHotTarget[targetOutput[0]] = 1;
+    } else if (targetOutput.length === outputLength) {
+      for (let i = 0; i < targetOutput.length; ++i) {
+        oneHotTarget[i] = targetOutput[i];
+      }
+    } else {
+      throw new Error('CE target unclear');
+    }
+    
+    return oneHotTarget;
+  }
+
+  /**
+   * Calculates cross-entropy loss with softmax.
+   * Business rule: Cross-entropy with softmax is standard for classification.
+   *
+   * @param {Float32Array} finalOutput - Final network output
+   * @param {Float32Array} oneHotTarget - One-hot target
+   * @returns {Object} Loss and gradient
+   */
+  calculateCrossEntropyWithSoftmax(finalOutput, oneHotTarget) {
+    const epsilon = 1e-9;
+    let loss = 0;
+    
+    for (let i = 0; i < finalOutput.length; ++i) {
+      loss -= oneHotTarget[i] * Math.log(finalOutput[i] + epsilon);
+    }
+
+    const gradient = new Float32Array(finalOutput.length);
+    for (let i = 0; i < finalOutput.length; ++i) {
+      gradient[i] = finalOutput[i] - oneHotTarget[i];
+    }
+
+    return { loss, gradient };
+  }
+
+  /**
+   * Calculates binary cross-entropy loss.
+   * Business rule: Binary cross-entropy is used for binary classification.
+   *
+   * @param {Float32Array} finalOutput - Final network output
+   * @param {Float32Array} targetOutput - Target output
+   * @returns {Object} Loss and gradient
+   * @throws {Error} If output/target dimensions are invalid
+   */
+  calculateBinaryCrossEntropy(finalOutput, targetOutput) {
+    if (finalOutput.length !== 1 || targetOutput.length !== 1) {
+      throw new Error('BCE needs single out/target');
+    }
+    
+    const epsilon = 1e-9;
+    const prediction = finalOutput[0];
+    const target = targetOutput[0];
+    
+    const loss = -(
+      target * Math.log(prediction + epsilon) +
+      (1 - target) * Math.log(1 - prediction + epsilon)
+    );
+    
+    const gradient = new Float32Array([prediction - target]);
+    
+    return { loss, gradient };
+  }
+
+  /**
+   * Calculates simple cross-entropy loss.
+   * Business rule: Fallback for cross-entropy without proper final layer.
+   *
+   * @param {Float32Array} finalOutput - Final network output
+   * @param {Float32Array} targetOutput - Target output
+   * @returns {Object} Loss and gradient
+   */
+  calculateSimpleCrossEntropy(finalOutput, targetOutput) {
+    console.warn('CE w/o final softmax/sigmoid, using simple diff');
+    
+    const gradient = new Float32Array(finalOutput.length);
+    for (let i = 0; i < finalOutput.length; ++i) {
+      gradient[i] = finalOutput[i] - targetOutput[i];
+    }
+    
+    const loss = 0.5 * gradient.reduce((sum, error) => sum + error * error, 0);
+    
+    return { loss, gradient };
+  }
+
+  /**
+   * Calculates cross-entropy loss based on final layer type.
+   * Business rule: Loss calculation depends on final layer configuration.
+   *
+   * @param {Float32Array} finalOutput - Final network output
+   * @param {Float32Array} targetOutput - Target output
+   * @param {Object} layerConfig - Final layer configuration
+   * @returns {Object} Loss and gradient
+   */
+  calculateCrossEntropyLoss(finalOutput, targetOutput, layerConfig) {
+    const hasSoftmax = layerConfig.type === 'softmax' ||
+      (layerConfig.type === 'dense' && layerConfig.activation === 'softmax');
+    const hasSigmoid = layerConfig.type === 'dense' && layerConfig.activation === 'sigmoid';
+
+    if (hasSoftmax) {
+      const oneHotTarget = this.createOneHotTarget(targetOutput, finalOutput.length);
+      return this.calculateCrossEntropyWithSoftmax(finalOutput, oneHotTarget);
+    } else if (hasSigmoid) {
+      return this.calculateBinaryCrossEntropy(finalOutput, targetOutput);
+    } else {
+      return this.calculateSimpleCrossEntropy(finalOutput, targetOutput);
+    }
+  }
+
+  /**
+   * Calculates mean squared error loss.
+   * Business rule: MSE is standard for regression tasks.
+   *
+   * @param {Float32Array} finalOutput - Final network output
+   * @param {Float32Array} targetOutput - Target output
+   * @returns {Object} Loss and gradient
+   */
+  calculateMeanSquaredErrorLoss(finalOutput, targetOutput) {
+    const gradient = new Float32Array(finalOutput.length);
+    let loss = 0;
+    
+    for (let i = 0; i < finalOutput.length; ++i) {
+      const diff = finalOutput[i] - targetOutput[i];
+      gradient[i] = diff;
+      loss += diff * diff;
+    }
+    
+    loss *= 0.5;
+    
+    return { loss, gradient };
+  }
+
+  /**
+   * Calculates initial gradient based on loss function.
+   * Business rule: Initial gradient depends on loss function choice.
+   *
+   * @param {Float32Array} finalOutput - Final network output
+   * @param {Float32Array} targetOutput - Target output
+   * @param {Object} config - Training configuration
+   * @returns {Float32Array} Initial gradient
+   */
+  calculateInitialGradient(finalOutput, targetOutput, config) {
+    if (config.lossFunction === 'crossentropy') {
+      const lastLayer = this.layers[this.layers.length - 1];
+      const { gradient } = this.calculateCrossEntropyLoss(finalOutput, targetOutput, lastLayer);
+      return gradient;
+    } else {
+      const { gradient } = this.calculateMeanSquaredErrorLoss(finalOutput, targetOutput);
+      return gradient;
+    }
+  }
+
+  /**
+   * Validates gradient for backward pass.
+   * Business rule: Gradient validation prevents propagation errors.
+   *
+   * @param {Float32Array} gradient - Gradient to validate
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Layer index
+   * @returns {Float32Array} Validated gradient or zeros if invalid
+   */
+  validateBackwardGradient(gradient, layerConfig, layerIndex) {
+    if (
+      !(gradient instanceof Float32Array) ||
+      gradient.length !== layerConfig.outputSize
+    ) {
+      console.warn(
+        `Bkwd L${layerIndex}(${layerConfig.type}): Invalid gradient. Type: ${gradient?.constructor?.name}, Len: ${gradient?.length}. Expected Len: ${layerConfig.outputSize}. Using zeros.`
+      );
+      return new Float32Array(layerConfig.outputSize).fill(0);
+    }
+    return gradient;
+  }
+
+  /**
+   * Processes dense layer backward pass.
+   * Business rule: Dense layer backpropagation computes weight gradients.
+   *
+   * @param {Float32Array} gradient - Input gradient
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Layer index
+   * @returns {Float32Array} Output gradient
+   * @throws {Error} If layer processing fails
+   */
+  processDenseLayerBackward(gradient, layerConfig, layerIndex) {
+    const weights = this.weights[layerIndex];
+    const biases = this.biases[layerIndex];
+    const rawValues = this.forwardCache.rawValues[layerIndex];
+    const activation = layerConfig.activation;
+    const inputSize = layerConfig.inputSize;
+    const outputSize = layerConfig.outputSize;
+    const previousActivation = this.forwardCache.activations[layerIndex];
+
+    if (!(rawValues instanceof Float32Array)) {
+      throw new Error(`L${layerIndex} Dense Bkwd: Missing or invalid raw values cache.`);
+    }
+    if (!(weights instanceof Float32Array)) {
+      throw new Error(`L${layerIndex} Dense Bkwd: Weights not Float32Array.`);
+    }
+    if (!(previousActivation instanceof Float32Array)) {
+      throw new Error(`L${layerIndex} Dense Bkwd: Previous activation not Float32Array.`);
+    }
+
+    const delta = new Float32Array(outputSize);
+    for (let j = 0; j < outputSize; ++j) {
+      const derivative = oblixActivations.derivative(rawValues[j], activation);
+      if (typeof derivative !== 'number' || !isFinite(derivative)) {
+        console.warn(
+          `L${layerIndex} Dense, j=${j}: Deriv NaN/Inf. Activation: ${activation}, Raw Input: ${rawValues[j]}, Derivative: ${derivative}`
+        );
+        delta[j] = 0;
+      } else {
+        delta[j] = gradient[j] * derivative;
+      }
+    }
+
+    const inputGradient = new Float32Array(inputSize).fill(0);
+    for (let k = 0; k < inputSize; k++) {
+      for (let j = 0; j < outputSize; j++) {
+        const weightIndex = j * inputSize + k;
+        inputGradient[k] += delta[j] * weights[weightIndex];
+      }
+    }
+
+    return inputGradient;
+  }
+
+  /**
+   * Processes layer backward pass based on type.
+   * Business rule: Each layer type has specific backpropagation logic.
+   *
+   * @param {Float32Array} gradient - Input gradient
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Layer index
+   * @returns {Float32Array} Output gradient
+   * @throws {Error} If layer type is unknown
+   */
+  processLayerBackward(gradient, layerConfig, layerIndex) {
+    switch (layerConfig.type) {
+    case 'dense':
+      return this.processDenseLayerBackward(gradient, layerConfig, layerIndex);
+    case 'layernorm':
+      const layerNormCache = this.forwardCache.layerNormIntermediates[layerIndex];
+      if (!layerNormCache) throw new Error(`L${layerIndex} LN Bkwd: Missing cache`);
+      const { dInput } = oblixLayerOps.layerNormBackward(this, gradient, layerNormCache);
+      return dInput;
+    case 'attention':
+      const attentionCache = this.forwardCache.attentionIntermediates[layerIndex];
+      if (!attentionCache) throw new Error(`L${layerIndex} Attn Bkwd: Missing cache`);
+      const { dInput: attentionDInput } = oblixLayerOps.attentionBackward(
+        this,
+        gradient,
+        attentionCache
+      );
+      return attentionDInput;
+    case 'dropout':
+      return oblixLayerOps.dropoutBackward(this, gradient, layerIndex);
+    case 'softmax':
+      return oblixLayerOps.softmaxBackward(this, gradient, layerIndex);
+    default:
+      throw new Error(`Bkwd Pass: Unknown type ${layerConfig.type}`);
+    }
+  }
+
+  /**
+   * Validates layer output gradient for backward pass.
+   * Business rule: Output gradient validation ensures data integrity.
+   *
+   * @param {Float32Array} outputGradient - Layer output gradient to validate
+   * @param {Object} layerConfig - Layer configuration
+   * @param {number} layerIndex - Layer index
+   * @throws {Error} If output gradient is invalid
+   */
+  validateLayerOutputGradient(outputGradient, layerConfig, layerIndex) {
+    if (!(outputGradient instanceof Float32Array)) {
+      throw new Error(
+        `Bkwd L${layerIndex}(${layerConfig.type}): Internal error - output gradient is not Float32Array.`
+      );
+    }
+  }
+
+  /**
+   * Performs backward pass through the neural network.
+   * Business rule: Backward pass computes gradients for parameter updates.
+   *
+   * @param {Float32Array} target - Target output
+   * @param {Object} config - Training configuration
+   */
+  backward(target, config) {
+    const finalOutput = this.forwardCache.activations[this.forwardCache.activations.length - 1];
+    const targetOutput = target;
+    
+    this.validateBackwardInputs(finalOutput, targetOutput);
+    
+    const initialGradient = this.calculateInitialGradient(finalOutput, targetOutput, config);
+    let currentGradient = initialGradient;
+
+    for (let i = this.layers.length - 1; i >= 0; i--) {
+      const layerConfig = this.layers[i];
+      const previousActivation = this.forwardCache.activations[i];
+
+      const validatedGradient = this.validateBackwardGradient(currentGradient, layerConfig, i);
+      if (validatedGradient.every(val => val === 0)) {
+        currentGradient = new Float32Array(layerConfig.outputSize).fill(0);
+        continue;
+      }
+
+      try {
+        const outputGradient = this.processLayerBackward(validatedGradient, layerConfig, i);
+        this.validateLayerOutputGradient(outputGradient, layerConfig, i);
+        currentGradient = outputGradient;
+      } catch (error) {
+        console.error(`Bkwd L${i}(${layerConfig.type}) Err:`, error);
+        this.isTraining = false;
+        throw error;
+      }
+    }
+  }
+
+  accumulateGradients(gradients) {
+    // This method would accumulate gradients from the backward pass
+    // For now, we'll implement a simplified version
+    for (let i = 0; i < this.layers.length; i++) {
+      const cfg = this.layers[i];
+      
+      if (cfg.type === 'dense') {
+        const act_prev = this.forwardCache.activations[i];
+        const raw = this.forwardCache.rawValues[i];
+        
+        if (gradients.weights[i]) {
+          const delta = new Float32Array(cfg.outputSize);
+          for (let j = 0; j < cfg.outputSize; ++j) {
+            const deriv = oblixActivations.derivative(raw[j], cfg.activation);
+            delta[j] = deriv;
+          }
+          
+          for (let j = 0; j < cfg.outputSize; j++) {
+            const weightRowOffset = j * cfg.inputSize;
+            for (let k = 0; k < cfg.inputSize; k++) {
+              gradients.weights[i][weightRowOffset + k] += delta[j] * act_prev[k];
+            }
+          }
+        }
+        
+        if (gradients.biases[i]) {
+          const delta = new Float32Array(cfg.outputSize);
+          for (let j = 0; j < cfg.outputSize; ++j) {
+            const deriv = oblixActivations.derivative(raw[j], cfg.activation);
+            delta[j] = deriv;
+          }
+          
+          for (let j = 0; j < cfg.outputSize; j++) {
+            gradients.biases[i][j] += delta[j];
+          }
+        }
+      }
+    }
+  }
+
+  updateParameters(gradients, learningRate, config) {
+    const updateOptions = {
+      learningRate: learningRate,
+      initialLearningRate: config.initialLearningRate,
+      optimizer: config.optimizer,
+      batchSize: 1, // This will be updated by the caller
+      l2Lambda: config.l2Lambda,
+      gradientClipValue: config.gradientClipValue,
+      decayRate: this.decayRate
+    };
+    
+    oblixOptimizers.updateParameters(
+      this,
+      gradients.weights,
+      gradients.biases,
+      gradients.gammas,
+      gradients.betas,
+      updateOptions
+    );
   }
 }
 

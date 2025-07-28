@@ -72,9 +72,228 @@ export function drawLossGraph(ctx, lossHistory, canvasWidth, canvasHeight) {
 }
 
 /**
+ * Validates network data for visualization.
+ * Business rule: Network validation prevents runtime errors.
+ *
+ * @param {Object} network - Neural network object
+ * @returns {boolean} True if network has valid data for visualization
+ */
+function validateNetworkForVisualization(network) {
+  return network.lastActivations &&
+    network.lastActivations.length > 0 &&
+    network.layers &&
+    network.layers.length > 0;
+}
+
+/**
+ * Draws placeholder text when no network data is available.
+ * Business rule: User feedback is important for empty states.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {HTMLCanvasElement} canvas - Canvas element
+ * @param {number} containerWidth - Container width
+ * @param {number} containerHeight - Container height
+ */
+function drawEmptyNetworkMessage(ctx, canvas, containerWidth, containerHeight) {
+  ctx.fillStyle = '#555';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (canvas.width !== containerWidth) {
+    canvas.width = containerWidth;
+  }
+  if (canvas.height !== containerHeight) {
+    canvas.height = containerHeight;
+  }
+  
+  ctx.fillText(
+    'Train/Predict to visualize',
+    containerWidth / 2,
+    containerHeight / 2
+  );
+}
+
+/**
+ * Calculates drawing constants for network visualization.
+ * Business rule: Consistent visual parameters improve user experience.
+ *
+ * @returns {Object} Drawing constants
+ */
+function getDrawingConstants() {
+  return {
+    pad: 35,
+    maxNodes: 20,
+    nodeRadiusBase: 2,
+    nodeRadiusScale: 3,
+    connectionBaseOpacity: 0.02,
+    connectionMaxOpacity: 0.85,
+    connectionWeightScale: 2,
+    ellipseOffset: 10,
+    labelOffset: 20,
+    labelFont: '10px monospace',
+    labelColor: '#aaa'
+  };
+}
+
+/**
+ * Calculates canvas dimensions and layer positions.
+ * Business rule: Proper spacing ensures clear visualization.
+ *
+ * @param {number} numVisualLayers - Number of layers to visualize
+ * @param {number} containerWidth - Container width
+ * @param {number} containerHeight - Container height
+ * @param {Object} constants - Drawing constants
+ * @returns {Object} Canvas and positioning data
+ */
+function calculateCanvasDimensions(numVisualLayers, containerWidth, containerHeight, constants) {
+  const { pad } = constants;
+  const baseSpacing = 150;
+  const minLayerSpacing = Math.max(
+    120,
+    Math.min(baseSpacing, containerWidth / (numVisualLayers > 1 ? numVisualLayers : 1))
+  );
+
+  const requiredWidth = numVisualLayers <= 1
+    ? containerWidth
+    : pad * 2 + (numVisualLayers - 1) * minLayerSpacing;
+
+  const canvasDrawWidth = Math.max(containerWidth, requiredWidth * 1.2);
+  const drawAreaWidth = canvasDrawWidth - pad * 2;
+  const drawAreaHeight = containerHeight - pad * 2;
+  
+  const layerXPositions = Array.from(
+    { length: numVisualLayers },
+    (_, index) => pad + (numVisualLayers === 1
+      ? drawAreaWidth / 2
+      : (drawAreaWidth * index) / (numVisualLayers - 1))
+  );
+
+  return {
+    canvasDrawWidth,
+    canvasDrawHeight: containerHeight,
+    drawAreaWidth,
+    drawAreaHeight,
+    layerXPositions
+  };
+}
+
+/**
+ * Draws a single node in the network visualization.
+ * Business rule: Node appearance reflects activation values.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {number} x - X position
+ * @param {number} y - Y position
+ * @param {number} value - Node activation value
+ * @param {Object} constants - Drawing constants
+ */
+function drawNode(ctx, x, y, value, constants) {
+  const { nodeRadiusBase, nodeRadiusScale } = constants;
+  const radius = nodeRadiusBase + Math.abs(value) * nodeRadiusScale;
+  const alpha = Math.min(0.9, 0.3 + Math.abs(value) * 0.6);
+  
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, 2 * Math.PI);
+  ctx.fillStyle = `rgba(100, 150, 255, ${alpha})`;
+  ctx.fill();
+}
+
+/**
+ * Draws connections between layers.
+ * Business rule: Connection opacity reflects weight strength.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {Array} prevLayerNodes - Previous layer node positions
+ * @param {Array} currentLayerNodes - Current layer node positions
+ * @param {Object} constants - Drawing constants
+ */
+function drawConnections(ctx, prevLayerNodes, currentLayerNodes, constants) {
+  const { connectionBaseOpacity, connectionMaxOpacity, connectionWeightScale } = constants;
+  
+  prevLayerNodes.forEach(prevNode => {
+    currentLayerNodes.forEach(currentNode => {
+      const opacity = connectionBaseOpacity + 
+        (Math.abs(prevNode.value) + Math.abs(currentNode.value)) * 
+        connectionMaxOpacity * 0.5;
+      
+      ctx.beginPath();
+      ctx.moveTo(prevNode.x, prevNode.y);
+      ctx.lineTo(currentNode.x, currentNode.y);
+      ctx.strokeStyle = `rgba(150, 150, 150, ${opacity})`;
+      ctx.lineWidth = connectionWeightScale * opacity;
+      ctx.stroke();
+    });
+  });
+}
+
+/**
+ * Draws layer labels.
+ * Business rule: Clear labeling improves user understanding.
+ *
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {number} x - X position
+ * @param {number} y - Y position
+ * @param {string} label - Layer label
+ * @param {Object} constants - Drawing constants
+ */
+function drawLayerLabel(ctx, x, y, label, constants) {
+  const { labelFont, labelColor, labelOffset } = constants;
+  
+  ctx.font = labelFont;
+  ctx.fillStyle = labelColor;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillText(label, x, y + labelOffset);
+}
+
+/**
+ * Processes activation data for a layer.
+ * Business rule: Data validation prevents visualization errors.
+ *
+ * @param {Array} activation - Layer activation data
+ * @param {number} layerIndex - Layer index
+ * @param {number} maxNodes - Maximum nodes to display
+ * @param {number} layerX - X position of the layer
+ * @param {number} pad - Padding
+ * @param {number} drawAreaHeight - Drawing area height
+ * @param {boolean} debug - Debug mode
+ * @returns {Array} Processed node positions
+ */
+function processLayerActivations(activation, layerIndex, maxNodes, layerX, pad, drawAreaHeight, debug) {
+  if (!activation || typeof activation.length !== 'number') {
+    if (debug) {
+      console.warn(
+        `drawNetwork L${layerIndex}: Activation data is not array-like.`,
+        activation
+      );
+    }
+    return [];
+  }
+
+  const layerNodes = [];
+  const numNodes = activation.length;
+  const displayNodes = Math.min(numNodes, maxNodes);
+  
+  for (let nodeIndex = 0; nodeIndex < displayNodes; nodeIndex++) {
+    const originalIndex = numNodes <= maxNodes 
+      ? nodeIndex 
+      : Math.floor((nodeIndex * numNodes) / displayNodes);
+    const nodeValue = activation[originalIndex];
+    const nodeY = pad + (displayNodes === 1
+      ? drawAreaHeight / 2
+      : (drawAreaHeight * nodeIndex) / (displayNodes - 1));
+
+    layerNodes.push({ x: layerX, y: nodeY, value: nodeValue });
+  }
+
+  return layerNodes;
+}
+
+/**
  * Draws the neural network visualization on the provided canvas context.
  * Business rule: Network visualization helps users understand model architecture.
- * 
+ *
  * @param {CanvasRenderingContext2D} ctx - Canvas context for drawing
  * @param {HTMLCanvasElement} canvas - Canvas element
  * @param {Object} network - Neural network object with layers and activations
@@ -89,167 +308,48 @@ export function drawNetwork(ctx, canvas, network, containerWidth, containerHeigh
   
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   
-  const hasModel = network.lastActivations &&
-    network.lastActivations.length > 0 &&
-    network.layers &&
-    network.layers.length > 0;
+  const hasModel = validateNetworkForVisualization(network);
 
   if (!hasModel) {
-    ctx.fillStyle = '#555';
-    ctx.font = '10px monospace';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-
-    if (canvas.width !== containerWidth) {
-      canvas.width = containerWidth;
-    }
-    if (canvas.height !== containerHeight) {
-      canvas.height = containerHeight;
-    }
-    
-    ctx.fillText(
-      'Train/Predict to visualize',
-      containerWidth / 2,
-      containerHeight / 2
-    );
+    drawEmptyNetworkMessage(ctx, canvas, containerWidth, containerHeight);
     return;
   }
 
-  // Drawing constants
-  const pad = 35;
-  const maxNodes = 20;
-  const nodeRadiusBase = 2;
-  const nodeRadiusScale = 3;
-  const connectionBaseOpacity = 0.02;
-  const connectionMaxOpacity = 0.85;
-  const connectionWeightScale = 2;
-  const ellipseOffset = 10;
-  const labelOffset = 20;
-  const labelFont = '10px monospace';
-  const labelColor = '#aaa';
-
+  const constants = getDrawingConstants();
   const numVisualLayers = network.lastActivations.length;
-  const baseSpacing = 150;
-  const minLayerSpacing = Math.max(
-    120,
-    Math.min(baseSpacing, containerWidth / (numVisualLayers > 1 ? numVisualLayers : 1))
-  );
+  const dimensions = calculateCanvasDimensions(numVisualLayers, containerWidth, containerHeight, constants);
 
-  const requiredWidth = numVisualLayers <= 1
-    ? containerWidth
-    : pad * 2 + (numVisualLayers - 1) * minLayerSpacing;
-
-  const canvasDrawWidth = Math.max(containerWidth, requiredWidth * 1.2);
-  canvas.width = canvasDrawWidth;
-  canvas.height = containerHeight;
-
-  const drawAreaWidth = canvasDrawWidth - pad * 2;
-  const drawAreaHeight = containerHeight - pad * 2;
-  
-  const layerXPositions = Array.from(
-    { length: numVisualLayers },
-    (_, index) => pad + (numVisualLayers === 1
-      ? drawAreaWidth / 2
-      : (drawAreaWidth * index) / (numVisualLayers - 1))
-  );
+  canvas.width = dimensions.canvasDrawWidth;
+  canvas.height = dimensions.canvasDrawHeight;
 
   // Draw layers and nodes
   const layerPositions = [];
   network.lastActivations.forEach((activation, layerIndex) => {
-    if (!activation || typeof activation.length !== 'number') {
-      if (network.debug) {
-        console.warn(
-          `drawNetwork L${layerIndex}: Activation data is not array-like.`,
-          activation
-        );
-      }
-      layerPositions.push([]);
-      return;
-    }
-
-    const layerNodes = [];
-    const numNodes = activation.length;
-    const displayNodes = Math.min(numNodes, maxNodes);
-    const layerX = layerXPositions[layerIndex];
-    
-    for (let nodeIndex = 0; nodeIndex < displayNodes; nodeIndex++) {
-      const originalIndex = numNodes <= maxNodes 
-        ? nodeIndex 
-        : Math.floor((nodeIndex * numNodes) / displayNodes);
-      const nodeValue = activation[originalIndex];
-      const nodeY = pad + (displayNodes === 1
-        ? drawAreaHeight / 2
-        : (drawAreaHeight * nodeIndex) / (displayNodes - 1));
-
-      layerNodes.push({
-        x: layerX,
-        y: nodeY,
-        value: nodeValue,
-        originalIndex: originalIndex
-      });
-    }
-    
-    layerPositions.push(layerNodes);
-  });
-
-  // Draw connections between layers
-  for (let layerIndex = 0; layerIndex < layerPositions.length - 1; layerIndex++) {
-    const currentLayer = layerPositions[layerIndex];
-    const nextLayer = layerPositions[layerIndex + 1];
-    
-    if (!currentLayer || !nextLayer) continue;
-    
-    currentLayer.forEach(sourceNode => {
-      nextLayer.forEach(targetNode => {
-        const connectionOpacity = Math.min(
-          connectionMaxOpacity,
-          Math.max(connectionBaseOpacity, Math.abs(sourceNode.value) * connectionWeightScale)
-        );
-        
-        ctx.strokeStyle = `rgba(100, 150, 255, ${connectionOpacity})`;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(sourceNode.x, sourceNode.y);
-        ctx.lineTo(targetNode.x, targetNode.y);
-        ctx.stroke();
-      });
-    });
-  }
-
-  // Draw nodes
-  layerPositions.forEach(layerNodes => {
-    layerNodes.forEach(node => {
-      const nodeRadius = nodeRadiusBase + Math.abs(node.value) * nodeRadiusScale;
-      const nodeColor = node.value >= 0 ? '#4CAF50' : '#F44336';
-      
-      ctx.fillStyle = nodeColor;
-      ctx.beginPath();
-      ctx.arc(node.x, node.y, nodeRadius, 0, 2 * Math.PI);
-      ctx.fill();
-      
-      // Draw node label
-      ctx.fillStyle = labelColor;
-      ctx.font = labelFont;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(
-        node.originalIndex.toString(),
-        node.x,
-        node.y + labelOffset
-      );
-    });
-  });
-
-  // Draw layer labels
-  layerXPositions.forEach((layerX, layerIndex) => {
-    ctx.fillStyle = labelColor;
-    ctx.font = labelFont;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'top';
-    ctx.fillText(
-      `L${layerIndex}`,
-      layerX,
-      pad - labelOffset
+    const layerNodes = processLayerActivations(
+      activation, 
+      layerIndex, 
+      constants.maxNodes, 
+      dimensions.layerXPositions[layerIndex], 
+      constants.pad, 
+      dimensions.drawAreaHeight, 
+      network.debug
     );
+
+    // Draw nodes
+    layerNodes.forEach(node => {
+      drawNode(ctx, node.x, node.y, node.value, constants);
+    });
+
+    // Draw connections to previous layer
+    if (layerPositions.length > 0) {
+      drawConnections(ctx, layerPositions[layerPositions.length - 1], layerNodes, constants);
+    }
+
+    layerPositions.push(layerNodes);
+
+    // Draw layer label
+    const layerLabel = `L${layerIndex}`;
+    const labelY = constants.pad;
+    drawLayerLabel(ctx, dimensions.layerXPositions[layerIndex], labelY, layerLabel, constants);
   });
 }

@@ -221,7 +221,20 @@ export const oblixLayerOps = {
     return { dInput };
   },
 
+
+
+  /**
+   * Performs forward pass for layer normalization.
+   * Business rule: Layer normalization must be numerically stable and efficient.
+   *
+   * @param {Object} context - Context object with epsilon and debug settings
+   * @param {Float32Array} input - Input array
+   * @param {Float32Array} gamma - Gamma parameter array
+   * @param {Float32Array} beta - Beta parameter array
+   * @returns {Object} Layer normalization result
+   */
   layerNormForward: function (context, input, gamma, beta) {
+    // Validate inputs
     if (!(input instanceof Float32Array)) {
       console.warn(' Input not Float32Array.', input);
       input = new Float32Array(input);
@@ -237,7 +250,8 @@ export const oblixLayerOps = {
 
     const epsilon = context.epsilon;
     const N = input.length;
-    if (N === 0)
+    
+    if (N === 0) {
       return {
         output: new Float32Array(0),
         mean: 0,
@@ -245,30 +259,33 @@ export const oblixLayerOps = {
         stddev: epsilon,
         normalizedInput: new Float32Array(0)
       };
+    }
 
+    // Calculate mean and variance
     let mean = 0;
-    for (let i = 0; i < N; i++) mean += input[i];
+    for (let i = 0; i < N; i++) {
+      mean += input[i];
+    }
     mean /= N;
 
     let variance = 0;
-    for (let i = 0; i < N; i++) variance += Math.pow(input[i] - mean, 2);
+    for (let i = 0; i < N; i++) {
+      variance += Math.pow(input[i] - mean, 2);
+    }
     variance /= N;
 
     const stddev = Math.sqrt(variance + epsilon);
     const invStddev = 1 / stddev;
 
+    // Apply transformation
     const normalizedInput = new Float32Array(N);
     const output = new Float32Array(N);
 
-    if (gamma.length !== N || beta.length !== N)
+    if (gamma.length !== N || beta.length !== N) {
       console.error(
         `LN size mismatch: Input ${N}, Gamma ${gamma.length}, Beta ${beta.length}`
       );
-
-    if (context.debug)
-      console.log(
-        ` Input type=${input.constructor.name}, len=${N}, Mean=${mean.toFixed(4)}, Var=${variance.toFixed(4)}, StdDev=${stddev.toFixed(4)}`
-      );
+    }
 
     for (let i = 0; i < N; i++) {
       normalizedInput[i] = (input[i] - mean) * invStddev;
@@ -278,10 +295,14 @@ export const oblixLayerOps = {
       output[i] = g * normalizedInput[i] + b;
     }
 
-    if (context.debug)
+    if (context.debug) {
+      console.log(
+        ` Input type=${input.constructor.name}, len=${N}, Mean=${mean.toFixed(4)}, Var=${variance.toFixed(4)}, StdDev=${stddev.toFixed(4)}`
+      );
       console.log(
         ` Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`
       );
+    }
 
     const cacheData = {
       output,
@@ -292,10 +313,13 @@ export const oblixLayerOps = {
       input,
       gamma
     };
-    if (context.forwardCache)
+    
+    if (context.forwardCache) {
       context.forwardCache.layerNormIntermediates[
         context.forwardCache.activations.length - 1
       ] = cacheData;
+    }
+    
     return cacheData;
   },
 
