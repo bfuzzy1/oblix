@@ -356,6 +356,7 @@ export const oblixLayerOps = {
 
     for (let i = 0; i < N; i++) {
       dGamma[i] = dOutput[i] * normalizedInput[i];
+      dBeta[i] = dOutput[i]; // dBeta gradient is just the output gradient
       dNorm[i] = dOutput[i] * (gamma[i] ?? 1);
     }
 

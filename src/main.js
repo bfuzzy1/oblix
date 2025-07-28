@@ -1,6 +1,8 @@
 import { Oblix } from './network.js';
 import { OptimizedOblix } from './optimized/network.js';
 import { oblixUtils } from './utils.js';
+import { getUIElements, addPerformanceToggle, updateDataParamUI, validateUIElements } from './ui-manager.js';
+import { generateRandomData, parseCSV, formatGeneratedDataToCSV, validateTrainingData } from './data-utils.js';
 
 if (typeof document !== 'undefined') {
   document.addEventListener('DOMContentLoaded', () => {
@@ -9,119 +11,81 @@ if (typeof document !== 'undefined') {
     let useOptimized = true;
     let lossHistory = [];
   
-    const lossCanvas = document.getElementById('lossGraph');
-    const networkCanvas = document.getElementById('networkGraph');
-    const lossCtx = lossCanvas?.getContext('2d');
-    const networkCtx = networkCanvas?.getContext('2d');
-    const statsEl = document.getElementById('stats');
-    const trainButton = document.getElementById('trainButton');
-    const pauseButton = document.getElementById('pauseButton');
-    const resumeButton = document.getElementById('resumeButton');
-    const predictButton = document.getElementById('predictButton');
-    const saveButton = document.getElementById('saveButton');
-    const loadButton = document.getElementById('loadButton');
-    const unloadButton = document.getElementById('unloadButton');
-    const epochBar = document.getElementById('epochBar');
-    const predictionResultEl = document.getElementById('predictionResult');
-    const numHiddenLayersInput = document.getElementById('numHiddenLayers');
-    const hiddenLayersConfigContainer =
-    document.getElementById('hiddenLayersConfig');
-    const optimizerSelect = document.getElementById('optimizer');
-    const usePositionalEncodingCheckbox = document.getElementById(
-      'usePositionalEncoding'
-    );
-    const lossFunctionSelect = document.getElementById('lossFunction');
-    const l2LambdaInput = document.getElementById('l2Lambda');
-    const decayRateGroup = document.getElementById('decayRateGroup');
-    const decayRateInput = document.getElementById('decayRate');
-    const gradientClipValueInput = document.getElementById('gradientClipValue');
-    const trainingDataTextarea = document.getElementById('trainingData');
-    const testDataTextarea = document.getElementById('testData');
-    const epochsInput = document.getElementById('epochs');
-    const learningRateInput = document.getElementById('learningRate');
-    const batchSizeInput = document.getElementById('batchSize');
-    const lrSchedulerSelect = document.getElementById('lrScheduler');
-    const lrStepParamsDiv = document.getElementById('lrStepParams');
-    const lrExpParamsDiv = document.getElementById('lrExpParams');
-    const architectureTemplateSelect = document.getElementById(
-      'architectureTemplateSelect'
-    );
-    const dataPatternSelect = document.getElementById('dataPattern');
-    const numInputDimsInput = document.getElementById('numInputDims');
-    const numOutputDimsInput = document.getElementById('numOutputDims');
-    const numInputDimsGroup = numInputDimsInput.closest('.input-group');
-    const numOutputDimsGroup = numOutputDimsInput.closest('.input-group');
+    // Get UI elements using the extracted function
+    const uiElements = getUIElements();
+    
+    // Validate that all required UI elements exist
+    if (!validateUIElements(uiElements)) {
+      console.error('Required UI elements missing. Check HTML structure.');
+      return;
+    }
+    
+    // Extract commonly used elements for convenience
+    const {
+      lossCanvas, networkCanvas, lossCtx, networkCtx, statsEl,
+      trainButton, pauseButton, resumeButton, predictButton,
+      saveButton, loadButton, unloadButton, epochBar, predictionResultEl,
+      numHiddenLayersInput, hiddenLayersConfigContainer, optimizerSelect,
+      usePositionalEncodingCheckbox, lossFunctionSelect, l2LambdaInput,
+      decayRateGroup, decayRateInput, gradientClipValueInput,
+      trainingDataTextarea, testDataTextarea, epochsInput, learningRateInput,
+      batchSizeInput, lrSchedulerSelect, lrStepParamsDiv, lrExpParamsDiv,
+      architectureTemplateSelect, dataPatternSelect, numInputDimsInput,
+      numOutputDimsInput
+    } = uiElements;
+    
+    // Get label elements
+    const numInputDimsGroup = numInputDimsInput?.closest('.input-group');
+    const numOutputDimsGroup = numOutputDimsInput?.closest('.input-group');
     const inputDimsLabel = numInputDimsGroup?.querySelector('label');
     const outputDimsLabel = numOutputDimsGroup?.querySelector('label');
 
-    // Add performance toggle to UI
-    function addPerformanceToggle() {
-      const controlsContainer = document.querySelector('.controls') || document.body;
-      const toggleContainer = document.createElement('div');
-      toggleContainer.className = 'input-group';
-      toggleContainer.innerHTML = `
-      <label for="performanceToggle">Performance Mode:</label>
-      <select id="performanceToggle" title="Choose between original and optimized implementation">
-        <option value="optimized" selected>🚀 Optimized (2x faster)</option>
-        <option value="original">📊 Original</option>
-      </select>
-    `;
-    
-      // Insert after the first input group
-      const firstGroup = controlsContainer.querySelector('.input-group');
-      if (firstGroup) {
-        firstGroup.parentNode.insertBefore(toggleContainer, firstGroup.nextSibling);
-      } else {
-        controlsContainer.appendChild(toggleContainer);
-      }
-    
-      // Add event listener
-      const toggle = document.getElementById('performanceToggle');
-      toggle.addEventListener('change', (event) => {
-        const wasOptimized = useOptimized;
-        useOptimized = event.target.value === 'optimized';
-      
-        if (wasOptimized !== useOptimized) {
-        // Recreate network with new implementation
-          const currentLayers = nn.layers ? [...nn.layers] : [];
-          const currentDetails = nn.details ? { ...nn.details } : {};
-        
-          nn = useOptimized ? new OptimizedOblix(true) : new Oblix(true);
-          // Reset optimizer state arrays
-          nn.m_dw = [];
-          nn.v_dw = [];
-          nn.m_db = [];
-          nn.v_db = [];
-          nn.m_dgamma = [];
-          nn.v_dgamma = [];
-          nn.m_dbeta = [];
-          nn.v_dbeta = [];
-          nn.s_dw = [];
-          nn.s_db = [];
-          nn.s_dgamma = [];
-          nn.s_dbeta = [];
-          // Restore layers if any
-          if (currentLayers.length > 0) {
-            currentLayers.forEach(layer => {
-              nn.layer(layer);
-            });
-          }
-        
-          // Restore details
-          if (Object.keys(currentDetails).length > 0) {
-            nn.details = currentDetails;
-          }
-        
-          statsEl.innerHTML = `Switched to ${useOptimized ? 'optimized' : 'original'} implementation`;
-          drawNetwork();
-        }
-      });
-    }
-
     // Initialize performance toggle
-    addPerformanceToggle();
+    addPerformanceToggle(useOptimized, (newUseOptimized) => {
+      const wasOptimized = useOptimized;
+      useOptimized = newUseOptimized;
+    
+      if (wasOptimized !== useOptimized) {
+        // Recreate network with new implementation
+        const currentLayers = nn.layers ? [...nn.layers] : [];
+        const currentDetails = nn.details ? { ...nn.details } : {};
+      
+        nn = useOptimized ? new OptimizedOblix(true) : new Oblix(true);
+        // Reset optimizer state arrays
+        nn.m_dw = [];
+        nn.v_dw = [];
+        nn.m_db = [];
+        nn.v_db = [];
+        nn.m_dgamma = [];
+        nn.v_dgamma = [];
+        nn.m_dbeta = [];
+        nn.v_dbeta = [];
+        nn.s_dw = [];
+        nn.s_db = [];
+        nn.s_dgamma = [];
+        nn.s_dbeta = [];
+        
+        // Restore layers if any
+        if (currentLayers.length > 0) {
+          currentLayers.forEach(layer => {
+            nn.addLayer(layer);
+          });
+        }
+        
+        // Restore details if any
+        if (Object.keys(currentDetails).length > 0) {
+          nn.details = currentDetails;
+        }
+        
+        drawNetwork();
+      }
+    });
 
-    function updateDataParamUI(selectedPattern) {
+    function updateDataParamUILocal(selectedPattern) {
+      // Use the extracted function from ui-manager.js
+      updateDataParamUI(selectedPattern, uiElements);
+      
+      // Additional UI logic specific to main.js
       let ignoreDims = false;
       let inputTitle = 'Number of input features per sample';
       let outputTitle = 'Number of output values per sample';
@@ -132,22 +96,16 @@ if (typeof document !== 'undefined') {
         ignoreDims = true;
         inputTitle = 'Input Dimensions (Fixed to 2 for this pattern)';
         outputTitle = 'Output Dimensions (Fixed to 1 for this pattern)';
-        if (numInputDimsInput) numInputDimsInput.value = 2;
-        if (numOutputDimsInput) numOutputDimsInput.value = 1;
         break;
       case 'blobs':
         ignoreDims = true;
         inputTitle = 'Input Dimensions (Fixed to 2 for blobs)';
-
         outputTitle = 'Number of Classes (Output Dim controls this)';
-        if (numInputDimsInput) numInputDimsInput.value = 2;
-
         break;
       case 'linear':
       case 'random':
       default:
         ignoreDims = false;
-
         break;
       }
 
@@ -165,10 +123,10 @@ if (typeof document !== 'undefined') {
 
     if (dataPatternSelect) {
       dataPatternSelect.addEventListener('change', (event) => {
-        updateDataParamUI(event.target.value);
+        updateDataParamUILocal(event.target.value);
       });
 
-      updateDataParamUI(dataPatternSelect.value);
+      updateDataParamUILocal(dataPatternSelect.value);
     } else {
       console.error('Data Pattern select element not found.');
     }
