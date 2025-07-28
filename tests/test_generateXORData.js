@@ -1,6 +1,9 @@
 import assert from 'assert';
 import { oblixUtils } from '../src/utils.js';
 
+/**
+ *
+ */
 export async function run() {
   const data = oblixUtils.generateXORData(5, 0);
   assert.strictEqual(data.length, 5);

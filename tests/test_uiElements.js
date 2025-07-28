@@ -1,6 +1,9 @@
 import assert from 'assert';
 import fs from 'fs';
 
+/**
+ *
+ */
 export async function run() {
   const html = fs.readFileSync('index.html', 'utf8');
   assert.ok(html.includes('id="generateDataBtn"'), 'Generate Data button missing');
@@ -12,6 +15,9 @@ export async function run() {
 }
 
 // Test: Switching architecture templates should not throw errors and should update the UI correctly
+/**
+ *
+ */
 export async function testArchitectureSwitch() {
   // Simulate a DOM environment
   const { JSDOM } = await import('jsdom');

@@ -4,7 +4,13 @@ import { oblixOptimizers } from '../optimizers.js';
 import { oblixUtils } from '../utils.js';
 import { optimizedMath } from './math.js';
 
+/**
+ *
+ */
 class OptimizedOblix {
+  /**
+   *
+   */
   constructor(debug = true) {
     this.layers = [];
     this.weights = [];
@@ -48,6 +54,9 @@ class OptimizedOblix {
     }
   }
 
+  /**
+   *
+   */
   reset() {
     if (this.debug) console.log('Resetting optimized oblix instance...');
     
@@ -83,19 +92,22 @@ class OptimizedOblix {
     if (this.debug) console.log('Optimized Oblix reset complete.');
   }
 
+  /**
+   *
+   */
   layer(config) {
     const {
-      type = "dense",
+      type = 'dense',
       inputSize,
       outputSize,
-      activation = "tanh",
+      activation = 'tanh',
       numHeads = 2,
       useBias = true,
       rate = 0.5,
-      weightInit = "glorot",
+      weightInit = 'glorot'
     } = config;
     
-    if (typeof inputSize !== "number" || inputSize <= 0) {
+    if (typeof inputSize !== 'number' || inputSize <= 0) {
       throw new Error(`Layer ${this.layers.length}: Invalid inputSize: ${inputSize}.`);
     }
     
@@ -114,13 +126,13 @@ class OptimizedOblix {
       numHeads,
       useBias,
       rate,
-      weightInit,
+      weightInit
     };
     
     this.layers.push(layerConfig);
     
     // Initialize weights and biases
-    if (type === "dense") {
+    if (type === 'dense') {
       const weightSize = inputSize * outputSize;
       const biasSize = useBias ? outputSize : 0;
       
@@ -147,36 +159,42 @@ class OptimizedOblix {
     return this;
   }
 
+  /**
+   *
+   */
   initializeWeights(weights, method, inputSize, outputSize) {
     const fanIn = inputSize;
     const fanOut = outputSize;
     
     switch (method) {
-      case "glorot":
-        const scale = Math.sqrt(6 / (fanIn + fanOut));
-        for (let i = 0; i < weights.length; i++) {
-          weights[i] = (Math.random() - 0.5) * 2 * scale;
-        }
-        break;
-      case "he":
-        const heScale = Math.sqrt(2 / fanIn);
-        for (let i = 0; i < weights.length; i++) {
-          weights[i] = (Math.random() - 0.5) * 2 * heScale;
-        }
-        break;
-      case "xavier":
-        const xavierScale = Math.sqrt(1 / fanIn);
-        for (let i = 0; i < weights.length; i++) {
-          weights[i] = (Math.random() - 0.5) * 2 * xavierScale;
-        }
-        break;
-      default:
-        for (let i = 0; i < weights.length; i++) {
-          weights[i] = (Math.random() - 0.5) * 2;
-        }
+    case 'glorot':
+      const scale = Math.sqrt(6 / (fanIn + fanOut));
+      for (let i = 0; i < weights.length; i++) {
+        weights[i] = (Math.random() - 0.5) * 2 * scale;
+      }
+      break;
+    case 'he':
+      const heScale = Math.sqrt(2 / fanIn);
+      for (let i = 0; i < weights.length; i++) {
+        weights[i] = (Math.random() - 0.5) * 2 * heScale;
+      }
+      break;
+    case 'xavier':
+      const xavierScale = Math.sqrt(1 / fanIn);
+      for (let i = 0; i < weights.length; i++) {
+        weights[i] = (Math.random() - 0.5) * 2 * xavierScale;
+      }
+      break;
+    default:
+      for (let i = 0; i < weights.length; i++) {
+        weights[i] = (Math.random() - 0.5) * 2;
+      }
     }
   }
 
+  /**
+   *
+   */
   forward(input) {
     if (!(input instanceof Float32Array)) {
       input = new Float32Array(input);
@@ -192,23 +210,23 @@ class OptimizedOblix {
       let activation;
       
       switch (layer.type) {
-        case "dense":
-          activation = this.forwardDense(prevActivation, i);
-          break;
-        case "attention":
-          activation = oblixLayerOps.attentionForward(this, prevActivation, layer.numHeads);
-          break;
-        case "layernorm":
-          activation = oblixLayerOps.layerNormForward(this, prevActivation);
-          break;
-        case "dropout":
-          activation = oblixLayerOps.dropoutForward(this, prevActivation, layer.rate);
-          break;
-        case "softmax":
-          activation = oblixLayerOps.softmaxForward(this, prevActivation);
-          break;
-        default:
-          activation = prevActivation;
+      case 'dense':
+        activation = this.forwardDense(prevActivation, i);
+        break;
+      case 'attention':
+        activation = oblixLayerOps.attentionForward(this, prevActivation, layer.numHeads);
+        break;
+      case 'layernorm':
+        activation = oblixLayerOps.layerNormForward(this, prevActivation);
+        break;
+      case 'dropout':
+        activation = oblixLayerOps.dropoutForward(this, prevActivation, layer.rate);
+        break;
+      case 'softmax':
+        activation = oblixLayerOps.softmaxForward(this, prevActivation);
+        break;
+      default:
+        activation = prevActivation;
       }
       
       activations.push(activation);
@@ -219,6 +237,9 @@ class OptimizedOblix {
     return activations[activations.length - 1];
   }
 
+  /**
+   *
+   */
   forwardDense(input, layerIndex) {
     const layer = this.layers[layerIndex];
     const weights = this.weights[layerIndex];
@@ -248,9 +269,12 @@ class OptimizedOblix {
     return out;
   }
 
+  /**
+   *
+   */
   async train(trainSet, options = {}) {
     if (this.isTraining) {
-      throw new Error("Already training");
+      throw new Error('Already training');
     }
     
     this.isTraining = true;
@@ -261,17 +285,17 @@ class OptimizedOblix {
       learningRate = 0.01,
       batchSize = 8,
       testSet = null,
-      optimizer = "adam",
-      lossFunction = "mse",
+      optimizer = 'adam',
+      lossFunction = 'mse',
       l2Lambda = 0,
       decayRate = 0.9,
       gradientClipValue = 0,
       usePositionalEncoding = false,
-      lrSchedule = "none",
+      lrSchedule = 'none',
       lrStepDecayFactor = 0.1,
       lrStepDecaySize = 10,
       lrExpDecayRate = 0.95,
-      callback = null,
+      callback = null
     } = options;
     
     // Track the optimizer type for future state inits
@@ -313,10 +337,13 @@ class OptimizedOblix {
     return {
       trainLoss,
       testLoss,
-      epochs,
+      epochs
     };
   }
 
+  /**
+   *
+   */
   async trainEpoch(trainSet, batchSize, learningRate, optimizer, lossFunction, l2Lambda, gradientClipValue) {
     let totalLoss = 0;
     const numBatches = Math.ceil(trainSet.length / batchSize);
@@ -333,6 +360,9 @@ class OptimizedOblix {
     return totalLoss / numBatches;
   }
 
+  /**
+   *
+   */
   async trainBatch(batch, learningRate, optimizer, lossFunction, l2Lambda, gradientClipValue) {
     let totalLoss = 0;
     // Allocate gradient accumulators
@@ -349,10 +379,10 @@ class OptimizedOblix {
       const target = sample.output;
       const finalOut = prediction;
       const eps_ce = 1e-9;
-      if (lossFunction === "crossentropy") {
+      if (lossFunction === 'crossentropy') {
         const lastLyr = this.layers[this.layers.length - 1];
-        const wasSoftmax = lastLyr.type === "softmax" || (lastLyr.type === "dense" && lastLyr.activation === "softmax");
-        const wasSigmoid = lastLyr.type === "dense" && lastLyr.activation === "sigmoid";
+        const wasSoftmax = lastLyr.type === 'softmax' || (lastLyr.type === 'dense' && lastLyr.activation === 'softmax');
+        const wasSigmoid = lastLyr.type === 'dense' && lastLyr.activation === 'sigmoid';
         if (wasSoftmax) {
           const oneHotTarget = new Float32Array(finalOut.length).fill(0);
           if (target.length === 1 && Number.isInteger(target[0]) && target[0] >= 0 && target[0] < finalOut.length) {
@@ -360,7 +390,7 @@ class OptimizedOblix {
           } else if (target.length === finalOut.length) {
             for (let i = 0; i < target.length; ++i) oneHotTarget[i] = target[i];
           } else {
-            throw new Error("CE target unclear");
+            throw new Error('CE target unclear');
           }
           for (let i = 0; i < finalOut.length; ++i)
             loss -= oneHotTarget[i] * Math.log(finalOut[i] + eps_ce);
@@ -369,7 +399,7 @@ class OptimizedOblix {
             dLastErr[i] = finalOut[i] - oneHotTarget[i];
         } else if (wasSigmoid) {
           if (finalOut.length !== 1 || target.length !== 1)
-            throw new Error("BCE needs single out/target");
+            throw new Error('BCE needs single out/target');
           const p = finalOut[0], t = target[0];
           loss = -(t * Math.log(p + eps_ce) + (1 - t) * Math.log(1 - p + eps_ce));
           dLastErr = new Float32Array([p - t]);
@@ -395,7 +425,7 @@ class OptimizedOblix {
       let dAct = dLastErr;
       for (let i = this.layers.length - 1; i >= 0; i--) {
         const cfg = this.layers[i];
-        if (cfg.type !== "dense") continue; // Only dense for now
+        if (cfg.type !== 'dense') continue; // Only dense for now
         const w = this.weights[i];
         const b = this.biases[i];
         const inSz = cfg.inputSize;
@@ -447,12 +477,15 @@ class OptimizedOblix {
         batchSize: batch.length,
         l2Lambda,
         gradientClipValue,
-        decayRate: this.decayRate,
+        decayRate: this.decayRate
       }
     );
     return totalLoss / batch.length;
   }
 
+  /**
+   *
+   */
   async testEpoch(testSet, lossFunction) {
     let totalLoss = 0;
     
@@ -465,26 +498,32 @@ class OptimizedOblix {
     return totalLoss / testSet.length;
   }
 
+  /**
+   *
+   */
   computeLoss(prediction, target, lossFunction) {
     switch (lossFunction) {
-      case "mse":
-        let mse = 0;
-        for (let i = 0; i < prediction.length; i++) {
-          const diff = prediction[i] - target[i];
-          mse += diff * diff;
-        }
-        return mse / prediction.length;
-      case "crossentropy":
-        let ce = 0;
-        for (let i = 0; i < prediction.length; i++) {
-          ce -= target[i] * Math.log(Math.max(prediction[i], 1e-15));
-        }
-        return ce;
-      default:
-        return 0;
+    case 'mse':
+      let mse = 0;
+      for (let i = 0; i < prediction.length; i++) {
+        const diff = prediction[i] - target[i];
+        mse += diff * diff;
+      }
+      return mse / prediction.length;
+    case 'crossentropy':
+      let ce = 0;
+      for (let i = 0; i < prediction.length; i++) {
+        ce -= target[i] * Math.log(Math.max(prediction[i], 1e-15));
+      }
+      return ce;
+    default:
+      return 0;
     }
   }
 
+  /**
+   *
+   */
   initializeOptimizerState(optimizer) {
     // Initialize optimizer state arrays
     for (let i = 0; i < this.weights.length; i++) {
@@ -504,18 +543,30 @@ class OptimizedOblix {
     }
   }
 
+  /**
+   *
+   */
   pauseTraining() {
     this.isPaused = true;
   }
 
+  /**
+   *
+   */
   resumeTraining() {
     this.isPaused = false;
   }
 
+  /**
+   *
+   */
   predict(input) {
     return this.forward(input);
   }
 
+  /**
+   *
+   */
   getTotalParameters() {
     let total = 0;
     for (const weights of this.weights) {
@@ -527,16 +578,19 @@ class OptimizedOblix {
     return total;
   }
 
+  /**
+   *
+   */
   getCurrentLearningRate(epoch, initialLR, options) {
     const { lrSchedule, lrStepDecayFactor, lrStepDecaySize, lrExpDecayRate } = options;
     
     switch (lrSchedule) {
-      case "step":
-        return initialLR * Math.pow(lrStepDecayFactor, Math.floor(epoch / lrStepDecaySize));
-      case "exponential":
-        return initialLR * Math.pow(lrExpDecayRate, epoch);
-      default:
-        return initialLR;
+    case 'step':
+      return initialLR * Math.pow(lrStepDecayFactor, Math.floor(epoch / lrStepDecaySize));
+    case 'exponential':
+      return initialLR * Math.pow(lrExpDecayRate, epoch);
+    default:
+      return initialLR;
     }
   }
 }

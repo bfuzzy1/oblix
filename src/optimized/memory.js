@@ -1,5 +1,11 @@
 // Memory optimization utilities for neural networks
+/**
+ *
+ */
 export class MemoryOptimizer {
+  /**
+   *
+   */
   constructor() {
     this.pools = new Map();
     this.maxPoolSize = 100;
@@ -7,6 +13,9 @@ export class MemoryOptimizer {
   }
 
   // Get a buffer from pool or create new one
+  /**
+   *
+   */
   getBuffer(size, type = Float32Array) {
     const key = `${type.name}_${size}`;
     
@@ -28,6 +37,9 @@ export class MemoryOptimizer {
   }
 
   // Return buffer to pool for reuse
+  /**
+   *
+   */
   returnBuffer(buffer) {
     if (!this.allocatedBuffers.has(buffer)) {
       console.warn('Attempting to return unallocated buffer');
@@ -47,12 +59,18 @@ export class MemoryOptimizer {
   }
 
   // Clear all pools
+  /**
+   *
+   */
   clearPools() {
     this.pools.clear();
     this.allocatedBuffers.clear();
   }
 
   // Get memory usage statistics
+  /**
+   *
+   */
   getMemoryStats() {
     let totalPooled = 0;
     let totalAllocated = 0;

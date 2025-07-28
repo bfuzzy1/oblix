@@ -1,10 +1,19 @@
 // Web Worker for heavy neural network computations
+/**
+ *
+ */
 export class NeuralNetworkWorker {
+  /**
+   *
+   */
   constructor() {
     this.worker = null;
     this.isSupported = typeof Worker !== 'undefined';
   }
 
+  /**
+   *
+   */
   async initialize() {
     if (!this.isSupported) {
       console.warn('Web Workers not supported, falling back to main thread');
@@ -155,6 +164,9 @@ export class NeuralNetworkWorker {
     return true;
   }
 
+  /**
+   *
+   */
   async execute(type, data) {
     if (!this.worker) {
       throw new Error('Worker not initialized');
@@ -179,6 +191,9 @@ export class NeuralNetworkWorker {
     });
   }
 
+  /**
+   *
+   */
   terminate() {
     if (this.worker) {
       this.worker.terminate();

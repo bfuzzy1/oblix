@@ -3,7 +3,7 @@ import { oblixUtils } from './utils.js';
 export const oblixLayerOps = {
   attentionForward: function (context, input, numHeads = 2) {
     if (!(input instanceof Float32Array)) {
-      console.warn(" Input not Float32Array.", input);
+      console.warn(' Input not Float32Array.', input);
       input = new Float32Array(input);
     }
     const inputDim = input.length;
@@ -24,7 +24,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` Input type=${input.constructor.name}, len=${input.length}, heads=${numHeads}, headSize=${headSize}`,
+        ` Input type=${input.constructor.name}, len=${input.length}, heads=${numHeads}, headSize=${headSize}`
       );
 
     for (let h = 0; h < numHeads; h++) {
@@ -36,7 +36,7 @@ export const oblixLayerOps = {
       const v_head = q_head;
 
       const scores = Array.from({ length: headSize }, (_, i) =>
-        Array.from({ length: headSize }, (_, j) => q_head[i] * k_head[j]),
+        Array.from({ length: headSize }, (_, j) => q_head[i] * k_head[j])
       );
 
       const scale = Math.sqrt(headSize) || 1;
@@ -62,7 +62,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`,
+        ` Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`
       );
 
     if (context.forwardCache)
@@ -74,7 +74,7 @@ export const oblixLayerOps = {
 
   attentionBackward: function (context, dOutput, cache) {
     if (!(dOutput instanceof Float32Array)) {
-      console.warn(" dOutput not Float32Array.", dOutput);
+      console.warn(' dOutput not Float32Array.', dOutput);
       dOutput = new Float32Array(dOutput);
     }
     if (
@@ -90,7 +90,7 @@ export const oblixLayerOps = {
     const inputDim = input.length;
     if (dOutput.length !== inputDim) {
       console.error(
-        `Attn Bkwd Err: dOutput size ${dOutput.length} !== input size ${inputDim}`,
+        `Attn Bkwd Err: dOutput size ${dOutput.length} !== input size ${inputDim}`
       );
       return { dInput: new Float32Array(inputDim).fill(0) };
     }
@@ -100,7 +100,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` Input type=${input.constructor.name}, len=${inputDim}, dOutput type=${dOutput.constructor.name}, heads=${numHeads}, headSize=${headSize}`,
+        ` Input type=${input.constructor.name}, len=${inputDim}, dOutput type=${dOutput.constructor.name}, heads=${numHeads}, headSize=${headSize}`
       );
 
     for (let h = 0; h < numHeads; h++) {
@@ -126,10 +126,10 @@ export const oblixLayerOps = {
       const dK_h = Array(headSize).fill(0);
       const dV_h = Array(headSize).fill(0);
       const dScores_h = Array.from({ length: headSize }, () =>
-        Array(headSize).fill(0),
+        Array(headSize).fill(0)
       );
       const dAlpha_h = Array.from({ length: headSize }, () =>
-        Array(headSize).fill(0),
+        Array(headSize).fill(0)
       );
 
       for (let j = 0; j < headSize; j++) {
@@ -139,11 +139,11 @@ export const oblixLayerOps = {
           const weight_ij = alpha_h[i]?.[j];
 
           if (
-            typeof dOut_i !== "number" ||
+            typeof dOut_i !== 'number' ||
             !isFinite(dOut_i) ||
-            typeof val_j !== "number" ||
+            typeof val_j !== 'number' ||
             !isFinite(val_j) ||
-            typeof weight_ij !== "number" ||
+            typeof weight_ij !== 'number' ||
             !isFinite(weight_ij)
           ) {
             continue;
@@ -160,8 +160,8 @@ export const oblixLayerOps = {
           const dAlpha_ik = dAlpha_h[i]?.[k];
           const alpha_ik = alpha_h[i]?.[k];
           if (
-            typeof dAlpha_ik === "number" &&
-            typeof alpha_ik === "number" &&
+            typeof dAlpha_ik === 'number' &&
+            typeof alpha_ik === 'number' &&
             isFinite(dAlpha_ik) &&
             isFinite(alpha_ik)
           ) {
@@ -173,8 +173,8 @@ export const oblixLayerOps = {
           const alpha_ij = alpha_h[i]?.[j];
           const dAlpha_ij = dAlpha_h[i]?.[j];
           if (
-            typeof alpha_ij === "number" &&
-            typeof dAlpha_ij === "number" &&
+            typeof alpha_ij === 'number' &&
+            typeof dAlpha_ij === 'number' &&
             isFinite(alpha_ij) &&
             isFinite(dAlpha_ij)
           ) {
@@ -191,11 +191,11 @@ export const oblixLayerOps = {
           const q_val_i = q_h[i];
 
           if (
-            typeof dS_ij === "number" &&
+            typeof dS_ij === 'number' &&
             isFinite(dS_ij) &&
-            typeof k_val_j === "number" &&
+            typeof k_val_j === 'number' &&
             isFinite(k_val_j) &&
-            typeof q_val_i === "number" &&
+            typeof q_val_i === 'number' &&
             isFinite(q_val_i)
           ) {
             dQ_h[i] += dS_ij * k_val_j;
@@ -206,32 +206,32 @@ export const oblixLayerOps = {
 
       for (let i = 0; i < headSize; i++) {
         const dQi =
-          typeof dQ_h[i] === "number" && isFinite(dQ_h[i]) ? dQ_h[i] : 0;
+          typeof dQ_h[i] === 'number' && isFinite(dQ_h[i]) ? dQ_h[i] : 0;
         const dKi =
-          typeof dK_h[i] === "number" && isFinite(dK_h[i]) ? dK_h[i] : 0;
+          typeof dK_h[i] === 'number' && isFinite(dK_h[i]) ? dK_h[i] : 0;
         const dVi =
-          typeof dV_h[i] === "number" && isFinite(dV_h[i]) ? dV_h[i] : 0;
+          typeof dV_h[i] === 'number' && isFinite(dV_h[i]) ? dV_h[i] : 0;
         dInput[start + i] = dQi + dKi + dVi;
       }
     }
     if (context.debug)
       console.log(
-        ` Output dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`,
+        ` Output dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`
       );
     return { dInput };
   },
 
   layerNormForward: function (context, input, gamma, beta) {
     if (!(input instanceof Float32Array)) {
-      console.warn(" Input not Float32Array.", input);
+      console.warn(' Input not Float32Array.', input);
       input = new Float32Array(input);
     }
     if (!(gamma instanceof Float32Array)) {
-      console.warn(" Gamma not Float32Array.", gamma);
+      console.warn(' Gamma not Float32Array.', gamma);
       gamma = new Float32Array(gamma);
     }
     if (!(beta instanceof Float32Array)) {
-      console.warn(" Beta not Float32Array.", beta);
+      console.warn(' Beta not Float32Array.', beta);
       beta = new Float32Array(beta);
     }
 
@@ -243,7 +243,7 @@ export const oblixLayerOps = {
         mean: 0,
         variance: 0,
         stddev: epsilon,
-        normalizedInput: new Float32Array(0),
+        normalizedInput: new Float32Array(0)
       };
 
     let mean = 0;
@@ -262,12 +262,12 @@ export const oblixLayerOps = {
 
     if (gamma.length !== N || beta.length !== N)
       console.error(
-        `LN size mismatch: Input ${N}, Gamma ${gamma.length}, Beta ${beta.length}`,
+        `LN size mismatch: Input ${N}, Gamma ${gamma.length}, Beta ${beta.length}`
       );
 
     if (context.debug)
       console.log(
-        ` Input type=${input.constructor.name}, len=${N}, Mean=${mean.toFixed(4)}, Var=${variance.toFixed(4)}, StdDev=${stddev.toFixed(4)}`,
+        ` Input type=${input.constructor.name}, len=${N}, Mean=${mean.toFixed(4)}, Var=${variance.toFixed(4)}, StdDev=${stddev.toFixed(4)}`
       );
 
     for (let i = 0; i < N; i++) {
@@ -280,7 +280,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`,
+        ` Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`
       );
 
     const cacheData = {
@@ -290,7 +290,7 @@ export const oblixLayerOps = {
       stddev,
       normalizedInput,
       input,
-      gamma,
+      gamma
     };
     if (context.forwardCache)
       context.forwardCache.layerNormIntermediates[
@@ -301,7 +301,7 @@ export const oblixLayerOps = {
 
   layerNormBackward: function (context, dOutput, cache) {
     if (!(dOutput instanceof Float32Array)) {
-      console.warn(" dOutput not Float32Array.", dOutput);
+      console.warn(' dOutput not Float32Array.', dOutput);
       dOutput = new Float32Array(dOutput);
     }
     if (
@@ -314,7 +314,7 @@ export const oblixLayerOps = {
       return {
         dInput: new Float32Array(N).fill(0),
         dGamma: new Float32Array(N).fill(0),
-        dBeta: new Float32Array(N).fill(0),
+        dBeta: new Float32Array(N).fill(0)
       };
     }
 
@@ -325,7 +325,7 @@ export const oblixLayerOps = {
       return {
         dInput: new Float32Array(0),
         dGamma: new Float32Array(0),
-        dBeta: new Float32Array(0),
+        dBeta: new Float32Array(0)
       };
     if (
       dOutput.length !== N ||
@@ -333,12 +333,12 @@ export const oblixLayerOps = {
       gamma.length !== N
     ) {
       console.error(
-        `LN Bkwd Err: Size mismatch N=${N}, dOut=${dOutput.length}, normIn=${normalizedInput.length}, gamma=${gamma.length}`,
+        `LN Bkwd Err: Size mismatch N=${N}, dOut=${dOutput.length}, normIn=${normalizedInput.length}, gamma=${gamma.length}`
       );
       return {
         dInput: new Float32Array(N).fill(0),
         dGamma: new Float32Array(N).fill(0),
-        dBeta: new Float32Array(N).fill(0),
+        dBeta: new Float32Array(N).fill(0)
       };
     }
 
@@ -351,7 +351,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` Input type=${input.constructor.name}, len=${N}, dOutput type=${dOutput.constructor.name}`,
+        ` Input type=${input.constructor.name}, len=${N}, dOutput type=${dOutput.constructor.name}`
       );
 
     for (let i = 0; i < N; i++) {
@@ -396,7 +396,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` Output dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`,
+        ` Output dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`
       );
 
     return { dInput, dGamma, dBeta };
@@ -404,7 +404,7 @@ export const oblixLayerOps = {
 
   dropoutForward: function (context, input, rate) {
     if (!(input instanceof Float32Array)) {
-      console.warn(" Input not Float32Array.", input);
+      console.warn(' Input not Float32Array.', input);
       input = new Float32Array(input);
     }
 
@@ -417,7 +417,7 @@ export const oblixLayerOps = {
       context.masks[idx] = null;
       if (context.debug)
         console.log(
-          ` Not training or rate=0. Output type=${input.constructor.name}, len=${input.length}`,
+          ` Not training or rate=0. Output type=${input.constructor.name}, len=${input.length}`
         );
       return input;
     }
@@ -439,7 +439,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` Input type=${input.constructor.name}, len=${N}, Rate=${rate}, Scale=${scale.toFixed(4)}`,
+        ` Input type=${input.constructor.name}, len=${N}, Rate=${rate}, Scale=${scale.toFixed(4)}`
       );
 
     const randInts = new Uint32Array(N);
@@ -464,7 +464,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`,
+        ` Output type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`
       );
 
     return output;
@@ -472,7 +472,7 @@ export const oblixLayerOps = {
 
   dropoutBackward: function (context, dOutput, layerIndex) {
     if (!(dOutput instanceof Float32Array)) {
-      console.warn(" dOutput not Float32Array.", dOutput);
+      console.warn(' dOutput not Float32Array.', dOutput);
       dOutput = new Float32Array(dOutput);
     }
 
@@ -481,7 +481,7 @@ export const oblixLayerOps = {
     if (!mask) {
       if (context.debug)
         console.log(
-          ` L${layerIndex}: No mask found (not training or rate=0). Passing through dOutput.`,
+          ` L${layerIndex}: No mask found (not training or rate=0). Passing through dOutput.`
         );
       return dOutput;
     }
@@ -493,7 +493,7 @@ export const oblixLayerOps = {
 
     if (dOutput.length !== mask.length) {
       console.error(
-        ` L${layerIndex}: dOutput size ${dOutput.length} !== mask size ${mask.length}`,
+        ` L${layerIndex}: dOutput size ${dOutput.length} !== mask size ${mask.length}`
       );
 
       return dOutput;
@@ -512,7 +512,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        ` L${layerIndex}: Applied mask. dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`,
+        ` L${layerIndex}: Applied mask. dInput type=${dInput.constructor.name}, len=${dInput.length}, first val=${dInput[0]?.toFixed(4)}`
       );
 
     return dInput;
@@ -520,7 +520,7 @@ export const oblixLayerOps = {
 
   softmaxForward: function (context, input) {
     if (!(input instanceof Float32Array)) {
-      console.warn(": Input not Float32Array.", input);
+      console.warn(': Input not Float32Array.', input);
       input = new Float32Array(input);
     }
 
@@ -549,7 +549,7 @@ export const oblixLayerOps = {
 
     if (context.debug)
       console.log(
-        `: Input type=${input.constructor.name}, len=${N}, Output type=${output.constructor.name}, first val=${output[0]?.toFixed(4)}`,
+        `: Input type=${input.constructor.name}, len=${N}, Output type=${output.constructor.name}, first val=${output[0]?.toFixed(4)}`
       );
 
     if (context.forwardCache)
@@ -561,16 +561,16 @@ export const oblixLayerOps = {
 
   softmaxBackward: function (context, dOutput, layerIndex) {
     if (!(dOutput instanceof Float32Array)) {
-      console.warn(" dOutput not Float32Array.", dOutput);
+      console.warn(' dOutput not Float32Array.', dOutput);
       dOutput = new Float32Array(dOutput);
     }
 
     if (context.debug)
       console.log(
-        ` L${layerIndex}: Passing through gradient (assuming CE Loss). dInput type=${dOutput.constructor.name}, len=${dOutput.length}`,
+        ` L${layerIndex}: Passing through gradient (assuming CE Loss). dInput type=${dOutput.constructor.name}, len=${dOutput.length}`
       );
 
     return dOutput;
-  },
+  }
 };
 

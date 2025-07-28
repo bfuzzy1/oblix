@@ -22,31 +22,31 @@ export const oblixOptimizers = {
       if (!cfg) continue;
       const w = context.weights[i];
       const reqW =
-        cfg.type === "dense" &&
+        cfg.type === 'dense' &&
         w instanceof Float32Array &&
         w.length > 0;
       const b = context.biases[i];
       const reqB =
-        cfg.type === "dense" && cfg.useBias && b instanceof Float32Array && b.length > 0;
+        cfg.type === 'dense' && cfg.useBias && b instanceof Float32Array && b.length > 0;
       const g = context.gammas[i];
       const beta = context.betas[i];
       const reqLN =
-        cfg.type === "layernorm" &&
+        cfg.type === 'layernorm' &&
         g instanceof Float32Array &&
         beta instanceof Float32Array &&
         g.length === beta.length &&
         g.length > 0;
       // Always initialize state arrays for layernorm, even if gamma/beta are missing or mismatched
-      if (cfg.type === "layernorm") {
+      if (cfg.type === 'layernorm') {
         const size = (g && g.length) || (beta && beta.length) || 0;
         if (size > 0) {
-          if (optimizer === "adam" || optimizer === "adamw") {
+          if (optimizer === 'adam' || optimizer === 'adamw') {
             context.m_dgamma[i] = new Float32Array(size).fill(0);
             context.v_dgamma[i] = new Float32Array(size).fill(0);
             context.m_dbeta[i] = new Float32Array(size).fill(0);
             context.v_dbeta[i] = new Float32Array(size).fill(0);
           }
-          if (optimizer === "rmsprop") {
+          if (optimizer === 'rmsprop') {
             context.s_dgamma[i] = new Float32Array(size).fill(0);
             context.s_dbeta[i] = new Float32Array(size).fill(0);
           }
@@ -62,18 +62,18 @@ export const oblixOptimizers = {
       }
 
       if (
-        optimizer === "adam" ||
-        optimizer === "rmsprop" ||
-        optimizer === "adamw"
+        optimizer === 'adam' ||
+        optimizer === 'rmsprop' ||
+        optimizer === 'adamw'
       ) {
         if (reqW) {
           try {
             const size = w.length;
-            if (optimizer === "adam" || optimizer === "adamw") {
+            if (optimizer === 'adam' || optimizer === 'adamw') {
               context.m_dw[i] = new Float32Array(size).fill(0);
               context.v_dw[i] = new Float32Array(size).fill(0);
             }
-            if (optimizer === "rmsprop") {
+            if (optimizer === 'rmsprop') {
               context.s_dw[i] = new Float32Array(size).fill(0);
             }
           } catch (e) {
@@ -86,11 +86,11 @@ export const oblixOptimizers = {
         if (reqB) {
           try {
             const size = b.length;
-            if (optimizer === "adam" || optimizer === "adamw") {
+            if (optimizer === 'adam' || optimizer === 'adamw') {
               context.m_db[i] = new Float32Array(size).fill(0);
               context.v_db[i] = new Float32Array(size).fill(0);
             }
-            if (optimizer === "rmsprop") {
+            if (optimizer === 'rmsprop') {
               context.s_db[i] = new Float32Array(size).fill(0);
             }
           } catch (e) {
@@ -102,7 +102,7 @@ export const oblixOptimizers = {
         }
       }
     }
-    if (context.debug) console.log(`Optimizer state init finished.`);
+    if (context.debug) console.log('Optimizer state init finished.');
   },
 
   updateParameters: function (
@@ -111,7 +111,7 @@ export const oblixOptimizers = {
     gradsB,
     gradsGamma,
     gradsBeta,
-    options,
+    options
   ) {
     const {
       learningRate,
@@ -120,7 +120,7 @@ export const oblixOptimizers = {
       batchSize,
       l2Lambda,
       gradientClipValue,
-      decayRate,
+      decayRate
     } = options;
 
     const batchMult = batchSize > 0 ? 1.0 / batchSize : 1.0;
@@ -128,19 +128,19 @@ export const oblixOptimizers = {
 
     if (context.debug)
       console.log(
-        ` T=${context.t}, LR=${learningRate.toExponential(3)}, BatchSize=${batchSize}, Opt=${optimizer}, L2=${l2Lambda}`,
+        ` T=${context.t}, LR=${learningRate.toExponential(3)}, BatchSize=${batchSize}, Opt=${optimizer}, L2=${l2Lambda}`
       );
 
     for (let i = 0; i < context.layers.length; i++) {
       const cfg = context.layers[i];
-      const isDense = cfg.type === "dense";
-      const isLN = cfg.type === "layernorm";
+      const isDense = cfg.type === 'dense';
+      const isLN = cfg.type === 'layernorm';
 
-      let stepLR = learningRate;
-      let adamCorrectedBaseLR =
+      const stepLR = learningRate;
+      const adamCorrectedBaseLR =
         (initialLearningRate * Math.sqrt(1 - context.beta2 ** context.t)) /
         (1 - context.beta1 ** context.t);
-      let adamStepLR =
+      const adamStepLR =
         adamCorrectedBaseLR * (learningRate / initialLearningRate);
 
       const applyUpdate = (
@@ -151,11 +151,11 @@ export const oblixOptimizers = {
         sState,
         paramIdx,
         layerIdx,
-        paramType,
+        paramType
       ) => {
         if (
-          typeof param !== "number" ||
-          typeof grad !== "number" ||
+          typeof param !== 'number' ||
+          typeof grad !== 'number' ||
           !isFinite(param) ||
           !isFinite(grad)
         ) {
@@ -166,20 +166,20 @@ export const oblixOptimizers = {
         const clippedGrad =
           gradientClipValue > 0
             ? Math.max(
-                -gradientClipValue,
-                Math.min(gradientClipValue, effectiveGrad),
-              )
+              -gradientClipValue,
+              Math.min(gradientClipValue, effectiveGrad)
+            )
             : effectiveGrad;
         if (!isFinite(clippedGrad)) {
           return param;
         }
 
         let update = 0;
-        let m = typeof mState === "number" && isFinite(mState) ? mState : 0;
-        let v = typeof vState === "number" && isFinite(vState) ? vState : 0;
-        let s = typeof sState === "number" && isFinite(sState) ? sState : 0;
+        let m = typeof mState === 'number' && isFinite(mState) ? mState : 0;
+        let v = typeof vState === 'number' && isFinite(vState) ? vState : 0;
+        let s = typeof sState === 'number' && isFinite(sState) ? sState : 0;
 
-        if (optimizer === "adam" || optimizer === "adamw") {
+        if (optimizer === 'adam' || optimizer === 'adamw') {
           m = context.beta1 * m + (1 - context.beta1) * clippedGrad;
           v = context.beta2 * v + (1 - context.beta2) * clippedGrad ** 2;
           const m_hat = m / (1 - context.beta1 ** context.t);
@@ -196,10 +196,10 @@ export const oblixOptimizers = {
             update = 0;
           }
 
-          if (optimizer === "adam" && l2Lambda > 0) {
+          if (optimizer === 'adam' && l2Lambda > 0) {
             update += adamStepLR * l2Lambda * param;
           }
-        } else if (optimizer === "rmsprop") {
+        } else if (optimizer === 'rmsprop') {
           s = decayRate * s + (1 - decayRate) * clippedGrad ** 2;
           const sqrt_s = Math.sqrt(s);
           if (
@@ -227,7 +227,7 @@ export const oblixOptimizers = {
 
         param -= update;
 
-        if (optimizer === "adamw" && l2Lambda > 0 && paramType === "W") {
+        if (optimizer === 'adamw' && l2Lambda > 0 && paramType === 'W') {
           param -= adamStepLR * l2Lambda * param;
         }
 
@@ -254,11 +254,11 @@ export const oblixOptimizers = {
           const vVal = vW ? vW[k] : null;
           const sVal = sW ? sW[k] : null;
 
-          const result = applyUpdate(w[k], gW[k], mVal, vVal, sVal, k, i, "W");
+          const result = applyUpdate(w[k], gW[k], mVal, vVal, sVal, k, i, 'W');
 
           if (isNaN(result.param)) {
             console.warn(
-              `Optimizer L${i}-W[${k}] resulted in NaN. Keeping original value ${w[k]}.`,
+              `Optimizer L${i}-W[${k}] resulted in NaN. Keeping original value ${w[k]}.`
             );
           } else {
             w[k] = result.param;
@@ -269,7 +269,7 @@ export const oblixOptimizers = {
         }
         if (context.debug && i === 0 && w.length > 0)
           console.log(
-            ` Opt L0 W: First few updated = ${w.slice(0, 3).map((v) => v.toFixed(4))}`,
+            ` Opt L0 W: First few updated = ${w.slice(0, 3).map((v) => v.toFixed(4))}`
           );
       }
 
@@ -290,11 +290,11 @@ export const oblixOptimizers = {
           const vVal = vB ? vB[k] : null;
           const sVal = sB ? sB[k] : null;
 
-          const result = applyUpdate(b[k], gB[k], mVal, vVal, sVal, k, i, "B");
+          const result = applyUpdate(b[k], gB[k], mVal, vVal, sVal, k, i, 'B');
 
           if (isNaN(result.param)) {
             console.warn(
-              `Optimizer L${i}-B[${k}] resulted in NaN. Keeping original value ${b[k]}.`,
+              `Optimizer L${i}-B[${k}] resulted in NaN. Keeping original value ${b[k]}.`
             );
           } else {
             b[k] = result.param;
@@ -305,7 +305,7 @@ export const oblixOptimizers = {
         }
         if (context.debug && i === 0 && b.length > 0)
           console.log(
-            ` Opt L0 B: First few updated = ${b.slice(0, 3).map((v) => v.toFixed(4))}`,
+            ` Opt L0 B: First few updated = ${b.slice(0, 3).map((v) => v.toFixed(4))}`
           );
       }
 
@@ -339,12 +339,12 @@ export const oblixOptimizers = {
             sGammaVal,
             k,
             i,
-            "Gamma",
+            'Gamma'
           );
 
           if (isNaN(resultGamma.param)) {
             console.warn(
-              `Optimizer L${i}-Gamma[${k}] resulted in NaN. Keeping original value ${gamma[k]}.`,
+              `Optimizer L${i}-Gamma[${k}] resulted in NaN. Keeping original value ${gamma[k]}.`
             );
           } else {
             gamma[k] = resultGamma.param;
@@ -364,12 +364,12 @@ export const oblixOptimizers = {
             sBetaVal,
             k,
             i,
-            "Beta",
+            'Beta'
           );
 
           if (isNaN(resultBeta.param)) {
             console.warn(
-              `Optimizer L${i}-Beta[${k}] resulted in NaN. Keeping original value ${beta[k]}.`,
+              `Optimizer L${i}-Beta[${k}] resulted in NaN. Keeping original value ${beta[k]}.`
             );
           } else {
             beta[k] = resultBeta.param;
@@ -380,10 +380,10 @@ export const oblixOptimizers = {
         }
         if (context.debug && i < 2 && gamma.length > 0)
           console.log(
-            ` Opt L${i} LN: First Gamma=${gamma[0]?.toFixed(4)}, Beta=${beta[0]?.toFixed(4)}`,
+            ` Opt L${i} LN: First Gamma=${gamma[0]?.toFixed(4)}, Beta=${beta[0]?.toFixed(4)}`
           );
       }
     }
-  },
+  }
 };
 

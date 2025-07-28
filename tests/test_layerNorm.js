@@ -1,6 +1,9 @@
 import assert from 'assert';
 import { oblixLayerOps } from '../src/layers.js';
 
+/**
+ *
+ */
 export async function run() {
   const ctxF = { debug: false, epsilon: 1e-5, forwardCache: { activations: [0], layerNormIntermediates: [] } };
   const input = new Float32Array([1, 2, 3]);

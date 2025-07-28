@@ -1,18 +1,21 @@
 import assert from 'assert';
 import { oblixOptimizers } from '../src/optimizers.js';
 
+/**
+ *
+ */
 export async function run() {
   // Test initializeState with simple context
   const ctxInit = {
     debug: false,
     layers: [
       { type: 'dense', inputSize: 1, outputSize: 1, useBias: true },
-      { type: 'layernorm', inputSize: 1 },
+      { type: 'layernorm', inputSize: 1 }
     ],
     weights: [new Float32Array([0.2]), null],
     biases: [new Float32Array([0.1]), null],
     gammas: [null, new Float32Array([1, 1])],
-    betas: [null, new Float32Array([0, 0])],
+    betas: [null, new Float32Array([0, 0])]
   };
   oblixOptimizers.initializeState(ctxInit, 'adam');
   assert.ok(ctxInit.m_dw[0] instanceof Float32Array);
@@ -53,7 +56,7 @@ export async function run() {
       s_dw: [null],
       s_db: [null],
       s_dgamma: [null],
-      s_dbeta: [null],
+      s_dbeta: [null]
     };
   }
 
@@ -73,8 +76,8 @@ export async function run() {
       batchSize: 1,
       l2Lambda: 0,
       gradientClipValue: 0,
-      decayRate: 0.9,
-    },
+      decayRate: 0.9
+    }
   );
   assert.ok(Math.abs(ctxSgd.weights[0][0] - 0.49) < 1e-6);
   assert.ok(Math.abs(ctxSgd.biases[0][0] - 0.195) < 1e-6);
@@ -96,8 +99,8 @@ export async function run() {
       batchSize: 1,
       l2Lambda: 0,
       gradientClipValue: 0,
-      decayRate: 0.9,
-    },
+      decayRate: 0.9
+    }
   );
   const sExpRW = 0.9 * 0 + 0.1 * 0.1 * 0.1;
   const updRW = (0.1 * 0.1) / (Math.sqrt(sExpRW) + 1e-8);
@@ -123,8 +126,8 @@ export async function run() {
       batchSize: 1,
       l2Lambda: 0,
       gradientClipValue: 0,
-      decayRate: 0.9,
-    },
+      decayRate: 0.9
+    }
   );
   const m = 0.9 * 0 + 0.1 * 0.1;
   const v = 0.999 * 0 + 0.001 * 0.1 * 0.1;

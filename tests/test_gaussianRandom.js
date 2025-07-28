@@ -1,6 +1,9 @@
 import assert from 'assert';
 import { oblixUtils } from '../src/utils.js';
 
+/**
+ *
+ */
 export async function run() {
   oblixUtils._gaussian_spare = null;
   const first = oblixUtils.gaussianRandom();

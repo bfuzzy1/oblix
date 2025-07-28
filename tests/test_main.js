@@ -17,6 +17,9 @@ function extractFunction(code, name) {
   return eval(`(${fnStr})`);
 }
 
+/**
+ *
+ */
 export async function run() {
   const code = fs.readFileSync(path.join('src', 'main.js'), 'utf8');
   const generateRandomData = extractFunction(code, 'generateRandomData');

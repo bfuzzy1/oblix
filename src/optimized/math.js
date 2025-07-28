@@ -56,16 +56,16 @@ export const optimizedMath = {
   fastActivation(x, type) {
     // Direct computation without lookup tables for better performance
     switch (type) {
-      case 'tanh': return Math.tanh(x);
-      case 'sigmoid': return 1 / (1 + Math.exp(-x));
-      case 'relu': return x > 0 ? x : 0;
-      case 'leakyrelu': return x > 0 ? x : 0.01 * x;
-      case 'gelu': {
-        const k = 0.7978845608;
-        const x3 = x * x * x;
-        return 0.5 * x * (1 + Math.tanh(k * (x + 0.044715 * x3)));
-      }
-      default: return x;
+    case 'tanh': return Math.tanh(x);
+    case 'sigmoid': return 1 / (1 + Math.exp(-x));
+    case 'relu': return x > 0 ? x : 0;
+    case 'leakyrelu': return x > 0 ? x : 0.01 * x;
+    case 'gelu': {
+      const k = 0.7978845608;
+      const x3 = x * x * x;
+      return 0.5 * x * (1 + Math.tanh(k * (x + 0.044715 * x3)));
+    }
+    default: return x;
     }
   },
 

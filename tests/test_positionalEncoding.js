@@ -1,6 +1,9 @@
 import assert from 'assert';
 import { oblixUtils } from '../src/utils.js';
 
+/**
+ *
+ */
 export async function run() {
   const input = new Float32Array([0, 0]);
   const result = oblixUtils.positionalEncoding(input);

@@ -1,6 +1,9 @@
 import assert from 'assert';
 import { Oblix } from '../src/network.js';
 
+/**
+ *
+ */
 export async function run() {
   const nn = new Oblix(false);
   let rate = nn.getCurrentLearningRate(0, 0.1, {

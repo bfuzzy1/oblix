@@ -19,10 +19,10 @@ export const oblixUtils = {
     if (input instanceof Float32Array) {
       inputArray = input;
     } else if (Array.isArray(input)) {
-      console.warn(" Input was standard Array, converting to Float32Array.");
+      console.warn(' Input was standard Array, converting to Float32Array.');
       inputArray = new Float32Array(input);
     } else {
-      console.error(" Invalid input type.", input);
+      console.error(' Invalid input type.', input);
       return new Float32Array(dModel);
     }
 
@@ -46,12 +46,12 @@ export const oblixUtils = {
     if (
       input.constructor &&
       output.constructor &&
-      typeof console !== "undefined" &&
+      typeof console !== 'undefined' &&
       console.log
     ) {
       if (console.debug) {
         console.debug(
-          ` Input type=${input.constructor.name}, Output type=${output.constructor.name}, len=${output.length}`,
+          ` Input type=${input.constructor.name}, Output type=${output.constructor.name}, len=${output.length}`
         );
       } else {
       }
@@ -75,7 +75,7 @@ export const oblixUtils = {
       predictions.length === 0 ||
       predictions.length !== targets.length
     ) {
-      console.warn("Accuracy calculation: Invalid input arrays.");
+      console.warn('Accuracy calculation: Invalid input arrays.');
       return 0.0;
     }
 
@@ -90,7 +90,7 @@ export const oblixUtils = {
       let maxPredVal = -Infinity;
       for (let j = 0; j < predVec.length; j++) {
         const v = predVec[j];
-        if (typeof v === "number" && isFinite(v) && v > maxPredVal) {
+        if (typeof v === 'number' && isFinite(v) && v > maxPredVal) {
           maxPredVal = v;
           predictedIndex = j;
         }
@@ -101,7 +101,7 @@ export const oblixUtils = {
       const isTypedArray =
         ArrayBuffer.isView(targetInfo) && !(targetInfo instanceof DataView);
 
-      if (typeof targetInfo === "number" && Number.isInteger(targetInfo)) {
+      if (typeof targetInfo === 'number' && Number.isInteger(targetInfo)) {
         targetIndex = targetInfo;
       } else if (
         (Array.isArray(targetInfo) || isTypedArray) &&
@@ -113,7 +113,7 @@ export const oblixUtils = {
             targetIndex = j;
             break;
           }
-          if (targetIndex === -1 && typeof t === "number" && isFinite(t)) {
+          if (targetIndex === -1 && typeof t === 'number' && isFinite(t)) {
             if (j === 0 || t > targetInfo[targetIndex]) {
               targetIndex = j;
             }
@@ -122,7 +122,7 @@ export const oblixUtils = {
       } else {
         console.warn(
           `Accuracy calc: Invalid target format at index ${i}`,
-          targetInfo,
+          targetInfo
         );
         continue;
       }
@@ -149,11 +149,11 @@ export const oblixUtils = {
       predictions.length === 0 ||
       predictions.length !== targets.length
     ) {
-      console.warn("R-squared calculation: Invalid input arrays.");
+      console.warn('R-squared calculation: Invalid input arrays.');
       return NaN;
     }
     if (predictions.length < 2) {
-      console.warn("R-squared calculation: Need at least 2 data points.");
+      console.warn('R-squared calculation: Need at least 2 data points.');
       return NaN;
     }
 
@@ -169,7 +169,7 @@ export const oblixUtils = {
 
       if (!isFinite(targetVal) || !isFinite(predVal)) {
         console.warn(
-          `R-squared calc: Non-finite number at index ${i} (Pred: ${predVal}, Target: ${targetVal})`,
+          `R-squared calc: Non-finite number at index ${i} (Pred: ${predVal}, Target: ${targetVal})`
         );
         return NaN;
       }
@@ -232,19 +232,19 @@ export const oblixUtils = {
     numSamples,
     noise,
     inputDims = 1,
-    outputDims = 1,
+    outputDims = 1
   ) {
     const data = [];
     const weights = Array.from(
       { length: inputDims },
-      () => (Math.random() - 0.5) * 2,
+      () => (Math.random() - 0.5) * 2
     );
     const bias = Math.random() - 0.5;
 
     for (let i = 0; i < numSamples; i++) {
       const input = Array.from(
         { length: inputDims },
-        () => Math.random() * 2 - 1,
+        () => Math.random() * 2 - 1
       );
       let linearCombination = bias;
       for (let d = 0; d < inputDims; d++) {
@@ -295,7 +295,7 @@ export const oblixUtils = {
     for (let c = 0; c < numClasses; c++) {
       centers.push([
         (Math.random() - 0.5) * centerSpread,
-        (Math.random() - 0.5) * centerSpread,
+        (Math.random() - 0.5) * centerSpread
       ]);
     }
 
@@ -311,6 +311,6 @@ export const oblixUtils = {
       data.push({ input: [x, y], output: output });
     }
     return data;
-  },
+  }
 };
 

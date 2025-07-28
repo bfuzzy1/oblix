@@ -3,7 +3,13 @@ import { oblixLayerOps } from './layers.js';
 import { oblixOptimizers } from './optimizers.js';
 import { oblixUtils } from './utils.js';
 
+/**
+ *
+ */
 class Oblix {
+  /**
+   *
+   */
   constructor(debug = true) {
     this.layers = [];
 
@@ -43,12 +49,15 @@ class Oblix {
 
     if (this.debug)
       console.log(
-        "oblix instance created. Initializing for Float32Array storage...",
+        'oblix instance created. Initializing for Float32Array storage...'
       );
   }
 
+  /**
+   *
+   */
   reset() {
-    if (this.debug) console.log("Resetting oblix instance...");
+    if (this.debug) console.log('Resetting oblix instance...');
     this.layers = [];
 
     this.weights = [];
@@ -76,59 +85,62 @@ class Oblix {
     this.lastActivations = null;
     this.forwardCache = null;
     this.lastTrainLoss = null;
-    if (this.debug) console.log("Oblix reset complete.");
+    if (this.debug) console.log('Oblix reset complete.');
   }
 
+  /**
+   *
+   */
   layer(config) {
     const {
-      type = "dense",
+      type = 'dense',
       inputSize,
       outputSize,
-      activation = "tanh",
+      activation = 'tanh',
       numHeads = 2,
       useBias = true,
       rate = 0.5,
-      weightInit = "glorot",
+      weightInit = 'glorot'
     } = config;
-    if (typeof inputSize !== "number" || inputSize <= 0)
+    if (typeof inputSize !== 'number' || inputSize <= 0)
       throw new Error(
-        `Layer ${this.layers.length}: Invalid inputSize: ${inputSize}.`,
+        `Layer ${this.layers.length}: Invalid inputSize: ${inputSize}.`
       );
     if (this.layers.length > 0) {
       const prevLayer = this.layers[this.layers.length - 1];
       if (inputSize !== prevLayer.outputSize)
         throw new Error(
-          `Layer ${this.layers.length} (${type}): Input size ${inputSize} doesn't match previous layer's output size ${prevLayer.outputSize}.`,
+          `Layer ${this.layers.length} (${type}): Input size ${inputSize} doesn't match previous layer's output size ${prevLayer.outputSize}.`
         );
     }
     let actualOutputSize = outputSize;
     switch (type) {
-      case "dense":
-        if (typeof outputSize !== "number" || outputSize <= 0)
-          throw new Error(
-            `Dense Layer ${this.layers.length}: Invalid outputSize: ${outputSize}.`,
-          );
-        break;
-      case "layernorm":
-      case "attention":
-      case "dropout":
-      case "softmax":
-        actualOutputSize = inputSize;
-        if (outputSize !== undefined && outputSize !== inputSize)
-          console.warn(
-            `${type} layer ${this.layers.length}: Output size ignored.`,
-          );
-        break;
-      default:
-        throw new Error(`Unknown layer type: ${type}`);
+    case 'dense':
+      if (typeof outputSize !== 'number' || outputSize <= 0)
+        throw new Error(
+          `Dense Layer ${this.layers.length}: Invalid outputSize: ${outputSize}.`
+        );
+      break;
+    case 'layernorm':
+    case 'attention':
+    case 'dropout':
+    case 'softmax':
+      actualOutputSize = inputSize;
+      if (outputSize !== undefined && outputSize !== inputSize)
+        console.warn(
+          `${type} layer ${this.layers.length}: Output size ignored.`
+        );
+      break;
+    default:
+      throw new Error(`Unknown layer type: ${type}`);
     }
-    if (type === "attention" && inputSize % numHeads !== 0)
+    if (type === 'attention' && inputSize % numHeads !== 0)
       throw new Error(
-        `Attention layer ${this.layers.length}: Input size ${inputSize} not divisible by numHeads ${numHeads}.`,
+        `Attention layer ${this.layers.length}: Input size ${inputSize} not divisible by numHeads ${numHeads}.`
       );
-    if (type === "dropout" && (rate < 0 || rate >= 1))
+    if (type === 'dropout' && (rate < 0 || rate >= 1))
       throw new Error(
-        `Dropout layer ${this.layers.length}: Rate ${rate} must be >= 0 and < 1.`,
+        `Dropout layer ${this.layers.length}: Rate ${rate} must be >= 0 and < 1.`
       );
 
     const layerConfig = {
@@ -139,7 +151,7 @@ class Oblix {
       numHeads,
       useBias,
       rate,
-      weightInit,
+      weightInit
     };
     const layerIndex = this.layers.length;
     this.layers.push(layerConfig);
@@ -162,23 +174,23 @@ class Oblix {
     this.s_dgamma.push(null);
     this.s_dbeta.push(null);
 
-    if (type === "dense") {
+    if (type === 'dense') {
       const weightCount = actualOutputSize * inputSize;
       const weightsArray = new Float32Array(weightCount);
       let initFunc;
-      if (weightInit === "he") {
+      if (weightInit === 'he') {
         const stdDev = Math.sqrt(2 / inputSize);
         initFunc = () => oblixUtils.gaussianRandom() * stdDev;
         if (this.debug)
           console.log(
-            `L${layerIndex} Dense Weights init: He (stdDev=${stdDev.toFixed(4)})`,
+            `L${layerIndex} Dense Weights init: He (stdDev=${stdDev.toFixed(4)})`
           );
       } else {
         const limit = Math.sqrt(6 / (inputSize + actualOutputSize));
         initFunc = () => (Math.random() * 2 - 1) * limit;
         if (this.debug)
           console.log(
-            `L${layerIndex} Dense Weights init: Glorot (limit=${limit.toFixed(4)})`,
+            `L${layerIndex} Dense Weights init: Glorot (limit=${limit.toFixed(4)})`
           );
       }
 
@@ -191,28 +203,31 @@ class Oblix {
         this.biases[layerIndex] = new Float32Array(actualOutputSize).fill(0.01);
         if (this.debug)
           console.log(
-            `L${layerIndex} Dense Biases init: ${this.biases[layerIndex] instanceof Float32Array}, Length: ${this.biases[layerIndex]?.length}`,
+            `L${layerIndex} Dense Biases init: ${this.biases[layerIndex] instanceof Float32Array}, Length: ${this.biases[layerIndex]?.length}`
           );
       }
-    } else if (type === "layernorm") {
+    } else if (type === 'layernorm') {
       this.gammas[layerIndex] = new Float32Array(actualOutputSize).fill(1.0);
       this.betas[layerIndex] = new Float32Array(actualOutputSize).fill(0.0);
       if (this.debug)
         console.log(
-          `L${layerIndex} LayerNorm Gamma init: ${this.gammas[layerIndex] instanceof Float32Array}, Length: ${this.gammas[layerIndex]?.length}`,
+          `L${layerIndex} LayerNorm Gamma init: ${this.gammas[layerIndex] instanceof Float32Array}, Length: ${this.gammas[layerIndex]?.length}`
         );
       if (this.debug)
         console.log(
-          `L${layerIndex} LayerNorm Beta init: ${this.betas[layerIndex] instanceof Float32Array}, Length: ${this.betas[layerIndex]?.length}`,
+          `L${layerIndex} LayerNorm Beta init: ${this.betas[layerIndex] instanceof Float32Array}, Length: ${this.betas[layerIndex]?.length}`
         );
     }
   }
 
+  /**
+   *
+   */
   initializeOptimizerState(optimizer) {
     const numLayers = this.layers.length;
     if (this.debug)
       console.log(
-        `Init optimizer state (${optimizer}) for ${numLayers} layers. Creating Float32Arrays.`,
+        `Init optimizer state (${optimizer}) for ${numLayers} layers. Creating Float32Arrays.`
       );
     this.t = 0;
 
@@ -222,18 +237,18 @@ class Oblix {
       }
     };
     [
-      "m_dw",
-      "v_dw",
-      "m_db",
-      "v_db",
-      "m_dgamma",
-      "v_dgamma",
-      "m_dbeta",
-      "v_dbeta",
-      "s_dw",
-      "s_db",
-      "s_dgamma",
-      "s_dbeta",
+      'm_dw',
+      'v_dw',
+      'm_db',
+      'v_db',
+      'm_dgamma',
+      'v_dgamma',
+      'm_dbeta',
+      'v_dbeta',
+      's_dw',
+      's_db',
+      's_dgamma',
+      's_dbeta'
     ].forEach(ensureLen);
 
     for (let i = 0; i < numLayers; i++) {
@@ -244,52 +259,52 @@ class Oblix {
       const g = this.gammas[i];
       const beta = this.betas[i];
 
-      const needsWState = cfg.type === "dense" && w instanceof Float32Array;
+      const needsWState = cfg.type === 'dense' && w instanceof Float32Array;
       const needsBState =
-        cfg.type === "dense" && cfg.useBias && b instanceof Float32Array;
+        cfg.type === 'dense' && cfg.useBias && b instanceof Float32Array;
       const needsLNState =
-        cfg.type === "layernorm" &&
+        cfg.type === 'layernorm' &&
         g instanceof Float32Array &&
         beta instanceof Float32Array;
 
       if (
-        optimizer === "adam" ||
-        optimizer === "rmsprop" ||
-        optimizer === "adamw"
+        optimizer === 'adam' ||
+        optimizer === 'rmsprop' ||
+        optimizer === 'adamw'
       ) {
         try {
           if (needsWState) {
             const size = w.length;
-            if (optimizer === "adam" || optimizer === "adamw") {
+            if (optimizer === 'adam' || optimizer === 'adamw') {
               if (!this.m_dw[i]) this.m_dw[i] = new Float32Array(size).fill(0);
               if (!this.v_dw[i]) this.v_dw[i] = new Float32Array(size).fill(0);
             }
-            if (optimizer === "rmsprop") {
+            if (optimizer === 'rmsprop') {
               if (!this.s_dw[i]) this.s_dw[i] = new Float32Array(size).fill(0);
             }
 
             if (this.debug)
               console.log(
-                `L${i} Dense W Opt State (${optimizer}) init: ${this.m_dw[i]?.length || this.s_dw[i]?.length} elements`,
+                `L${i} Dense W Opt State (${optimizer}) init: ${this.m_dw[i]?.length || this.s_dw[i]?.length} elements`
               );
           }
           if (needsBState) {
             const size = b.length;
-            if (optimizer === "adam" || optimizer === "adamw") {
+            if (optimizer === 'adam' || optimizer === 'adamw') {
               if (!this.m_db[i]) this.m_db[i] = new Float32Array(size).fill(0);
               if (!this.v_db[i]) this.v_db[i] = new Float32Array(size).fill(0);
             }
-            if (optimizer === "rmsprop") {
+            if (optimizer === 'rmsprop') {
               if (!this.s_db[i]) this.s_db[i] = new Float32Array(size).fill(0);
             }
             if (this.debug)
               console.log(
-                `L${i} Dense B Opt State (${optimizer}) init: ${this.m_db[i]?.length || this.s_db[i]?.length} elements`,
+                `L${i} Dense B Opt State (${optimizer}) init: ${this.m_db[i]?.length || this.s_db[i]?.length} elements`
               );
           }
           if (needsLNState) {
             const size = g.length;
-            if (optimizer === "adam" || optimizer === "adamw") {
+            if (optimizer === 'adam' || optimizer === 'adamw') {
               if (!this.m_dgamma[i])
                 this.m_dgamma[i] = new Float32Array(size).fill(0);
               if (!this.v_dgamma[i])
@@ -299,7 +314,7 @@ class Oblix {
               if (!this.v_dbeta[i])
                 this.v_dbeta[i] = new Float32Array(size).fill(0);
             }
-            if (optimizer === "rmsprop") {
+            if (optimizer === 'rmsprop') {
               if (!this.s_dgamma[i])
                 this.s_dgamma[i] = new Float32Array(size).fill(0);
               if (!this.s_dbeta[i])
@@ -307,7 +322,7 @@ class Oblix {
             }
             if (this.debug)
               console.log(
-                `L${i} LN Opt State (${optimizer}) init: ${this.m_dgamma[i]?.length || this.s_dgamma[i]?.length} elements`,
+                `L${i} LN Opt State (${optimizer}) init: ${this.m_dgamma[i]?.length || this.s_dgamma[i]?.length} elements`
               );
           }
         } catch (e) {
@@ -328,17 +343,20 @@ class Oblix {
         }
       }
     }
-    if (this.debug) console.log(`Optimizer state init finished.`);
+    if (this.debug) console.log('Optimizer state init finished.');
   }
 
+  /**
+   *
+   */
   getTotalParameters() {
     let total = 0;
     if (!this.layers || this.layers.length === 0) return 0;
     this.layers.forEach((l, i) => {
-      if (l.type === "dense") {
+      if (l.type === 'dense') {
         total += this.weights[i] ? this.weights[i].length : 0;
         total += l.useBias && this.biases[i] ? this.biases[i].length : 0;
-      } else if (l.type === "layernorm") {
+      } else if (l.type === 'layernorm') {
         total += this.gammas[i] ? this.gammas[i].length : 0;
         total += this.betas[i] ? this.betas[i].length : 0;
       }
@@ -349,23 +367,29 @@ class Oblix {
     return total;
   }
 
+  /**
+   *
+   */
   getCurrentLearningRate(epoch, initialLR, options) {
     const { lrSchedule, lrStepDecayFactor, lrStepDecaySize, lrExpDecayRate } =
       options;
     let currentLR = initialLR;
 
-    if (lrSchedule === "step") {
+    if (lrSchedule === 'step') {
       const stepSize = Math.max(1, Math.floor(lrStepDecaySize));
 
       const decaySteps = Math.floor(epoch / stepSize);
       currentLR = initialLR * Math.pow(lrStepDecayFactor, decaySteps);
-    } else if (lrSchedule === "exponential") {
+    } else if (lrSchedule === 'exponential') {
       currentLR = initialLR * Math.pow(lrExpDecayRate, epoch);
     }
 
     return currentLR;
   }
 
+  /**
+   *
+   */
   async train(trainSet, options = {}) {
     this.isTraining = true;
     const start = Date.now();
@@ -377,26 +401,26 @@ class Oblix {
       earlyStopThreshold = 1e-7,
       testSet = null,
       callback = null,
-      optimizer = "adam",
-      lossFunction = "mse",
+      optimizer = 'adam',
+      lossFunction = 'mse',
       l2Lambda = 0,
       decayRate = 0.9,
       usePositionalEncoding = this.usePositionalEncoding,
       gradientClipValue = 0,
-      lrSchedule = "none",
+      lrSchedule = 'none',
       lrStepDecayFactor = 0.1,
       lrStepDecaySize = 10,
-      lrExpDecayRate = 0.95,
+      lrExpDecayRate = 0.95
     } = options;
 
     const initialLearningRate = learningRate;
 
     if (!trainSet || trainSet.length === 0)
-      throw new Error("Training set empty.");
-    if (this.layers.length === 0) throw new Error("No layers.");
+      throw new Error('Training set empty.');
+    if (this.layers.length === 0) throw new Error('No layers.');
     const effectiveBatchSize = Math.max(
       1,
-      Math.min(batchSize, trainSet.length),
+      Math.min(batchSize, trainSet.length)
     );
     this.usePositionalEncoding = usePositionalEncoding;
     this.decayRate = decayRate;
@@ -408,10 +432,10 @@ class Oblix {
       this.v_db?.length !== this.layers.length ||
       this.s_db?.length !== this.layers.length;
     for (let i = 0; i < this.layers.length && !needsOptimizerInit; i++) {
-      if (this.layers[i].type === "dense") {
+      if (this.layers[i].type === 'dense') {
         if (this.weights[i] && this.m_dw[i] === null) needsOptimizerInit = true;
         if (this.biases[i] && this.m_db[i] === null) needsOptimizerInit = true;
-      } else if (this.layers[i].type === "layernorm") {
+      } else if (this.layers[i].type === 'layernorm') {
         if (this.gammas[i] && this.m_dgamma[i] === null)
           needsOptimizerInit = true;
         if (this.betas[i] && this.m_dbeta[i] === null)
@@ -419,14 +443,14 @@ class Oblix {
       }
     }
     if (needsOptimizerInit) {
-      if (this.debug) console.log("Optimizer state needs init.");
+      if (this.debug) console.log('Optimizer state needs init.');
       this.initializeOptimizerState(optimizer);
     }
     let lastTrainLoss = Infinity;
     let lastTestLoss = null;
 
     let lastValidationMetric = null;
-    let validationMetricName = "";
+    let validationMetricName = '';
 
     for (let epoch = 0; epoch < epochs; epoch++) {
       while (this.isPaused) {
@@ -435,7 +459,7 @@ class Oblix {
       const currentEpochLearningRate = this.getCurrentLearningRate(
         epoch,
         initialLearningRate,
-        options,
+        options
       );
 
       let totalEpochTrainError = 0;
@@ -451,16 +475,16 @@ class Oblix {
         if (batch.length === 0) continue;
 
         const gradsW = this.weights.map((L) =>
-          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null,
+          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
         );
         const gradsB = this.biases.map((L) =>
-          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null,
+          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
         );
         const gradsGamma = this.gammas.map((L) =>
-          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null,
+          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
         );
         const gradsBeta = this.betas.map((L) =>
-          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null,
+          L instanceof Float32Array ? new Float32Array(L.length).fill(0) : null
         );
 
         let batchLossSum = 0;
@@ -470,7 +494,7 @@ class Oblix {
           }
           let currentInput = data.input;
           if (!Array.isArray(currentInput) || !Array.isArray(data.output)) {
-            console.warn("Skip invalid data");
+            console.warn('Skip invalid data');
             continue;
           }
 
@@ -487,7 +511,7 @@ class Oblix {
             rawValues: [],
             layerNormIntermediates: [],
             attentionIntermediates: [],
-            softmaxOutputs: [],
+            softmaxOutputs: []
           };
           let layerInput = this.forwardCache.activations[0];
 
@@ -504,71 +528,71 @@ class Oblix {
             try {
               if (!(layerInput instanceof Float32Array))
                 throw new Error(
-                  `L${i}(${cfg.type}): Internal error - input is not Float32Array.`,
+                  `L${i}(${cfg.type}): Internal error - input is not Float32Array.`
                 );
               if (layerInput.length !== cfg.inputSize)
                 throw new Error(
-                  `L${i}(${cfg.type}): Sz mismatch ${layerInput.length}!=${cfg.inputSize}`,
+                  `L${i}(${cfg.type}): Sz mismatch ${layerInput.length}!=${cfg.inputSize}`
                 );
 
               switch (cfg.type) {
-                case "dense":
-                  const w = this.weights[i];
-                  const b = this.biases[i];
-                  if (!(w instanceof Float32Array))
-                    throw new Error(`L${i} Dense: Weights not Float32Array.`);
-                  if (b && !(b instanceof Float32Array))
-                    throw new Error(`L${i} Dense: Bias not Float32Array.`);
+              case 'dense':
+                const w = this.weights[i];
+                const b = this.biases[i];
+                if (!(w instanceof Float32Array))
+                  throw new Error(`L${i} Dense: Weights not Float32Array.`);
+                if (b && !(b instanceof Float32Array))
+                  throw new Error(`L${i} Dense: Bias not Float32Array.`);
 
-                  const rawSums = new Float32Array(cfg.outputSize);
-                  for (let j = 0; j < cfg.outputSize; ++j) {
-                    let sum = b ? b[j] : 0;
-                    const weightRowOffset = j * cfg.inputSize;
-                    for (let k = 0; k < cfg.inputSize; ++k) {
-                      sum += layerInput[k] * w[weightRowOffset + k];
-                    }
-                    rawSums[j] = sum;
+                const rawSums = new Float32Array(cfg.outputSize);
+                for (let j = 0; j < cfg.outputSize; ++j) {
+                  let sum = b ? b[j] : 0;
+                  const weightRowOffset = j * cfg.inputSize;
+                  for (let k = 0; k < cfg.inputSize; ++k) {
+                    sum += layerInput[k] * w[weightRowOffset + k];
                   }
-                  this.forwardCache.rawValues[i] = rawSums;
+                  rawSums[j] = sum;
+                }
+                this.forwardCache.rawValues[i] = rawSums;
 
-                  out = new Float32Array(cfg.outputSize);
-                  for (let j = 0; j < cfg.outputSize; ++j) {
-                    out[j] = oblixActivations.apply(rawSums[j], cfg.activation);
-                  }
+                out = new Float32Array(cfg.outputSize);
+                for (let j = 0; j < cfg.outputSize; ++j) {
+                  out[j] = oblixActivations.apply(rawSums[j], cfg.activation);
+                }
 
-                  break;
-                case "layernorm":
-                  out = oblixLayerOps.layerNormForward(
-                    this,
-                    layerInput,
-                    this.gammas[i],
-                    this.betas[i],
-                  ).output;
-                  break;
-                case "attention":
-                  out = oblixLayerOps.attentionForward(
-                    this,
-                    layerInput,
-                    cfg.numHeads,
-                  );
-                  break;
-                case "dropout":
-                  out = oblixLayerOps.dropoutForward(
-                    this,
-                    layerInput,
-                    cfg.rate,
-                  );
-                  break;
-                case "softmax":
-                  out = oblixLayerOps.softmaxForward(this, layerInput);
-                  break;
-                default:
-                  throw new Error(`Fwd Pass: Unknown type ${cfg.type}`);
+                break;
+              case 'layernorm':
+                out = oblixLayerOps.layerNormForward(
+                  this,
+                  layerInput,
+                  this.gammas[i],
+                  this.betas[i]
+                ).output;
+                break;
+              case 'attention':
+                out = oblixLayerOps.attentionForward(
+                  this,
+                  layerInput,
+                  cfg.numHeads
+                );
+                break;
+              case 'dropout':
+                out = oblixLayerOps.dropoutForward(
+                  this,
+                  layerInput,
+                  cfg.rate
+                );
+                break;
+              case 'softmax':
+                out = oblixLayerOps.softmaxForward(this, layerInput);
+                break;
+              default:
+                throw new Error(`Fwd Pass: Unknown type ${cfg.type}`);
               }
 
               if (!(out instanceof Float32Array))
                 throw new Error(
-                  `L${i}(${cfg.type}): Internal error - output is not Float32Array.`,
+                  `L${i}(${cfg.type}): Internal error - output is not Float32Array.`
                 );
               this.forwardCache.activations.push(out);
               layerInput = out;
@@ -582,18 +606,18 @@ class Oblix {
           const finalOut = layerInput;
           const targetOut = data.output;
           if (finalOut.length !== targetOut.length)
-            throw new Error(`Output/Target len mismatch`);
+            throw new Error('Output/Target len mismatch');
           let dLastErr;
           const eps_ce = 1e-9;
 
-          if (lossFunction === "crossentropy") {
+          if (lossFunction === 'crossentropy') {
             let loss = 0;
             const lastLyr = this.layers[this.layers.length - 1];
             const wasSoftmax =
-              lastLyr.type === "softmax" ||
-              (lastLyr.type === "dense" && lastLyr.activation === "softmax");
+              lastLyr.type === 'softmax' ||
+              (lastLyr.type === 'dense' && lastLyr.activation === 'softmax');
             const wasSigmoid =
-              lastLyr.type === "dense" && lastLyr.activation === "sigmoid";
+              lastLyr.type === 'dense' && lastLyr.activation === 'sigmoid';
 
             if (wasSoftmax) {
               const oneHotTarget = new Float32Array(finalOut.length).fill(0);
@@ -608,7 +632,7 @@ class Oblix {
                 for (let i = 0; i < targetOut.length; ++i)
                   oneHotTarget[i] = targetOut[i];
               } else {
-                throw new Error("CE target unclear");
+                throw new Error('CE target unclear');
               }
 
               for (let i = 0; i < finalOut.length; ++i)
@@ -619,7 +643,7 @@ class Oblix {
                 dLastErr[i] = finalOut[i] - oneHotTarget[i];
             } else if (wasSigmoid) {
               if (finalOut.length !== 1 || targetOut.length !== 1)
-                throw new Error("BCE needs single out/target");
+                throw new Error('BCE needs single out/target');
               const p = finalOut[0],
                 t = targetOut[0];
               loss = -(
@@ -628,7 +652,7 @@ class Oblix {
               );
               dLastErr = new Float32Array([p - t]);
             } else {
-              console.warn("CE w/o final softmax/sigmoid, using simple diff");
+              console.warn('CE w/o final softmax/sigmoid, using simple diff');
 
               dLastErr = new Float32Array(finalOut.length);
               for (let i = 0; i < finalOut.length; ++i)
@@ -661,7 +685,7 @@ class Oblix {
               dAct.length !== cfg.outputSize
             ) {
               console.warn(
-                `Bkwd L${i}(${cfg.type}): Invalid dAct. Type: ${dAct?.constructor?.name}, Len: ${dAct?.length}. Expected Len: ${cfg.outputSize}. Using zeros.`,
+                `Bkwd L${i}(${cfg.type}): Invalid dAct. Type: ${dAct?.constructor?.name}, Len: ${dAct?.length}. Expected Len: ${cfg.outputSize}. Using zeros.`
               );
 
               dIn = new Float32Array(cfg.inputSize).fill(0);
@@ -671,108 +695,108 @@ class Oblix {
 
             try {
               switch (cfg.type) {
-                case "dense":
-                  const w = this.weights[i];
-                  const b = this.biases[i];
-                  const raw = this.forwardCache.rawValues[i];
-                  const act = cfg.activation;
-                  const inSz = cfg.inputSize;
-                  const outSz = cfg.outputSize;
+              case 'dense':
+                const w = this.weights[i];
+                const b = this.biases[i];
+                const raw = this.forwardCache.rawValues[i];
+                const act = cfg.activation;
+                const inSz = cfg.inputSize;
+                const outSz = cfg.outputSize;
 
-                  if (!(raw instanceof Float32Array))
-                    throw new Error(
-                      `L${i} Dense Bkwd: Missing or invalid raw values cache.`,
-                    );
-                  if (!(w instanceof Float32Array))
-                    throw new Error(
-                      `L${i} Dense Bkwd: Weights not Float32Array.`,
-                    );
-                  if (!(act_prev instanceof Float32Array))
-                    throw new Error(
-                      `L${i} Dense Bkwd: Previous activation not Float32Array.`,
-                    );
-
-                  const delta = new Float32Array(outSz);
-                  for (let j = 0; j < outSz; ++j) {
-                    const deriv = oblixActivations.derivative(raw[j], act);
-                    if (typeof deriv !== "number" || !isFinite(deriv)) {
-                      console.warn(
-                        `L${i} Dense, j=${j}: Deriv NaN/Inf. Activation: ${act}, Raw Input: ${raw[j]}, Derivative: ${deriv}`,
-                      );
-                      delta[j] = 0;
-                    } else {
-                      delta[j] = dAct[j] * deriv;
-                    }
-                  }
-
-                  dIn = new Float32Array(inSz).fill(0);
-                  for (let k = 0; k < inSz; k++) {
-                    for (let j = 0; j < outSz; j++) {
-                      const weightIndex = j * inSz + k;
-                      dIn[k] += delta[j] * w[weightIndex];
-                    }
-                  }
-
-                  const gW = gradsW[i];
-                  const gB = gradsB[i];
-                  if (gW) {
-                    for (let j = 0; j < outSz; j++) {
-                      const weightRowOffset = j * inSz;
-                      for (let k = 0; k < inSz; k++) {
-                        gW[weightRowOffset + k] += delta[j] * act_prev[k];
-                      }
-                    }
-                  }
-                  if (gB) {
-                    for (let j = 0; j < outSz; j++) {
-                      gB[j] += delta[j];
-                    }
-                  }
-
-                  break;
-                case "layernorm":
-                  const lnCache = this.forwardCache.layerNormIntermediates[i];
-                  if (!lnCache) throw new Error(`L${i} LN Bkwd: Missing cache`);
-                  const {
-                    dInput: ln_dIn,
-                    dGamma,
-                    dBeta,
-                  } = oblixLayerOps.layerNormBackward(this, dAct, lnCache);
-                  dIn = ln_dIn;
-                  const gGamma = gradsGamma[i];
-                  const gBeta = gradsBeta[i];
-                  if (gGamma && gBeta) {
-                    for (let j = 0; j < dGamma.length; j++) {
-                      gGamma[j] += dGamma[j] || 0;
-                      gBeta[j] += dBeta[j] || 0;
-                    }
-                  }
-                  break;
-                case "attention":
-                  const attnCache = this.forwardCache.attentionIntermediates[i];
-                  if (!attnCache)
-                    throw new Error(`L${i} Attn Bkwd: Missing cache`);
-                  const { dInput: attn_dIn } = oblixLayerOps.attentionBackward(
-                    this,
-                    dAct,
-                    attnCache,
+                if (!(raw instanceof Float32Array))
+                  throw new Error(
+                    `L${i} Dense Bkwd: Missing or invalid raw values cache.`
                   );
-                  dIn = attn_dIn;
+                if (!(w instanceof Float32Array))
+                  throw new Error(
+                    `L${i} Dense Bkwd: Weights not Float32Array.`
+                  );
+                if (!(act_prev instanceof Float32Array))
+                  throw new Error(
+                    `L${i} Dense Bkwd: Previous activation not Float32Array.`
+                  );
 
-                  break;
-                case "dropout":
-                  dIn = oblixLayerOps.dropoutBackward(this, dAct, i);
-                  break;
-                case "softmax":
-                  dIn = oblixLayerOps.softmaxBackward(this, dAct, i);
-                  break;
-                default:
-                  throw new Error(`Bkwd Pass: Unknown type ${cfg.type}`);
+                const delta = new Float32Array(outSz);
+                for (let j = 0; j < outSz; ++j) {
+                  const deriv = oblixActivations.derivative(raw[j], act);
+                  if (typeof deriv !== 'number' || !isFinite(deriv)) {
+                    console.warn(
+                      `L${i} Dense, j=${j}: Deriv NaN/Inf. Activation: ${act}, Raw Input: ${raw[j]}, Derivative: ${deriv}`
+                    );
+                    delta[j] = 0;
+                  } else {
+                    delta[j] = dAct[j] * deriv;
+                  }
+                }
+
+                dIn = new Float32Array(inSz).fill(0);
+                for (let k = 0; k < inSz; k++) {
+                  for (let j = 0; j < outSz; j++) {
+                    const weightIndex = j * inSz + k;
+                    dIn[k] += delta[j] * w[weightIndex];
+                  }
+                }
+
+                const gW = gradsW[i];
+                const gB = gradsB[i];
+                if (gW) {
+                  for (let j = 0; j < outSz; j++) {
+                    const weightRowOffset = j * inSz;
+                    for (let k = 0; k < inSz; k++) {
+                      gW[weightRowOffset + k] += delta[j] * act_prev[k];
+                    }
+                  }
+                }
+                if (gB) {
+                  for (let j = 0; j < outSz; j++) {
+                    gB[j] += delta[j];
+                  }
+                }
+
+                break;
+              case 'layernorm':
+                const lnCache = this.forwardCache.layerNormIntermediates[i];
+                if (!lnCache) throw new Error(`L${i} LN Bkwd: Missing cache`);
+                const {
+                  dInput: ln_dIn,
+                  dGamma,
+                  dBeta
+                } = oblixLayerOps.layerNormBackward(this, dAct, lnCache);
+                dIn = ln_dIn;
+                const gGamma = gradsGamma[i];
+                const gBeta = gradsBeta[i];
+                if (gGamma && gBeta) {
+                  for (let j = 0; j < dGamma.length; j++) {
+                    gGamma[j] += dGamma[j] || 0;
+                    gBeta[j] += dBeta[j] || 0;
+                  }
+                }
+                break;
+              case 'attention':
+                const attnCache = this.forwardCache.attentionIntermediates[i];
+                if (!attnCache)
+                  throw new Error(`L${i} Attn Bkwd: Missing cache`);
+                const { dInput: attn_dIn } = oblixLayerOps.attentionBackward(
+                  this,
+                  dAct,
+                  attnCache
+                );
+                dIn = attn_dIn;
+
+                break;
+              case 'dropout':
+                dIn = oblixLayerOps.dropoutBackward(this, dAct, i);
+                break;
+              case 'softmax':
+                dIn = oblixLayerOps.softmaxBackward(this, dAct, i);
+                break;
+              default:
+                throw new Error(`Bkwd Pass: Unknown type ${cfg.type}`);
               }
 
               if (!(dIn instanceof Float32Array))
                 throw new Error(
-                  `Bkwd L${i}(${cfg.type}): Internal error - dIn is not Float32Array.`,
+                  `Bkwd L${i}(${cfg.type}): Internal error - dIn is not Float32Array.`
                 );
               dAct = dIn;
             } catch (e) {
@@ -790,7 +814,7 @@ class Oblix {
           batchSize: batch.length,
           l2Lambda: l2Lambda,
           gradientClipValue: gradientClipValue,
-          decayRate: this.decayRate,
+          decayRate: this.decayRate
         };
         oblixOptimizers.updateParameters(
           this,
@@ -798,7 +822,7 @@ class Oblix {
           gradsB,
           gradsGamma,
           gradsBeta,
-          updateOptions,
+          updateOptions
         );
 
         totalEpochTrainError += batchLossSum;
@@ -827,15 +851,15 @@ class Oblix {
 
             let sampleLoss = 0;
             const eps_ce = 1e-9;
-            if (lossFunction === "crossentropy") {
+            if (lossFunction === 'crossentropy') {
               const lastLayer = this.layers[this.layers.length - 1];
               const wasSoftmax =
-                lastLayer.type === "softmax" ||
-                (lastLayer.type === "dense" &&
-                  lastLayer.activation === "softmax");
+                lastLayer.type === 'softmax' ||
+                (lastLayer.type === 'dense' &&
+                  lastLayer.activation === 'softmax');
               const wasSigmoid =
-                lastLayer.type === "dense" &&
-                lastLayer.activation === "sigmoid";
+                lastLayer.type === 'dense' &&
+                lastLayer.activation === 'sigmoid';
 
               if (wasSoftmax) {
                 if (
@@ -848,11 +872,11 @@ class Oblix {
                 } else if (target.length === prediction.length) {
                   sampleLoss = -target.reduce(
                     (sum, t, i) => sum + t * Math.log(prediction[i] + eps_ce),
-                    0,
+                    0
                   );
                 } else {
                   console.warn(
-                    "CE Val Loss: Target/Prediction shape mismatch for Softmax.",
+                    'CE Val Loss: Target/Prediction shape mismatch for Softmax.'
                   );
                   sampleLoss = NaN;
                 }
@@ -869,13 +893,13 @@ class Oblix {
                 );
               } else {
                 console.warn(
-                  "CE Val Loss: Final layer activation not Softmax/Sigmoid. Using MSE for loss metric.",
+                  'CE Val Loss: Final layer activation not Softmax/Sigmoid. Using MSE for loss metric.'
                 );
                 sampleLoss =
                   0.5 *
                   prediction.reduce(
                     (sum, p, i) => sum + (p - target[i]) ** 2,
-                    0,
+                    0
                   );
               }
             } else {
@@ -891,48 +915,48 @@ class Oblix {
         }
         lastTestLoss = testError / testSet.length;
 
-        if (lossFunction === "crossentropy") {
-          validationMetricName = "Acc";
+        if (lossFunction === 'crossentropy') {
+          validationMetricName = 'Acc';
 
           lastValidationMetric = oblixUtils.calculateAccuracy(
             allValPredictions,
-            allValTargets,
+            allValTargets
           );
         } else {
-          validationMetricName = "R²";
+          validationMetricName = 'R²';
 
           const flatPreds = allValPredictions.flat();
           const flatTargets = allValTargets.flat();
 
           if (this.debug) {
             console.log(
-              `R-Squared Type Check: flatPreds type = ${flatPreds?.constructor?.name}, flatTargets type = ${flatTargets?.constructor?.name}`,
+              `R-Squared Type Check: flatPreds type = ${flatPreds?.constructor?.name}, flatTargets type = ${flatTargets?.constructor?.name}`
             );
             console.log(
-              `R-Squared Input Check: flatPreds[0]=${flatPreds[0]}, flatTargets[0]=${flatTargets[0]}`,
+              `R-Squared Input Check: flatPreds[0]=${flatPreds[0]}, flatTargets[0]=${flatTargets[0]}`
             );
             if (flatPreds.length > 1)
               console.log(
-                `  flatPreds[1]=${flatPreds[1]}, flatTargets[1]=${flatTargets[1]}`,
+                `  flatPreds[1]=${flatPreds[1]}, flatTargets[1]=${flatTargets[1]}`
               );
           }
 
           lastValidationMetric = oblixUtils.calculateRSquared(
             flatPreds,
-            flatTargets,
+            flatTargets
           );
         }
       } else {
         lastTestLoss = null;
         lastValidationMetric = null;
-        validationMetricName = "";
+        validationMetricName = '';
       }
 
       if ((epoch + 1) % printEveryEpochs === 0 && this.debug) {
         const lrStr =
-          lrSchedule !== "none"
+          lrSchedule !== 'none'
             ? `, LR: ${currentEpochLearningRate.toExponential(2)}`
-            : "";
+            : '';
         let logMsg = `Epoch ${epoch + 1}/${epochs}, Train Loss: ${lastTrainLoss.toFixed(6)}`;
         if (lastTestLoss !== null) {
           logMsg += `, Val Loss: ${lastTestLoss.toFixed(6)}`;
@@ -952,7 +976,7 @@ class Oblix {
           lastTestLoss,
           validationMetricName,
           lastValidationMetric,
-          this.forwardCache,
+          this.forwardCache
         );
       }
 
@@ -976,7 +1000,7 @@ class Oblix {
       testLoss: lastTestLoss,
       validationMetric: {
         name: validationMetricName,
-        value: lastValidationMetric,
+        value: lastValidationMetric
       },
       parameters: totalParams,
       training: {
@@ -992,10 +1016,10 @@ class Oblix {
         gradientClipValue: gradientClipValue,
         lrSchedule: lrSchedule,
         lrStepDecayFactor:
-          lrSchedule === "step" ? lrStepDecayFactor : undefined,
-        lrStepDecaySize: lrSchedule === "step" ? lrStepDecaySize : undefined,
+          lrSchedule === 'step' ? lrStepDecayFactor : undefined,
+        lrStepDecaySize: lrSchedule === 'step' ? lrStepDecaySize : undefined,
         lrExpDecayRate:
-          lrSchedule === "exponential" ? lrExpDecayRate : undefined,
+          lrSchedule === 'exponential' ? lrExpDecayRate : undefined
       },
       layers: this.layers.map((l) => ({
         type: l.type,
@@ -1004,34 +1028,43 @@ class Oblix {
         activation: l.activation,
         numHeads: l.numHeads,
         useBias: l.useBias,
-        rate: l.rate,
-      })),
+        rate: l.rate
+      }))
     };
     this.details = trainingSummary;
-    if (this.debug) console.log("Training finished.", trainingSummary);
+    if (this.debug) console.log('Training finished.', trainingSummary);
     return trainingSummary;
   }
 
+  /**
+   *
+   */
   pauseTraining() {
     this.isPaused = true;
   }
 
+  /**
+   *
+   */
   resumeTraining() {
     this.isPaused = false;
   }
 
+  /**
+   *
+   */
   predict(input) {
     if (this.debug)
-      console.log(" Starting prediction with native Float32Array logic.");
+      console.log(' Starting prediction with native Float32Array logic.');
 
     const wasTraining = this.isTraining;
     this.isTraining = false;
     if (!this.layers || this.layers.length === 0) {
-      console.error("Predict Error: Model not initialized.");
+      console.error('Predict Error: Model not initialized.');
       return null;
     }
-    if (!input || typeof input.length !== "number") {
-      console.error("Predict Error: Invalid input provided.", input);
+    if (!input || typeof input.length !== 'number') {
+      console.error('Predict Error: Invalid input provided.', input);
       return null;
     }
 
@@ -1040,27 +1073,27 @@ class Oblix {
       currentInput = input;
     } else if (Array.isArray(input)) {
       if (this.debug)
-        console.log(" Input is standard array, converting to Float32Array.");
+        console.log(' Input is standard array, converting to Float32Array.');
       currentInput = new Float32Array(input);
     } else {
       console.error(
-        "Predict Error: Input is not an array or Float32Array.",
-        input,
+        'Predict Error: Input is not an array or Float32Array.',
+        input
       );
       return null;
     }
 
     if (this.debug)
       console.log(
-        ` Initial Input type=${currentInput.constructor.name}, len=${currentInput.length}`,
+        ` Initial Input type=${currentInput.constructor.name}, len=${currentInput.length}`
       );
 
     if (this.usePositionalEncoding) {
-      if (this.debug) console.log(" Applying positional encoding.");
+      if (this.debug) console.log(' Applying positional encoding.');
       currentInput = oblixUtils.positionalEncoding(currentInput);
       if (this.debug)
         console.log(
-          ` After PosEnc type=${currentInput.constructor.name}, len=${currentInput.length}`,
+          ` After PosEnc type=${currentInput.constructor.name}, len=${currentInput.length}`
         );
     }
 
@@ -1074,111 +1107,111 @@ class Oblix {
 
         if (this.debug)
           console.log(
-            ` Processing L${i} (${cfg.type}). Input type=${layerInput.constructor.name}, len=${layerInput.length}`,
+            ` Processing L${i} (${cfg.type}). Input type=${layerInput.constructor.name}, len=${layerInput.length}`
           );
 
         if (!(layerInput instanceof Float32Array)) {
           throw new Error(
-            `L${i}(${cfg.type}): Internal error - input is not Float32Array.`,
+            `L${i}(${cfg.type}): Internal error - input is not Float32Array.`
           );
         }
         if (layerInput.length !== cfg.inputSize) {
           throw new Error(
-            `L${i}(${cfg.type}): Size mismatch. Expected ${cfg.inputSize}, got ${layerInput.length}.`,
+            `L${i}(${cfg.type}): Size mismatch. Expected ${cfg.inputSize}, got ${layerInput.length}.`
           );
         }
 
         let output;
 
         switch (cfg.type) {
-          case "dense":
-            const w = this.weights[i];
-            const b = this.biases[i];
-            if (!w) throw new Error(`L${i} Dense: Weights not initialized.`);
-            if (!(w instanceof Float32Array))
-              throw new Error(
-                `L${i} Dense: Weights internal error - not Float32Array.`,
-              );
-            if (b && !(b instanceof Float32Array))
-              throw new Error(
-                `L${i} Dense: Biases internal error - not Float32Array.`,
-              );
+        case 'dense':
+          const w = this.weights[i];
+          const b = this.biases[i];
+          if (!w) throw new Error(`L${i} Dense: Weights not initialized.`);
+          if (!(w instanceof Float32Array))
+            throw new Error(
+              `L${i} Dense: Weights internal error - not Float32Array.`
+            );
+          if (b && !(b instanceof Float32Array))
+            throw new Error(
+              `L${i} Dense: Biases internal error - not Float32Array.`
+            );
 
-            output = new Float32Array(cfg.outputSize);
-            if (this.debug)
-              console.log(
-                ` L${i} Dense: InputLen=${layerInput.length}, WeightLen=${w.length}, BiasLen=${b?.length}, OutputLen=${output.length}`,
-              );
+          output = new Float32Array(cfg.outputSize);
+          if (this.debug)
+            console.log(
+              ` L${i} Dense: InputLen=${layerInput.length}, WeightLen=${w.length}, BiasLen=${b?.length}, OutputLen=${output.length}`
+            );
 
-            for (let j = 0; j < cfg.outputSize; ++j) {
-              let sum = b ? b[j] : 0;
-              const weightRowOffset = j * cfg.inputSize;
+          for (let j = 0; j < cfg.outputSize; ++j) {
+            let sum = b ? b[j] : 0;
+            const weightRowOffset = j * cfg.inputSize;
 
-              for (let k = 0; k < cfg.inputSize; ++k) {
-                sum += layerInput[k] * w[weightRowOffset + k];
-              }
-
-              output[j] = oblixActivations.apply(sum, cfg.activation);
-
-              if (this.debug && j === 0 && i < 2) {
-                console.log(
-                  ` L${i} Dense, Neuron 0: Sum=${sum.toFixed(4)}, Activated=${output[0].toFixed(4)}`,
-                );
-              }
+            for (let k = 0; k < cfg.inputSize; ++k) {
+              sum += layerInput[k] * w[weightRowOffset + k];
             }
 
-            break;
+            output[j] = oblixActivations.apply(sum, cfg.activation);
 
-          case "layernorm":
-            const gamma = this.gammas[i];
-            const beta = this.betas[i];
-            if (!gamma || !beta)
-              throw new Error(`L${i} LayerNorm: Gamma/Beta not initialized.`);
-            if (
-              !(gamma instanceof Float32Array) ||
-              !(beta instanceof Float32Array)
-            )
-              throw new Error(
-                `L${i} LN: Gamma/Beta internal error - not Float32Array.`,
+            if (this.debug && j === 0 && i < 2) {
+              console.log(
+                ` L${i} Dense, Neuron 0: Sum=${sum.toFixed(4)}, Activated=${output[0].toFixed(4)}`
               );
+            }
+          }
 
-            const { output: lnOut } = oblixLayerOps.layerNormForward(
-              this,
-              layerInput,
-              gamma,
-              beta,
+          break;
+
+        case 'layernorm':
+          const gamma = this.gammas[i];
+          const beta = this.betas[i];
+          if (!gamma || !beta)
+            throw new Error(`L${i} LayerNorm: Gamma/Beta not initialized.`);
+          if (
+            !(gamma instanceof Float32Array) ||
+              !(beta instanceof Float32Array)
+          )
+            throw new Error(
+              `L${i} LN: Gamma/Beta internal error - not Float32Array.`
             );
-            output = lnOut;
-            break;
 
-          case "attention":
-            output = oblixLayerOps.attentionForward(
-              this,
-              layerInput,
-              cfg.numHeads,
-            );
-            break;
+          const { output: lnOut } = oblixLayerOps.layerNormForward(
+            this,
+            layerInput,
+            gamma,
+            beta
+          );
+          output = lnOut;
+          break;
 
-          case "dropout":
-            output = oblixLayerOps.dropoutForward(this, layerInput, cfg.rate);
-            break;
+        case 'attention':
+          output = oblixLayerOps.attentionForward(
+            this,
+            layerInput,
+            cfg.numHeads
+          );
+          break;
 
-          case "softmax":
-            output = oblixLayerOps.softmaxForward(this, layerInput);
-            break;
+        case 'dropout':
+          output = oblixLayerOps.dropoutForward(this, layerInput, cfg.rate);
+          break;
 
-          default:
-            throw new Error(`Predict: Unknown layer type ${cfg.type}`);
+        case 'softmax':
+          output = oblixLayerOps.softmaxForward(this, layerInput);
+          break;
+
+        default:
+          throw new Error(`Predict: Unknown layer type ${cfg.type}`);
         }
 
         if (!(output instanceof Float32Array)) {
           throw new Error(
-            `L${i}(${cfg.type}): Internal error - output is not Float32Array.`,
+            `L${i}(${cfg.type}): Internal error - output is not Float32Array.`
           );
         }
         if (this.debug)
           console.log(
-            ` Output L${i} (${cfg.type}) type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`,
+            ` Output L${i} (${cfg.type}) type=${output.constructor.name}, len=${output.length}, first val=${output[0]?.toFixed(4)}`
           );
         this.lastActivations.push(output);
       }
@@ -1187,25 +1220,28 @@ class Oblix {
       const finalOutput = this.lastActivations[this.lastActivations.length - 1];
       if (this.debug)
         console.log(
-          ` Finished. Final output type=${finalOutput?.constructor?.name}, len=${finalOutput?.length}`,
+          ` Finished. Final output type=${finalOutput?.constructor?.name}, len=${finalOutput?.length}`
         );
       return finalOutput;
     } catch (error) {
-      console.error("Prediction Error:", error);
+      console.error('Prediction Error:', error);
       this.lastActivations = null;
       this.isTraining = wasTraining;
       return null;
     }
   }
 
-  save(name = "model") {
+  /**
+   *
+   */
+  save(name = 'model') {
     if (!this.layers || this.layers.length === 0) {
-      console.warn("Save: Empty model.");
+      console.warn('Save: Empty model.');
     }
     const numLayers = this.layers.length;
 
     const ensureLen = (arrName, dv = null) => {
-      let currentArr = this[arrName];
+      const currentArr = this[arrName];
       if (!Array.isArray(currentArr) || currentArr.length !== numLayers) {
         console.warn(`Adjusting length of ${arrName} to ${numLayers}`);
         const newArr = Array(numLayers).fill(dv);
@@ -1220,48 +1256,48 @@ class Oblix {
 
     const optimizerState = {
       t: this.t,
-      m_dw: ensureLen("m_dw"),
-      v_dw: ensureLen("v_dw"),
-      m_db: ensureLen("m_db"),
-      v_db: ensureLen("v_db"),
-      m_dgamma: ensureLen("m_dgamma"),
-      v_dgamma: ensureLen("v_dgamma"),
-      m_dbeta: ensureLen("m_dbeta"),
-      v_dbeta: ensureLen("v_dbeta"),
-      s_dw: ensureLen("s_dw"),
-      s_db: ensureLen("s_db"),
-      s_dgamma: ensureLen("s_dgamma"),
-      s_dbeta: ensureLen("s_dbeta"),
+      m_dw: ensureLen('m_dw'),
+      v_dw: ensureLen('v_dw'),
+      m_db: ensureLen('m_db'),
+      v_db: ensureLen('v_db'),
+      m_dgamma: ensureLen('m_dgamma'),
+      v_dgamma: ensureLen('v_dgamma'),
+      m_dbeta: ensureLen('m_dbeta'),
+      v_dbeta: ensureLen('v_dbeta'),
+      s_dw: ensureLen('s_dw'),
+      s_db: ensureLen('s_db'),
+      s_dgamma: ensureLen('s_dgamma'),
+      s_dbeta: ensureLen('s_dbeta')
     };
 
     const data = {
-      weights: ensureLen("weights"),
-      biases: ensureLen("biases"),
-      gammas: ensureLen("gammas"),
-      betas: ensureLen("betas"),
+      weights: ensureLen('weights'),
+      biases: ensureLen('biases'),
+      gammas: ensureLen('gammas'),
+      betas: ensureLen('betas'),
       layers: this.layers,
       details: this.details,
       usePositionalEncoding: this.usePositionalEncoding,
-      optimizerState: optimizerState,
+      optimizerState: optimizerState
     };
 
     try {
-      if (this.debug) console.log("Preparing data object:", data);
+      if (this.debug) console.log('Preparing data object:', data);
       const jsonStr = JSON.stringify(data);
-      if (this.debug) console.log("Stringified JSON (length):", jsonStr.length);
+      if (this.debug) console.log('Stringified JSON (length):', jsonStr.length);
 
       if (this.debug && data.weights[0] instanceof Float32Array) {
         console.log(
-          "Sample stringified weight (should be object):",
-          jsonStr.substring(0, 500).includes('"weights":[{"0":'),
+          'Sample stringified weight (should be object):',
+          jsonStr.substring(0, 500).includes('"weights":[{"0":')
         );
       }
 
       // Check if we're in a browser environment
       if (typeof document !== 'undefined' && typeof URL !== 'undefined') {
-        const blob = new Blob([jsonStr], { type: "application/json" });
+        const blob = new Blob([jsonStr], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
+        const a = document.createElement('a');
         a.href = url;
         a.download = `${name}.json`;
         document.body.appendChild(a);
@@ -1272,26 +1308,29 @@ class Oblix {
       } else {
         // Node.js environment - just log the data
         if (this.debug) console.log(`Model data prepared for save: ${name}.json`);
-        console.log("Save functionality requires browser environment");
+        console.log('Save functionality requires browser environment');
       }
     } catch (e) {
-      console.error("Save failed.", e);
-      if (this.debug) console.error(" Error during stringify or download.");
+      console.error('Save failed.', e);
+      if (this.debug) console.error(' Error during stringify or download.');
     }
   }
 
+  /**
+   *
+   */
   load(callback) {
     // Check if we're in a browser environment
     if (typeof document === 'undefined') {
-      console.log("Load functionality requires browser environment");
-      if (callback) callback(new Error("Load functionality requires browser environment"));
+      console.log('Load functionality requires browser environment');
+      if (callback) callback(new Error('Load functionality requires browser environment'));
       return;
     }
     
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = ".json";
-    input.style.display = "none";
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.style.display = 'none';
     const handleListener = (event) => {
       const file = event.target.files[0];
       if (!file) {
@@ -1302,12 +1341,12 @@ class Oblix {
       reader.onload = (e) => {
         const text = e.target.result;
         try {
-          if (this.debug) console.log(" Reading file text...");
+          if (this.debug) console.log(' Reading file text...');
           const data = JSON.parse(text);
           if (!data.layers || !Array.isArray(data.layers))
-            throw new Error("Invalid model: 'layers' missing.");
+            throw new Error('Invalid model: \'layers\' missing.');
           if (this.debug)
-            console.log(" Parsed data, layers found:", data.layers.length);
+            console.log(' Parsed data, layers found:', data.layers.length);
 
           this.reset();
           this.layers = data.layers;
@@ -1319,14 +1358,14 @@ class Oblix {
             let loadedArr = sourceObj?.[arrName] || [];
             if (!Array.isArray(loadedArr)) {
               console.warn(
-                ` ${arrName} in loaded data is not an array, creating default.`,
+                ` ${arrName} in loaded data is not an array, creating default.`
               );
               loadedArr = [];
             }
 
             if (loadedArr.length !== expectedLen) {
               console.warn(
-                ` ${arrName} length mismatch (expected ${expectedLen}, got ${loadedArr.length}). Adjusting...`,
+                ` ${arrName} length mismatch (expected ${expectedLen}, got ${loadedArr.length}). Adjusting...`
               );
               const adjustedArr = Array(expectedLen).fill(null);
               for (let i = 0; i < Math.min(expectedLen, loadedArr.length); ++i)
@@ -1337,33 +1376,33 @@ class Oblix {
             return loadedArr.map((item, index) => {
               if (
                 item !== null &&
-                typeof item === "object" &&
-                item.hasOwnProperty("0")
+                typeof item === 'object' &&
+                item.hasOwnProperty('0')
               ) {
                 const values = Object.values(item);
 
                 const allNumbers = values.every(
-                  (v) => typeof v === "number" && isFinite(v),
+                  (v) => typeof v === 'number' && isFinite(v)
                 );
 
                 if (allNumbers) {
                   const reconstructed = new Float32Array(values);
                   if (this.debug)
                     console.log(
-                      ` Reconstructed Float32Array for ${arrName}[${index}], Length: ${reconstructed.length}`,
+                      ` Reconstructed Float32Array for ${arrName}[${index}], Length: ${reconstructed.length}`
                     );
                   return reconstructed;
                 } else {
                   console.warn(
-                    ` Object for ${arrName}[${index}] looks like Float32Array but check failed. Logging values:`,
+                    ` Object for ${arrName}[${index}] looks like Float32Array but check failed. Logging values:`
                   );
 
                   let loggedCount = 0;
                   for (let k = 0; k < values.length && loggedCount < 5; k++) {
                     const v = values[k];
-                    if (typeof v !== "number" || !isFinite(v)) {
+                    if (typeof v !== 'number' || !isFinite(v)) {
                       console.warn(
-                        `  - ${arrName}[${index}], Value[${k}]: Type=${typeof v}, Value=${v}`,
+                        `  - ${arrName}[${index}], Value[${k}]: Type=${typeof v}, Value=${v}`
                       );
                       loggedCount++;
                     }
@@ -1371,7 +1410,7 @@ class Oblix {
                   if (loggedCount === 0 && values.length > 0) {
                     console.warn(
                       `  - ${arrName}[${index}]: Check failed but couldn't find non-numeric/non-finite value? First value:`,
-                      values[0],
+                      values[0]
                     );
                   }
 
@@ -1380,7 +1419,7 @@ class Oblix {
               } else if (item instanceof Float32Array) {
                 if (this.debug)
                   console.log(
-                    ` Item ${arrName}[${index}] is already Float32Array? Length: ${item.length}`,
+                    ` Item ${arrName}[${index}] is already Float32Array? Length: ${item.length}`
                   );
                 return item;
               } else if (item === null) {
@@ -1388,34 +1427,34 @@ class Oblix {
               } else {
                 console.warn(
                   ` Unexpected item type for ${arrName}[${index}] (Type: ${typeof item}). Setting to null. Value:`,
-                  item,
+                  item
                 );
                 return null;
               }
             });
           };
 
-          this.weights = loadAndReconstruct("weights", data, numLayers);
-          this.biases = loadAndReconstruct("biases", data, numLayers);
-          this.gammas = loadAndReconstruct("gammas", data, numLayers);
-          this.betas = loadAndReconstruct("betas", data, numLayers);
+          this.weights = loadAndReconstruct('weights', data, numLayers);
+          this.biases = loadAndReconstruct('biases', data, numLayers);
+          this.gammas = loadAndReconstruct('gammas', data, numLayers);
+          this.betas = loadAndReconstruct('betas', data, numLayers);
           this.masks = Array(numLayers).fill(null);
 
           const optState = data.optimizerState || {};
           this.t = optState.t || 0;
-          if (this.debug) console.log(" Loading optimizer state...");
-          this.m_dw = loadAndReconstruct("m_dw", optState, numLayers);
-          this.v_dw = loadAndReconstruct("v_dw", optState, numLayers);
-          this.m_db = loadAndReconstruct("m_db", optState, numLayers);
-          this.v_db = loadAndReconstruct("v_db", optState, numLayers);
-          this.m_dgamma = loadAndReconstruct("m_dgamma", optState, numLayers);
-          this.v_dgamma = loadAndReconstruct("v_dgamma", optState, numLayers);
-          this.m_dbeta = loadAndReconstruct("m_dbeta", optState, numLayers);
-          this.v_dbeta = loadAndReconstruct("v_dbeta", optState, numLayers);
-          this.s_dw = loadAndReconstruct("s_dw", optState, numLayers);
-          this.s_db = loadAndReconstruct("s_db", optState, numLayers);
-          this.s_dgamma = loadAndReconstruct("s_dgamma", optState, numLayers);
-          this.s_dbeta = loadAndReconstruct("s_dbeta", optState, numLayers);
+          if (this.debug) console.log(' Loading optimizer state...');
+          this.m_dw = loadAndReconstruct('m_dw', optState, numLayers);
+          this.v_dw = loadAndReconstruct('v_dw', optState, numLayers);
+          this.m_db = loadAndReconstruct('m_db', optState, numLayers);
+          this.v_db = loadAndReconstruct('v_db', optState, numLayers);
+          this.m_dgamma = loadAndReconstruct('m_dgamma', optState, numLayers);
+          this.v_dgamma = loadAndReconstruct('v_dgamma', optState, numLayers);
+          this.m_dbeta = loadAndReconstruct('m_dbeta', optState, numLayers);
+          this.v_dbeta = loadAndReconstruct('v_dbeta', optState, numLayers);
+          this.s_dw = loadAndReconstruct('s_dw', optState, numLayers);
+          this.s_db = loadAndReconstruct('s_db', optState, numLayers);
+          this.s_dgamma = loadAndReconstruct('s_dgamma', optState, numLayers);
+          this.s_dbeta = loadAndReconstruct('s_dbeta', optState, numLayers);
 
           this.lastActivations = null;
           this.forwardCache = null;
@@ -1423,38 +1462,38 @@ class Oblix {
           if (callback) callback();
           if (this.debug)
             console.log(
-              " Model loaded successfully. Stored parameters/states should be Float32Arrays or null.",
+              ' Model loaded successfully. Stored parameters/states should be Float32Arrays or null.'
             );
           if (this.debug && this.weights.length > 0)
             console.log(
-              " Sample loaded weight type:",
+              ' Sample loaded weight type:',
               this.weights[0] instanceof Float32Array
-                ? "Float32Array"
-                : typeof this.weights[0],
+                ? 'Float32Array'
+                : typeof this.weights[0]
             );
         } catch (err) {
-          console.error("Load failed:", err);
+          console.error('Load failed:', err);
           alert(`Error loading model: ${err.message}`);
           if (this.debug)
-            console.error(" Error during parsing or reconstruction.");
+            console.error(' Error during parsing or reconstruction.');
           if (callback) callback(err);
         } finally {
           cleanup();
         }
       };
       reader.onerror = (err) => {
-        console.error("File read error:", err);
-        alert("Error reading file.");
+        console.error('File read error:', err);
+        alert('Error reading file.');
         cleanup();
         if (callback) callback(err);
       };
       reader.readAsText(file);
     };
     const cleanup = () => {
-      input.removeEventListener("change", handleListener);
+      input.removeEventListener('change', handleListener);
       document.body.removeChild(input);
     };
-    input.addEventListener("change", handleListener);
+    input.addEventListener('change', handleListener);
     document.body.appendChild(input);
     input.click();
   }
