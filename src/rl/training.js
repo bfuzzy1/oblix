@@ -8,6 +8,11 @@ export class RLTrainer {
     this.isRunning = false;
     this.interval = null;
     this.state = null;
+    this.metrics = {
+      episode: 1,
+      steps: 0,
+      cumulativeReward: 0
+    };
   }
 
   async step() {
@@ -15,8 +20,17 @@ export class RLTrainer {
     const { state: nextState, reward, done } = this.env.step(action);
     await this.agent.learn(this.state, action, reward, nextState, done);
     this.state = nextState;
-    if (this.onStep) this.onStep(this.state, reward, done);
+    this.metrics.steps += 1;
+    this.metrics.cumulativeReward += reward;
+    const metrics = {
+      ...this.metrics,
+      epsilon: this.agent.epsilon
+    };
+    if (this.onStep) this.onStep(this.state, reward, done, metrics);
     if (done) {
+      this.metrics.episode += 1;
+      this.metrics.steps = 0;
+      this.metrics.cumulativeReward = 0;
       this.state = this.env.reset();
     }
   }
@@ -39,7 +53,17 @@ export class RLTrainer {
   reset() {
     this.pause();
     this.state = this.env.reset();
-    if (this.onStep) this.onStep(this.state, 0, false);
+    this.metrics = {
+      episode: 1,
+      steps: 0,
+      cumulativeReward: 0
+    };
+    if (this.onStep) {
+      this.onStep(this.state, 0, false, {
+        ...this.metrics,
+        epsilon: this.agent.epsilon
+      });
+    }
   }
 
   static async trainEpisodes(agent, env, episodes = 10, maxSteps = 50) {

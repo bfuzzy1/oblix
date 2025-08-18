@@ -16,6 +16,12 @@
 <body>
   <h1>oblix-rl Grid World</h1>
   <div id="grid"></div>
+  <div id="metrics">
+    <div>Episode: <span id="episode">1</span></div>
+    <div>Steps: <span id="steps">0</span></div>
+    <div>Cumulative Reward: <span id="reward">0</span></div>
+    <div>Epsilon: <span id="epsilon">1</span></div>
+  </div>
   <div>
     <button id="start">Start</button>
     <button id="pause">Pause</button>
@@ -47,7 +53,13 @@
 
     const trainer = new RLTrainer(agent, env, {
       intervalMs: 100,
-      onStep: (state) => render(state)
+      onStep: (state, reward, done, metrics) => {
+        render(state);
+        document.getElementById('episode').textContent = metrics.episode;
+        document.getElementById('steps').textContent = metrics.steps;
+        document.getElementById('reward').textContent = metrics.cumulativeReward.toFixed(2);
+        document.getElementById('epsilon').textContent = metrics.epsilon.toFixed(2);
+      }
     });
 
     document.getElementById('start').onclick = () => trainer.start();
