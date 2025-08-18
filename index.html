@@ -23,6 +23,12 @@
     <div>Epsilon: <span id="epsilon">1</span></div>
   </div>
   <div>
+    <label>Epsilon: <input type="range" id="epsilon-slider" min="0" max="1" step="0.01" value="1"><span id="epsilon-value">1</span></label>
+  </div>
+  <div>
+    <label>Interval (ms): <input type="range" id="interval-slider" min="10" max="1000" step="10" value="100"><span id="interval-value">100</span></label>
+  </div>
+  <div>
     <button id="start">Start</button>
     <button id="pause">Pause</button>
     <button id="reset">Reset</button>
@@ -40,6 +46,10 @@
     let agent = new RLAgent({ epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05 });
     const gridEl = document.getElementById('grid');
     gridEl.style.setProperty('--size', size);
+    const epsilonSlider = document.getElementById('epsilon-slider');
+    const epsilonValue = document.getElementById('epsilon-value');
+    const intervalSlider = document.getElementById('interval-slider');
+    const intervalValue = document.getElementById('interval-value');
 
     function render(state) {
       gridEl.innerHTML = '';
@@ -62,7 +72,28 @@
         document.getElementById('steps').textContent = metrics.steps;
         document.getElementById('reward').textContent = metrics.cumulativeReward.toFixed(2);
         document.getElementById('epsilon').textContent = metrics.epsilon.toFixed(2);
+        epsilonSlider.value = metrics.epsilon;
+        epsilonValue.textContent = metrics.epsilon.toFixed(2);
       }
+    });
+
+    epsilonSlider.value = agent.epsilon;
+    epsilonValue.textContent = agent.epsilon.toFixed(2);
+    intervalSlider.value = trainer.intervalMs;
+    intervalValue.textContent = trainer.intervalMs;
+
+    epsilonSlider.addEventListener('input', e => {
+      const val = parseFloat(e.target.value);
+      agent.epsilon = val;
+      trainer.metrics.epsilon = val;
+      epsilonValue.textContent = val.toFixed(2);
+      document.getElementById('epsilon').textContent = val.toFixed(2);
+    });
+
+    intervalSlider.addEventListener('input', e => {
+      const val = parseInt(e.target.value, 10);
+      trainer.setIntervalMs(val);
+      intervalValue.textContent = val;
     });
 
     document.getElementById('start').onclick = () => trainer.start();
