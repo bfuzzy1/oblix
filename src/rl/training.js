@@ -4,6 +4,7 @@ export class RLTrainer {
     this.env = env;
     this.maxSteps = options.maxSteps ?? 50;
     this.onStep = options.onStep || null;
+    this.intervalMs = options.intervalMs ?? 100;
     this.isRunning = false;
     this.interval = null;
     this.state = null;
@@ -26,7 +27,7 @@ export class RLTrainer {
     this.isRunning = true;
     this.interval = setInterval(async () => {
       await this.step();
-    }, 100);
+    }, this.intervalMs);
   }
 
   pause() {

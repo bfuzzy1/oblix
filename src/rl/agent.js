@@ -1,11 +1,23 @@
-import { Oblix } from "../network.js";
-
 export class RLAgent {
-  constructor(nn, options = {}) {
-    this.nn = nn;
+  constructor(options = {}) {
     this.epsilon = options.epsilon ?? 0.1;
     this.gamma = options.gamma ?? 0.95;
-    this.learningRate = options.learningRate ?? 0.01;
+    this.learningRate = options.learningRate ?? 0.1;
+    this.epsilonDecay = options.epsilonDecay ?? 0.99;
+    this.minEpsilon = options.minEpsilon ?? 0.01;
+    this.qTable = new Map();
+  }
+
+  _key(state) {
+    return Array.from(state).join(',');
+  }
+
+  _ensure(state) {
+    const key = this._key(state);
+    if (!this.qTable.has(key)) {
+      this.qTable.set(key, new Float32Array(4));
+    }
+    return this.qTable.get(key);
   }
 
   /** Choose an action using epsilon-greedy policy. */
@@ -13,8 +25,7 @@ export class RLAgent {
     if (Math.random() < this.epsilon) {
       return Math.floor(Math.random() * 4);
     }
-    const qVals = this.nn.predict(state);
-    if (!qVals) return Math.floor(Math.random() * 4);
+    const qVals = this._ensure(state);
     let best = 0;
     for (let i = 1; i < qVals.length; i++) {
       if (qVals[i] > qVals[best]) best = i;
@@ -22,21 +33,18 @@ export class RLAgent {
     return best;
   }
 
-  /** Perform Q-learning update using network. */
-  async learn(state, action, reward, nextState, done) {
-    const qVals = this.nn.predict(state);
-    const nextQ = this.nn.predict(nextState);
-    if (!qVals || !nextQ) return;
-    const target = new Float32Array(qVals);
-    const maxNext = Math.max(...nextQ);
-    target[action] = reward + (done ? 0 : this.gamma * maxNext);
-    const dataset = [{ input: state, output: target }];
-    await this.nn.train(dataset, {
-      epochs: 1,
-      batchSize: 1,
-      learningRate: this.learningRate,
-      optimizer: "sgd",
-      lossFunction: "mse",
-    });
+  /** Reduce exploration rate after learning. */
+  decayEpsilon() {
+    this.epsilon = Math.max(this.minEpsilon, this.epsilon * this.epsilonDecay);
+  }
+
+  /** Perform tabular Q-learning update. */
+  learn(state, action, reward, nextState, done) {
+    const qVals = this._ensure(state);
+    const nextQ = this._ensure(nextState);
+    const maxNext = done ? 0 : Math.max(...nextQ);
+    qVals[action] +=
+      this.learningRate * (reward + this.gamma * maxNext - qVals[action]);
+    this.decayEpsilon();
   }
 }
