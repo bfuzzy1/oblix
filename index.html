@@ -22,6 +22,7 @@
     <div>Cumulative Reward: <span id="reward">0</span></div>
     <div>Epsilon: <span id="epsilon">1</span></div>
   </div>
+  <canvas id="rewardChart" width="400" height="200"></canvas>
   <div>
     <button id="start">Start</button>
     <button id="pause">Pause</button>
@@ -37,6 +38,8 @@
     const agent = new RLAgent({ epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05 });
     const gridEl = document.getElementById('grid');
     gridEl.style.setProperty('--size', size);
+    const canvas = document.getElementById('rewardChart');
+    const ctx = canvas.getContext('2d');
 
     function render(state) {
       gridEl.innerHTML = '';
@@ -59,6 +62,7 @@
         document.getElementById('steps').textContent = metrics.steps;
         document.getElementById('reward').textContent = metrics.cumulativeReward.toFixed(2);
         document.getElementById('epsilon').textContent = metrics.epsilon.toFixed(2);
+        if (done) drawChart();
       }
     });
 
@@ -67,6 +71,25 @@
     document.getElementById('reset').onclick = () => trainer.reset();
 
     render(env.reset());
+
+    function drawChart() {
+      const rewards = trainer.episodeRewards;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if (rewards.length === 0) return;
+      const max = Math.max(...rewards);
+      const min = Math.min(...rewards);
+      const range = max - min || 1;
+      const stepX = canvas.width / (rewards.length - 1 || 1);
+      ctx.beginPath();
+      rewards.forEach((r, i) => {
+        const x = i * stepX;
+        const y = canvas.height - ((r - min) / range) * canvas.height;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.strokeStyle = '#4caf50';
+      ctx.stroke();
+    }
   </script>
 </body>
 </html>
