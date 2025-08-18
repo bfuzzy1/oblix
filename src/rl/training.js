@@ -48,6 +48,16 @@ export class RLTrainer {
     }, this.intervalMs);
   }
 
+  setIntervalMs(ms) {
+    this.intervalMs = ms;
+    if (this.isRunning) {
+      clearInterval(this.interval);
+      this.interval = setInterval(async () => {
+        await this.step();
+      }, this.intervalMs);
+    }
+  }
+
   pause() {
     if (!this.isRunning) return;
     clearInterval(this.interval);
@@ -56,6 +66,9 @@ export class RLTrainer {
 
   reset() {
     this.pause();
+    if (typeof this.agent.reset === 'function') {
+      this.agent.reset();
+    }
     this.state = this.env.reset();
     this.metrics = {
       episode: 1,
