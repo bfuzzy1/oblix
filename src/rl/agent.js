@@ -1,6 +1,7 @@
 export class RLAgent {
   constructor(options = {}) {
-    this.epsilon = options.epsilon ?? 0.1;
+    this.initialEpsilon = options.epsilon ?? 0.1;
+    this.epsilon = this.initialEpsilon;
     this.gamma = options.gamma ?? 0.95;
     this.learningRate = options.learningRate ?? 0.1;
     this.epsilonDecay = options.epsilonDecay ?? 0.99;
@@ -46,6 +47,12 @@ export class RLAgent {
     qVals[action] +=
       this.learningRate * (reward + this.gamma * maxNext - qVals[action]);
     this.decayEpsilon();
+  }
+
+  /** Reset agent to initial state. */
+  reset() {
+    this.epsilon = this.initialEpsilon;
+    this.qTable.clear();
   }
 
   /** Serialize agent state to a plain object. */

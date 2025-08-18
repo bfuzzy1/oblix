@@ -54,6 +54,9 @@ export class RLTrainer {
 
   reset() {
     this.pause();
+    if (typeof this.agent.reset === 'function') {
+      this.agent.reset();
+    }
     this.state = this.env.reset();
     this.metrics = {
       episode: 1,
