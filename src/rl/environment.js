@@ -1,6 +1,10 @@
 export class GridWorldEnvironment {
-  constructor(size = 5) {
+  constructor(size = 5, obstacles = []) {
     this.size = size;
+    this.obstacles = obstacles.map(o => ({ x: o.x, y: o.y }));
+    this.obstacleSet = new Set(
+      this.obstacles.map(o => `${o.x},${o.y}`)
+    );
     this.reset();
   }
 
@@ -15,26 +19,47 @@ export class GridWorldEnvironment {
     return new Float32Array([this.agentPos.x, this.agentPos.y]);
   }
 
+  isObstacle(x, y) {
+    return this.obstacleSet.has(`${x},${y}`);
+  }
+
+  toggleObstacle(x, y) {
+    const key = `${x},${y}`;
+    if (this.obstacleSet.has(key)) {
+      this.obstacleSet.delete(key);
+      this.obstacles = this.obstacles.filter(o => o.x !== x || o.y !== y);
+    } else {
+      this.obstacles.push({ x, y });
+      this.obstacleSet.add(key);
+    }
+  }
+
   /**
    * Step the environment with an action.
    * @param {number} action 0:up,1:down,2:left,3:right
    * @returns {{state:Float32Array,reward:number,done:boolean}}
    */
   step(action) {
+    let newX = this.agentPos.x;
+    let newY = this.agentPos.y;
     switch (action) {
       case 0:
-        if (this.agentPos.y > 0) this.agentPos.y -= 1;
+        if (newY > 0) newY -= 1;
         break;
       case 1:
-        if (this.agentPos.y < this.size - 1) this.agentPos.y += 1;
+        if (newY < this.size - 1) newY += 1;
         break;
       case 2:
-        if (this.agentPos.x > 0) this.agentPos.x -= 1;
+        if (newX > 0) newX -= 1;
         break;
       case 3:
-        if (this.agentPos.x < this.size - 1) this.agentPos.x += 1;
+        if (newX < this.size - 1) newX += 1;
         break;
     }
+    if (this.isObstacle(newX, newY)) {
+      return { state: this.getState(), reward: -0.1, done: false };
+    }
+    this.agentPos = { x: newX, y: newY };
     const done =
       this.agentPos.x === this.size - 1 && this.agentPos.y === this.size - 1;
     const reward = done ? 1 : -0.01;

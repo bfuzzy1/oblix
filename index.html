@@ -9,6 +9,7 @@
     .cell { width: 40px; height: 40px; border: 1px solid #555; }
     .agent { background: #4caf50; }
     .goal { background: #2196f3; }
+    .obstacle { background: #f44336; }
     button { margin: 5px; padding: 8px 16px; border: none; background: #444; color: #fff; cursor: pointer; }
     button:hover { background: #666; }
     canvas { background: #222; border: 1px solid #555; }
@@ -63,8 +64,15 @@
         for (let x = 0; x < size; x++) {
           const cell = document.createElement('div');
           cell.className = 'cell';
+          if (env.isObstacle(x, y)) cell.classList.add('obstacle');
           if (x === state[0] && y === state[1]) cell.classList.add('agent');
           if (x === size - 1 && y === size - 1) cell.classList.add('goal');
+          cell.addEventListener('click', () => {
+            if (x === env.agentPos.x && y === env.agentPos.y) return;
+            if (x === size - 1 && y === size - 1) return;
+            env.toggleObstacle(x, y);
+            render(env.getState());
+          });
           gridEl.appendChild(cell);
         }
       }
