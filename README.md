@@ -57,6 +57,11 @@ Quickly load predefined structures:
 - **Manual Prediction:** Test trained models with custom inputs
 - **Performance Metrics:** Accuracy, R-squared, and loss tracking
 
+### Reinforcement Learning
+- **Grid World Environment:** Simple 2D world for experimenting with RL algorithms
+- **Q-Learning Loop:** Train an agent using the existing neural network as a function approximator
+- **Interactive Controls:** Toggle RL Mode, start/pause training, and visualize agent movement on a canvas
+
 ## 🛠️ Technology Stack
 
 ### Core Implementation

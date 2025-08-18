@@ -1,6 +1,9 @@
 import { Oblix } from "./network.js";
 import { OptimizedOblix } from "./optimized/network.js";
 import { oblixUtils } from "./utils.js";
+import { GridWorldEnvironment } from "./rl/environment.js";
+import { RLAgent } from "./rl/agent.js";
+import { RLTrainer } from "./rl/training.js";
 
 if (typeof document !== "undefined") {
   document.addEventListener("DOMContentLoaded", () => {
@@ -120,6 +123,85 @@ if (typeof document !== "undefined") {
 
   // Initialize performance toggle
   addPerformanceToggle();
+
+  function addRLControls() {
+    const controlsContainer = document.querySelector('.controls') || document.body;
+    const toggleGroup = document.createElement('div');
+    toggleGroup.className = 'input-group';
+    toggleGroup.innerHTML = `<label><input type="checkbox" id="rlModeToggle"/> RL Mode</label>`;
+    controlsContainer.appendChild(toggleGroup);
+
+    const btnGroup = document.createElement('div');
+    btnGroup.id = 'rlControls';
+    btnGroup.className = 'button-group';
+    btnGroup.style.display = 'none';
+    btnGroup.innerHTML = '<button id="rlStart">Start RL</button><button id="rlPause">Pause RL</button><button id="rlReset">Reset RL</button>';
+    controlsContainer.appendChild(btnGroup);
+
+    const canvas = document.createElement('canvas');
+    canvas.id = 'rlCanvas';
+    canvas.width = 200;
+    canvas.height = 200;
+    canvas.style.display = 'none';
+    const vizContainer = document.getElementById('network-viz-container');
+    if (vizContainer) vizContainer.appendChild(canvas);
+
+    const toggle = document.getElementById('rlModeToggle');
+    const show = (flag) => {
+      btnGroup.style.display = flag ? 'block' : 'none';
+      canvas.style.display = flag ? 'block' : 'none';
+    };
+    toggle.addEventListener('change', () => show(toggle.checked));
+  }
+
+  addRLControls();
+
+  let rlEnv, rlAgent, rlTrainer, rlCtx;
+  const rlCanvas = () => document.getElementById('rlCanvas');
+
+  function initRL() {
+    const canvas = rlCanvas();
+    if (!canvas) return;
+    rlCtx = canvas.getContext('2d');
+    rlEnv = new GridWorldEnvironment(5);
+    const model = useOptimized ? new OptimizedOblix(true) : new Oblix(true);
+    model.layer({ type: 'dense', inputSize: 2, outputSize: 16, activation: 'tanh' });
+    model.layer({ type: 'dense', inputSize: 16, outputSize: 4, activation: 'tanh' });
+    rlAgent = new RLAgent(model, { epsilon: 0.1, gamma: 0.95, learningRate: 0.01 });
+    rlTrainer = new RLTrainer(rlAgent, rlEnv, { onStep: drawRL });
+  }
+
+  function drawRL(state) {
+    const canvas = rlCanvas();
+    if (!canvas || !rlCtx || !rlEnv) return;
+    const size = rlEnv.size;
+    const cell = canvas.width / size;
+    rlCtx.clearRect(0, 0, canvas.width, canvas.height);
+    rlCtx.strokeStyle = '#444';
+    for (let y = 0; y < size; y++) {
+      for (let x = 0; x < size; x++) {
+        rlCtx.strokeRect(x * cell, y * cell, cell, cell);
+      }
+    }
+    rlCtx.fillStyle = '#0f0';
+    rlCtx.fillRect((size - 1) * cell, (size - 1) * cell, cell, cell);
+    rlCtx.fillStyle = '#f00';
+    rlCtx.fillRect(state[0] * cell, state[1] * cell, cell, cell);
+  }
+
+  document.addEventListener('click', (e) => {
+    const startBtn = document.getElementById('rlStart');
+    const pauseBtn = document.getElementById('rlPause');
+    const resetBtn = document.getElementById('rlReset');
+    if (e.target === startBtn) {
+      if (!rlTrainer) initRL();
+      rlTrainer.start();
+    } else if (e.target === pauseBtn) {
+      rlTrainer?.pause();
+    } else if (e.target === resetBtn) {
+      rlTrainer?.reset();
+    }
+  });
 
   function updateDataParamUI(selectedPattern) {
     let ignoreDims = false;
