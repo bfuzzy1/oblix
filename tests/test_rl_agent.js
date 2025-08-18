@@ -20,4 +20,9 @@ export async function run(assert) {
   greedyAgent.qTable.set(key, new Float32Array([1, 5, 3, 2]));
   const action = greedyAgent.act(state);
   assert.strictEqual(action, 1);
+
+  const data = greedyAgent.toJSON();
+  const loadedAgent = RLAgent.fromJSON(data);
+  const loadedAction = loadedAgent.act(state);
+  assert.strictEqual(loadedAction, action);
 }

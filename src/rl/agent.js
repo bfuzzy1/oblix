@@ -47,4 +47,34 @@ export class RLAgent {
       this.learningRate * (reward + this.gamma * maxNext - qVals[action]);
     this.decayEpsilon();
   }
+
+  /** Serialize agent state to a plain object. */
+  toJSON() {
+    const table = Object.fromEntries(
+      Array.from(this.qTable.entries()).map(([k, v]) => [k, Array.from(v)])
+    );
+    return {
+      epsilon: this.epsilon,
+      gamma: this.gamma,
+      learningRate: this.learningRate,
+      epsilonDecay: this.epsilonDecay,
+      minEpsilon: this.minEpsilon,
+      qTable: table,
+    };
+  }
+
+  /** Recreate an agent from serialized data. */
+  static fromJSON(data) {
+    const agent = new RLAgent({
+      epsilon: data.epsilon,
+      gamma: data.gamma,
+      learningRate: data.learningRate,
+      epsilonDecay: data.epsilonDecay,
+      minEpsilon: data.minEpsilon,
+    });
+    for (const [k, v] of Object.entries(data.qTable || {})) {
+      agent.qTable.set(k, new Float32Array(v));
+    }
+    return agent;
+  }
 }

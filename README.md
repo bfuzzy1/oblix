@@ -39,6 +39,15 @@ await RLTrainer.trainEpisodes(agent, env, 50, 50);
 
 This repository focuses solely on reinforcement learning; previous model training utilities have been removed in favor of streamlined RL components.
 
+## Saving and Loading Agents
+
+You can persist a trained agent by converting it to a plain object and later recreating it:
+
+```js
+const saved = agent.toJSON();
+const restored = RLAgent.fromJSON(saved);
+```
+
 ## Frontend Demo
 
 Open `index.html` in a browser to interact with the grid world. Use the Start, Pause and Reset buttons to control training and watch the agent improve.
