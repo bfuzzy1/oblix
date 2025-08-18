@@ -11,7 +11,8 @@ export class RLTrainer {
     this.metrics = {
       episode: 1,
       steps: 0,
-      cumulativeReward: 0
+      cumulativeReward: 0,
+      epsilon: this.agent.epsilon
     };
   }
 
@@ -22,16 +23,17 @@ export class RLTrainer {
     this.state = nextState;
     this.metrics.steps += 1;
     this.metrics.cumulativeReward += reward;
-    const metrics = {
-      ...this.metrics,
-      epsilon: this.agent.epsilon
-    };
-    if (this.onStep) this.onStep(this.state, reward, done, metrics);
+    this.metrics.epsilon = this.agent.epsilon;
+    if (this.onStep) this.onStep(this.state, reward, done, { ...this.metrics });
     if (done) {
       this.metrics.episode += 1;
       this.metrics.steps = 0;
       this.metrics.cumulativeReward = 0;
+      this.metrics.epsilon = this.agent.epsilon;
       this.state = this.env.reset();
+      if (this.onStep) {
+        this.onStep(this.state, 0, false, { ...this.metrics });
+      }
     }
   }
 
@@ -56,13 +58,11 @@ export class RLTrainer {
     this.metrics = {
       episode: 1,
       steps: 0,
-      cumulativeReward: 0
+      cumulativeReward: 0,
+      epsilon: this.agent.epsilon
     };
     if (this.onStep) {
-      this.onStep(this.state, 0, false, {
-        ...this.metrics,
-        epsilon: this.agent.epsilon
-      });
+      this.onStep(this.state, 0, false, { ...this.metrics });
     }
   }
 
