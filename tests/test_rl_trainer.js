@@ -24,6 +24,7 @@ export async function run(assert) {
   trainer.state = env.reset();
   await trainer.step();
   await trainer.step();
+  assert.strictEqual(reports.length, 3);
   assert.deepStrictEqual(reports[0].metrics, {
     episode: 1,
     steps: 1,
@@ -37,9 +38,16 @@ export async function run(assert) {
     cumulativeReward: 0.99,
     epsilon: 0.1
   });
+  assert.deepStrictEqual(reports[2].metrics, {
+    episode: 2,
+    steps: 0,
+    cumulativeReward: 0,
+    epsilon: 0.1
+  });
   assert.deepStrictEqual(trainer.metrics, {
     episode: 2,
     steps: 0,
-    cumulativeReward: 0
+    cumulativeReward: 0,
+    epsilon: 0.1
   });
 }
