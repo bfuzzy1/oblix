@@ -14,6 +14,7 @@ export class RLTrainer {
       cumulativeReward: 0,
       epsilon: this.agent.epsilon
     };
+    this.episodeRewards = [];
   }
 
   async step() {
@@ -26,6 +27,7 @@ export class RLTrainer {
     this.metrics.epsilon = this.agent.epsilon;
     if (this.onStep) this.onStep(this.state, reward, done, { ...this.metrics });
     if (done) {
+      this.episodeRewards.push(this.metrics.cumulativeReward);
       this.metrics.episode += 1;
       this.metrics.steps = 0;
       this.metrics.cumulativeReward = 0;
@@ -74,6 +76,7 @@ export class RLTrainer {
       cumulativeReward: 0,
       epsilon: this.agent.epsilon
     };
+    this.episodeRewards = [];
     if (this.onStep) {
       this.onStep(this.state, 0, false, { ...this.metrics });
     }

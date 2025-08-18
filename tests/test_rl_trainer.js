@@ -50,4 +50,6 @@ export async function run(assert) {
     cumulativeReward: 0,
     epsilon: 0.1
   });
+  assert.strictEqual(trainer.episodeRewards.length, 1);
+  assert.strictEqual(trainer.episodeRewards[0], 0.99);
 }
