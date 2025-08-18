@@ -1,4 +1,5 @@
 import { RLAgent } from '../src/rl/agent.js';
+import { saveAgent, loadAgent } from '../src/rl/storage.js';
 
 export async function run(assert) {
   const agent = new RLAgent({
@@ -25,4 +26,21 @@ export async function run(assert) {
   const loadedAgent = RLAgent.fromJSON(data);
   const loadedAction = loadedAgent.act(state);
   assert.strictEqual(loadedAction, action);
+
+  const storage = {
+    data: {},
+    setItem(key, value) { this.data[key] = value; },
+    getItem(key) { return this.data[key] || null; }
+  };
+  const trainer = {
+    agent: greedyAgent,
+    resetCalled: false,
+    reset() { this.resetCalled = true; }
+  };
+  saveAgent(greedyAgent, storage);
+  trainer.agent = new RLAgent();
+  loadAgent(trainer, storage);
+  assert.ok(trainer.resetCalled);
+  const restoredAction = trainer.agent.act(state);
+  assert.strictEqual(restoredAction, action);
 }

@@ -26,15 +26,18 @@
     <button id="start">Start</button>
     <button id="pause">Pause</button>
     <button id="reset">Reset</button>
+    <button id="save">Save</button>
+    <button id="load">Load</button>
   </div>
   <script type="module">
     import { GridWorldEnvironment } from './src/rl/environment.js';
     import { RLAgent } from './src/rl/agent.js';
     import { RLTrainer } from './src/rl/training.js';
+    import { saveAgent, loadAgent } from './src/rl/storage.js';
 
     const size = 5;
     const env = new GridWorldEnvironment(size);
-    const agent = new RLAgent({ epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05 });
+    let agent = new RLAgent({ epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05 });
     const gridEl = document.getElementById('grid');
     gridEl.style.setProperty('--size', size);
 
@@ -65,6 +68,11 @@
     document.getElementById('start').onclick = () => trainer.start();
     document.getElementById('pause').onclick = () => trainer.pause();
     document.getElementById('reset').onclick = () => trainer.reset();
+    document.getElementById('save').onclick = () => saveAgent(agent);
+    document.getElementById('load').onclick = () => {
+      agent = loadAgent(trainer);
+      render(trainer.state);
+    };
 
     render(env.reset());
   </script>
