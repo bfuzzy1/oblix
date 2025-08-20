@@ -1,6 +1,6 @@
-import { RLAgent } from '../src/rl/agent.js';
-import { GridWorldEnvironment } from '../src/rl/environment.js';
-import { RLTrainer } from '../src/rl/training.js';
+import { RLAgent } from '../dist/rl/agent.js';
+import { GridWorldEnvironment } from '../dist/rl/environment.js';
+import { RLTrainer } from '../dist/rl/training.js';
 
 export async function run(assert) {
   const agent = new RLAgent({ epsilon: 1, epsilonDecay: 0.5 });

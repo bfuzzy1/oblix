@@ -1,7 +1,7 @@
 import assert from 'assert';
-import { GridWorldEnvironment } from '../src/rl/environment.js';
-import { RLAgent } from '../src/rl/agent.js';
-import { RLTrainer } from '../src/rl/training.js';
+import { GridWorldEnvironment } from '../dist/rl/environment.js';
+import { RLAgent } from '../dist/rl/agent.js';
+import { RLTrainer } from '../dist/rl/training.js';
 
 export async function run() {
   const env = new GridWorldEnvironment(3);
