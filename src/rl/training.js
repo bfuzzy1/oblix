@@ -3,8 +3,15 @@ export class RLTrainer {
     this.agent = agent;
     this.env = env;
     this.maxSteps = options.maxSteps ?? 50;
-    this.onStep = options.onStep || null;
     this.intervalMs = options.intervalMs ?? 100;
+    this.liveChart = options.liveChart || null;
+    const userOnStep = options.onStep || null;
+    this.onStep = (state, reward, done, metrics) => {
+      if (userOnStep) userOnStep(state, reward, done, metrics);
+      if (this.liveChart) {
+        this.liveChart.push(metrics.cumulativeReward, metrics.epsilon);
+      }
+    };
     this.isRunning = false;
     this.interval = null;
     this.state = null;
