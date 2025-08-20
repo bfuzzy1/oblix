@@ -1,4 +1,4 @@
-import { ExpectedSarsaAgent } from '../src/rl/expectedSarsaAgent.js';
+import { ExpectedSarsaAgent } from '../dist/rl/expectedSarsaAgent.js';
 
 export async function run(assert) {
   const agent = new ExpectedSarsaAgent({

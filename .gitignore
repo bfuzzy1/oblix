@@ -1,3 +1,5 @@
 src/rl/*.js
+src/rl/*.d.ts
 src/rl/*.js.map
+dist
 node_modules
