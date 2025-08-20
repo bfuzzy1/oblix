@@ -5,12 +5,15 @@ import { LiveChart } from '../src/ui/liveChart.js';
 class MockContext {
   constructor() {
     this.clearCount = 0;
+    this.texts = [];
   }
   clearRect() { this.clearCount++; }
   beginPath() {}
   moveTo() {}
   lineTo() {}
   stroke() {}
+  fillRect() {}
+  fillText(text) { this.texts.push(text); }
 }
 
 class MockCanvas {
@@ -43,4 +46,6 @@ export async function run(assert) {
   assert.deepStrictEqual(chart.rewards.map(v => +v.toFixed(2)), [-0.01, 0.99, 0]);
   assert.deepStrictEqual(chart.epsilons.map(v => +v.toFixed(2)), [0.1, 0.1, 0.1]);
   assert.strictEqual(canvas.ctx.clearCount, 3);
+  assert.ok(canvas.ctx.texts.includes('Reward'));
+  assert.ok(canvas.ctx.texts.includes('Epsilon'));
 }
