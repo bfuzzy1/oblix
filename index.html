@@ -27,13 +27,14 @@
   <canvas id="liveChart" width="400" height="200"></canvas>
   <div>
     <label>Agent:
-      <select id="agent-select">
-        <option value="rl">Q-learning</option>
-        <option value="sarsa">SARSA</option>
-        <option value="expected">Expected SARSA</option>
-      </select>
-    </label>
-  </div>
+        <select id="agent-select">
+          <option value="rl">Q-learning</option>
+          <option value="sarsa">SARSA</option>
+          <option value="expected">Expected SARSA</option>
+          <option value="dyna">Dyna-Q</option>
+        </select>
+      </label>
+    </div>
   <div>
     <label>Epsilon: <input type="range" id="epsilon-slider" min="0" max="1" step="0.01" value="1"><span id="epsilon-value">1</span></label>
   </div>
@@ -52,6 +53,7 @@
     import { RLAgent } from './src/rl/agent.js';
     import { SarsaAgent } from './src/rl/sarsaAgent.js';
     import { ExpectedSarsaAgent } from './src/rl/expectedSarsaAgent.js';
+    import { DynaQAgent } from './src/rl/dynaQAgent.js';
     import { RLTrainer } from './src/rl/training.js';
     import { saveAgent, loadAgent } from './src/rl/storage.js';
     import { LiveChart } from './src/ui/liveChart.js';
@@ -63,6 +65,7 @@
       const options = { epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05 };
       if (type === 'sarsa') return new SarsaAgent(options);
       if (type === 'expected') return new ExpectedSarsaAgent(options);
+      if (type === 'dyna') return new DynaQAgent(options);
       return new RLAgent(options);
     }
 
