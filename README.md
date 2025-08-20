@@ -6,6 +6,7 @@
 
 - **Grid World Environment:** Discrete environment for quick experimentation.
 - **Tabular Q-Learning Agent:** Value estimates stored in a simple lookup table.
+- **SARSA and Expected SARSA Agents:** Alternatives to standard Q-learning.
 - **Epsilon-Greedy Exploration:** Exploration rate automatically decays during training.
 - **Episode Trainer:** Run training loops with callbacks for visualization.
 - **Pure ES6 Modules:** No build step, works with static file hosting.
@@ -29,11 +30,11 @@ The snippet below trains an agent in a 5x5 grid world:
 
 ```js
 import { GridWorldEnvironment } from './src/rl/environment.js';
-import { RLAgent } from './src/rl/agent.js';
+import { ExpectedSarsaAgent } from './src/rl/expectedSarsaAgent.js';
 import { RLTrainer } from './src/rl/training.js';
 
 const env = new GridWorldEnvironment(5);
-const agent = new RLAgent({ epsilon: 0.2 });
+const agent = new ExpectedSarsaAgent({ epsilon: 0.2 });
 await RLTrainer.trainEpisodes(agent, env, 50, 50);
 ```
 
