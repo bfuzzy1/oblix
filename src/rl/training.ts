@@ -1,5 +1,47 @@
+import { RLAgent } from './agent.js';
+import {
+  GridWorldEnvironment,
+  EnvironmentState
+} from './environment.js';
+
+export interface TrainingMetrics {
+  episode: number;
+  steps: number;
+  cumulativeReward: number;
+  epsilon: number;
+}
+
+export interface TrainerOptions {
+  maxSteps?: number;
+  intervalMs?: number;
+  liveChart?: { push: (reward: number, epsilon: number) => void } | null;
+  onStep?: (
+    state: EnvironmentState,
+    reward: number,
+    done: boolean,
+    metrics: TrainingMetrics
+  ) => void;
+}
+
 export class RLTrainer {
-  constructor(agent, env, options = {}) {
+  agent: RLAgent;
+  env: GridWorldEnvironment;
+  maxSteps: number;
+  intervalMs: number;
+  liveChart: { push: (reward: number, epsilon: number) => void } | null;
+  onStep: (
+    state: EnvironmentState,
+    reward: number,
+    done: boolean,
+    metrics: TrainingMetrics
+  ) => void;
+  isRunning: boolean;
+  interval: ReturnType<typeof setInterval> | null;
+  state: EnvironmentState | null;
+  metrics: TrainingMetrics;
+  episodeRewards: number[];
+
+  constructor(agent: RLAgent, env: GridWorldEnvironment, options: TrainerOptions = {}) {
     this.agent = agent;
     this.env = env;
     this.maxSteps = options.maxSteps ?? 50;
@@ -24,7 +66,8 @@ export class RLTrainer {
     this.episodeRewards = [];
   }
 
-  async step() {
+  async step(): Promise<void> {
+    if (!this.state) return;
     const action = this.agent.act(this.state);
     const { state: nextState, reward, done } = this.env.step(action);
     await this.agent.learn(this.state, action, reward, nextState, done);
@@ -46,7 +89,7 @@ export class RLTrainer {
     }
   }
 
-  start() {
+  start(): void {
     if (this.isRunning) return;
     this.state = this.env.reset();
     this.isRunning = true;
@@ -55,23 +98,23 @@ export class RLTrainer {
     }, this.intervalMs);
   }
 
-  setIntervalMs(ms) {
+  setIntervalMs(ms: number): void {
     this.intervalMs = ms;
     if (this.isRunning) {
-      clearInterval(this.interval);
+      if (this.interval) clearInterval(this.interval);
       this.interval = setInterval(async () => {
         await this.step();
       }, this.intervalMs);
     }
   }
 
-  pause() {
+  pause(): void {
     if (!this.isRunning) return;
-    clearInterval(this.interval);
+    if (this.interval) clearInterval(this.interval);
     this.isRunning = false;
   }
 
-  reset() {
+  reset(): void {
     this.pause();
     if (typeof this.agent.reset === 'function') {
       this.agent.reset();
@@ -89,7 +132,12 @@ export class RLTrainer {
     }
   }
 
-  static async trainEpisodes(agent, env, episodes = 10, maxSteps = 50) {
+  static async trainEpisodes(
+    agent: RLAgent,
+    env: GridWorldEnvironment,
+    episodes = 10,
+    maxSteps = 50
+  ): Promise<void> {
     for (let ep = 0; ep < episodes; ep++) {
       let state = env.reset();
       for (let st = 0; st < maxSteps; st++) {
