@@ -30,6 +30,7 @@
       <select id="agent-select">
         <option value="rl">Q-learning</option>
         <option value="sarsa">SARSA</option>
+        <option value="expected">Expected SARSA</option>
       </select>
     </label>
   </div>
@@ -50,6 +51,7 @@
     import { GridWorldEnvironment } from './src/rl/environment.js';
     import { RLAgent } from './src/rl/agent.js';
     import { SarsaAgent } from './src/rl/sarsaAgent.js';
+    import { ExpectedSarsaAgent } from './src/rl/expectedSarsaAgent.js';
     import { RLTrainer } from './src/rl/training.js';
     import { saveAgent, loadAgent } from './src/rl/storage.js';
     import { LiveChart } from './src/ui/liveChart.js';
@@ -59,7 +61,9 @@
 
     function createAgent(type) {
       const options = { epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05 };
-      return type === 'sarsa' ? new SarsaAgent(options) : new RLAgent(options);
+      if (type === 'sarsa') return new SarsaAgent(options);
+      if (type === 'expected') return new ExpectedSarsaAgent(options);
+      return new RLAgent(options);
     }
 
     let agent = createAgent('rl');
