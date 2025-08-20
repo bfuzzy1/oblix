@@ -7,6 +7,7 @@
 - **Grid World Environment:** Discrete environment for quick experimentation.
 - **Tabular Q-Learning Agent:** Value estimates stored in a simple lookup table.
 - **SARSA and Expected SARSA Agents:** Alternatives to standard Q-learning.
+- **Dyna-Q Agent:** Combines Q-learning with planning from a learned model.
 - **Epsilon-Greedy Exploration:** Exploration rate automatically decays during training.
 - **Episode Trainer:** Run training loops with callbacks for visualization.
 - **Pure ES6 Modules:** No build step, works with static file hosting.
@@ -39,6 +40,15 @@ await RLTrainer.trainEpisodes(agent, env, 50, 50);
 ```
 
 This repository focuses solely on reinforcement learning; previous model training utilities have been removed in favor of streamlined RL components.
+
+## Dyna-Q Planning
+
+`DynaQAgent` augments standard Q-learning with a simple model of the environment. Each real interaction stores the observed transition `(s, a) -> (s', r)`. After the real update, the agent samples a number of these stored transitions and applies additional Q-learning updates, effectively "planning" using its learned model. The number of planning iterations is configured with the `planningSteps` option.
+
+```js
+import { DynaQAgent } from './src/rl/dynaQAgent.js';
+const agent = new DynaQAgent({ planningSteps: 10 });
+```
 
 ## Saving and Loading Agents
 
