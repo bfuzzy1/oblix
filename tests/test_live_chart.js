@@ -6,14 +6,17 @@ class MockContext {
   constructor() {
     this.clearCount = 0;
     this.texts = [];
+    this.strokeStyles = [];
+    this.fillStyle = '#000';
+    this.strokeStyle = '#000';
   }
   clearRect() { this.clearCount++; }
   beginPath() {}
   moveTo() {}
   lineTo() {}
-  stroke() {}
+  stroke() { this.strokeStyles.push(this.strokeStyle); }
   fillRect() {}
-  fillText(text) { this.texts.push(text); }
+  fillText(text) { this.texts.push({ text, style: this.fillStyle }); }
 }
 
 class MockCanvas {
@@ -46,6 +49,16 @@ export async function run(assert) {
   assert.deepStrictEqual(chart.rewards.map(v => +v.toFixed(2)), [-0.01, 0.99, 0]);
   assert.deepStrictEqual(chart.epsilons.map(v => +v.toFixed(2)), [0.1, 0.1, 0.1]);
   assert.strictEqual(canvas.ctx.clearCount, 3);
-  assert.ok(canvas.ctx.texts.includes('Reward'));
-  assert.ok(canvas.ctx.texts.includes('Epsilon'));
+  const expectedStrokes = ['#ccc', '#4caf50', '#2196f3'];
+  for (let i = 0; i < canvas.ctx.strokeStyles.length; i += 3) {
+    assert.deepStrictEqual(
+      canvas.ctx.strokeStyles.slice(i, i + 3),
+      expectedStrokes
+    );
+  }
+  const rewardEntry = canvas.ctx.texts.find(t => t.text === 'Reward');
+  const epsilonEntry = canvas.ctx.texts.find(t => t.text === 'Epsilon');
+  assert.ok(rewardEntry && epsilonEntry);
+  assert.strictEqual(rewardEntry.style, '#ccc');
+  assert.strictEqual(epsilonEntry.style, '#ccc');
 }
