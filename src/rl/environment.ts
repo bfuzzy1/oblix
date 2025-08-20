@@ -1,5 +1,18 @@
+export type EnvironmentState = Float32Array;
+
+export interface StepResult {
+  state: EnvironmentState;
+  reward: number;
+  done: boolean;
+}
+
 export class GridWorldEnvironment {
-  constructor(size = 5, obstacles = []) {
+  size: number;
+  obstacles: { x: number; y: number }[];
+  obstacleSet: Set<string>;
+  agentPos!: { x: number; y: number };
+
+  constructor(size = 5, obstacles: { x: number; y: number }[] = []) {
     this.size = size;
     this.obstacles = obstacles.map(o => ({ x: o.x, y: o.y }));
     this.obstacleSet = new Set(
@@ -9,21 +22,21 @@ export class GridWorldEnvironment {
   }
 
   /** Reset the environment to the starting state. */
-  reset() {
+  reset(): EnvironmentState {
     this.agentPos = { x: 0, y: 0 };
     return this.getState();
   }
 
   /** Convert the current agent position to state Float32Array. */
-  getState() {
+  getState(): EnvironmentState {
     return new Float32Array([this.agentPos.x, this.agentPos.y]);
   }
 
-  isObstacle(x, y) {
+  isObstacle(x: number, y: number): boolean {
     return this.obstacleSet.has(`${x},${y}`);
   }
 
-  toggleObstacle(x, y) {
+  toggleObstacle(x: number, y: number): void {
     const key = `${x},${y}`;
     if (this.obstacleSet.has(key)) {
       this.obstacleSet.delete(key);
@@ -36,10 +49,9 @@ export class GridWorldEnvironment {
 
   /**
    * Step the environment with an action.
-   * @param {number} action 0:up,1:down,2:left,3:right
-   * @returns {{state:Float32Array,reward:number,done:boolean}}
+   * @param action 0:up,1:down,2:left,3:right
    */
-  step(action) {
+  step(action: number): StepResult {
     let newX = this.agentPos.x;
     let newY = this.agentPos.y;
     switch (action) {

@@ -1,7 +1,13 @@
 import { RLAgent } from './agent.js';
 
 export class SarsaAgent extends RLAgent {
-  learn(state, action, reward, nextState, done) {
+  learn(
+    state: Float32Array,
+    action: number,
+    reward: number,
+    nextState: Float32Array,
+    done: boolean
+  ): void | Promise<void> {
     const qVals = this._ensure(state);
     const nextQ = this._ensure(nextState);
     let nextAction = 0;
