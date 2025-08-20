@@ -40,5 +40,20 @@ export class LiveChart {
     });
     ctx.strokeStyle = '#2196f3';
     ctx.stroke();
+
+    ctx.font = '12px sans-serif';
+    const legendX = 10;
+    let legendY = 10;
+
+    ctx.fillStyle = '#4caf50';
+    ctx.fillRect(legendX, legendY, 10, 10);
+    ctx.fillStyle = '#000';
+    ctx.fillText('Reward', legendX + 15, legendY + 10);
+
+    legendY += 20;
+    ctx.fillStyle = '#2196f3';
+    ctx.fillRect(legendX, legendY, 10, 10);
+    ctx.fillStyle = '#000';
+    ctx.fillText('Epsilon', legendX + 15, legendY + 10);
   }
 }
