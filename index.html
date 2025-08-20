@@ -24,7 +24,7 @@
     <div>Cumulative Reward: <span id="reward">0</span></div>
     <div>Epsilon: <span id="epsilon">1</span></div>
   </div>
-  <canvas id="rewardChart" width="400" height="200"></canvas>
+  <canvas id="liveChart" width="400" height="200"></canvas>
   <div>
     <label>Agent:
       <select id="agent-select">
@@ -52,6 +52,7 @@
     import { SarsaAgent } from './src/rl/sarsaAgent.js';
     import { RLTrainer } from './src/rl/training.js';
     import { saveAgent, loadAgent } from './src/rl/storage.js';
+    import { LiveChart } from './src/ui/liveChart.js';
 
     const size = 5;
     const env = new GridWorldEnvironment(size);
@@ -64,10 +65,11 @@
     let agent = createAgent('rl');
     const gridEl = document.getElementById('grid');
     gridEl.style.setProperty('--size', size);
-    
+   
     const canvas = document.getElementById('rewardChart');
     const ctx = canvas.getContext('2d');
     const agentSelect = document.getElementById('agent-select');
+    const liveChart = new LiveChart(document.getElementById('liveChart'));
     const epsilonSlider = document.getElementById('epsilon-slider');
     const epsilonValue = document.getElementById('epsilon-value');
     const intervalSlider = document.getElementById('interval-slider');
@@ -96,14 +98,13 @@
 
     const trainer = new RLTrainer(agent, env, {
       intervalMs: 100,
+      liveChart,
       onStep: (state, reward, done, metrics) => {
         render(state);
         document.getElementById('episode').textContent = metrics.episode;
         document.getElementById('steps').textContent = metrics.steps;
         document.getElementById('reward').textContent = metrics.cumulativeReward.toFixed(2);
         document.getElementById('epsilon').textContent = metrics.epsilon.toFixed(2);
-
-        if (done) drawChart();
 
         epsilonSlider.value = metrics.epsilon;
         epsilonValue.textContent = metrics.epsilon.toFixed(2);
@@ -147,34 +148,6 @@
     };
 
     render(env.reset());
-
-    function drawChart() {
-      const rewards = trainer.episodeRewards;
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      if (rewards.length === 0) return;
-      const max = Math.max(...rewards);
-      const min = Math.min(...rewards);
-      const range = max - min || 1;
-      const stepX = canvas.width / Math.max(rewards.length - 1, 1);
-      const points = rewards.map((r, i) => {
-        const x = i * stepX;
-        const y = canvas.height - ((r - min) / range) * canvas.height;
-        return { x, y };
-      });
-      ctx.beginPath();
-      points.forEach(({ x, y }, i) => {
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      });
-      ctx.strokeStyle = '#4caf50';
-      ctx.stroke();
-      points.forEach(({ x, y }) => {
-        ctx.beginPath();
-        ctx.arc(x, y, 3, 0, Math.PI * 2);
-        ctx.fillStyle = '#4caf50';
-        ctx.fill();
-      });
-    }
   </script>
 </body>
 </html>
