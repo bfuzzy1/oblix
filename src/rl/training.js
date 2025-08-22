@@ -29,7 +29,7 @@ export class RLTrainer {
 
   async step() {
     if (!this.state) return;
-    const action = this.agent.act(this.state);
+    const action = await this.agent.act(this.state);
     const { state: nextState, reward, done } = this.env.step(action);
     await this.agent.learn(this.state, action, reward, nextState, done);
     this.state = nextState;
@@ -97,7 +97,7 @@ export class RLTrainer {
     for (let ep = 0; ep < episodes; ep++) {
       let state = env.reset();
       for (let st = 0; st < maxSteps; st++) {
-        const action = agent.act(state);
+        const action = await agent.act(state);
         const { state: nextState, reward, done } = env.step(action);
         await agent.learn(state, action, reward, nextState, done);
         state = nextState;
