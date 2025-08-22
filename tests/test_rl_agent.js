@@ -1,5 +1,5 @@
-import { RLAgent } from '../dist/rl/agent.js';
-import { saveAgent, loadAgent } from '../dist/rl/storage.js';
+import { RLAgent } from '../src/rl/agent.js';
+import { saveAgent, loadAgent } from '../src/rl/storage.js';
 
 export async function run(assert) {
   const agent = new RLAgent({

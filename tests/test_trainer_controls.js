@@ -1,5 +1,5 @@
-import { GridWorldEnvironment } from '../dist/rl/environment.js';
-import { RLTrainer } from '../dist/rl/training.js';
+import { GridWorldEnvironment } from '../src/rl/environment.js';
+import { RLTrainer } from '../src/rl/training.js';
 
 export async function run(assert) {
   const originalSetInterval = global.setInterval;
