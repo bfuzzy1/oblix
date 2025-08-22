@@ -1,5 +1,11 @@
-import * as tf from '@tensorflow/tfjs';
 import { RLAgent } from './agent.js';
+
+let tf;
+try {
+  tf = await import('@tensorflow/tfjs');
+} catch {
+  tf = globalThis.tf;
+}
 
 export class DQNAgent extends RLAgent {
   constructor(options = {}) {
