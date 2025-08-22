@@ -32,6 +32,7 @@
           <option value="sarsa">SARSA</option>
           <option value="expected">Expected SARSA</option>
           <option value="dyna">Dyna-Q</option>
+          <option value="dqn">DQN</option>
         </select>
       </label>
     </div>
@@ -54,6 +55,7 @@
     import { SarsaAgent } from './src/rl/sarsaAgent.js';
     import { ExpectedSarsaAgent } from './src/rl/expectedSarsaAgent.js';
     import { DynaQAgent } from './src/rl/dynaQAgent.js';
+    import { DQNAgent } from './src/rl/dqnAgent.js';
     import { RLTrainer } from './src/rl/training.js';
     import { saveAgent, loadAgent } from './src/rl/storage.js';
     import { LiveChart } from './src/ui/liveChart.js';
@@ -66,6 +68,7 @@
       if (type === 'sarsa') return new SarsaAgent(options);
       if (type === 'expected') return new ExpectedSarsaAgent(options);
       if (type === 'dyna') return new DynaQAgent(options);
+      if (type === 'dqn') return new DQNAgent(options);
       return new RLAgent(options);
     }
 
