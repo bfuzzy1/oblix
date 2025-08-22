@@ -1,5 +1,5 @@
 import assert from 'assert';
-import { GridWorldEnvironment } from '../dist/rl/environment.js';
+import { GridWorldEnvironment } from '../src/rl/environment.js';
 
 export async function run() {
   const obstacles = [{ x: 1, y: 0 }];

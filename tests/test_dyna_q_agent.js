@@ -1,5 +1,5 @@
-import { DynaQAgent } from '../dist/rl/dynaQAgent.js';
-import { RLAgent } from '../dist/rl/agent.js';
+import { DynaQAgent } from '../src/rl/dynaQAgent.js';
+import { RLAgent } from '../src/rl/agent.js';
 
 export async function run(assert) {
   const state = new Float32Array([0, 0]);
