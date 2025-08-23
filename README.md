@@ -8,7 +8,6 @@
 - **Tabular Q-Learning Agent:** Value estimates stored in a simple lookup table.
 - **SARSA and Expected SARSA Agents:** Alternatives to standard Q-learning.
 - **Dyna-Q Agent:** Combines Q-learning with planning from a learned model.
-- **DQN Agent:** Approximates Q-values with a neural network using TensorFlow.js.
 - **Epsilon-Greedy Exploration:** Exploration rate automatically decays during training.
 - **Episode Trainer:** Run training loops with callbacks for visualization.
 - **Pure ES6 Modules:** No build step, works with static file hosting.
@@ -41,20 +40,6 @@ await RLTrainer.trainEpisodes(agent, env, 50, 50);
 ```
 
 This repository focuses solely on reinforcement learning; previous model training utilities have been removed in favor of streamlined RL components.
-
-## Deep Q-Network
-
-`DQNAgent` learns a value function with a small feedforward network and an experience replay buffer.
-Its `learn` method is asynchronous, so trainer loops `await` it during updates.
-
-```js
-import { DQNAgent } from './src/rl/dqnAgent.js';
-const agent = new DQNAgent({ epsilon: 0.2 });
-await RLTrainer.trainEpisodes(agent, env, 20, 50);
-```
-
-Running neural networks in the browser can be computationally heavy.
-Training may be slower on devices without hardware acceleration, so consider smaller grids or fewer episodes for interactive demos.
 
 ## Dyna-Q Planning
 

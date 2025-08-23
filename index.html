@@ -32,7 +32,6 @@
           <option value="sarsa">SARSA</option>
           <option value="expected">Expected SARSA</option>
           <option value="dyna">Dyna-Q</option>
-          <option value="dqn">DQN</option>
         </select>
       </label>
     </div>
@@ -49,14 +48,12 @@
     <button id="save">Save</button>
     <button id="load">Load</button>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.22.0/dist/tf.min.js"></script>
   <script type="module">
     import { GridWorldEnvironment } from './src/rl/environment.js';
     import { RLAgent } from './src/rl/agent.js';
     import { SarsaAgent } from './src/rl/sarsaAgent.js';
     import { ExpectedSarsaAgent } from './src/rl/expectedSarsaAgent.js';
     import { DynaQAgent } from './src/rl/dynaQAgent.js';
-    import { DQNAgent } from './src/rl/dqnAgent.js';
     import { RLTrainer } from './src/rl/training.js';
     import { saveAgent, loadAgent } from './src/rl/storage.js';
     import { LiveChart } from './src/ui/liveChart.js';
@@ -69,7 +66,6 @@
       if (type === 'sarsa') return new SarsaAgent(options);
       if (type === 'expected') return new ExpectedSarsaAgent(options);
       if (type === 'dyna') return new DynaQAgent(options);
-      if (type === 'dqn') return new DQNAgent(options);
       return new RLAgent(options);
     }
 
