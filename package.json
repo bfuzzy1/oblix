@@ -5,7 +5,5 @@
   "scripts": {
     "test": "node tests/run.js"
   },
-  "dependencies": {
-    "@tensorflow/tfjs": "^4.22.0"
-  }
+  "dependencies": {}
 }
