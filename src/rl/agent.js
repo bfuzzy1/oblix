@@ -6,6 +6,8 @@ export class RLAgent {
     this.learningRate = options.learningRate ?? 0.1;
     this.epsilonDecay = options.epsilonDecay ?? 0.99;
     this.minEpsilon = options.minEpsilon ?? 0.01;
+    this.policy = options.policy ?? 'epsilon-greedy';
+    this.temperature = options.temperature ?? 1;
     this.qTable = new Map();
   }
 
@@ -21,17 +23,49 @@ export class RLAgent {
     return this.qTable.get(key);
   }
 
-  /** Choose an action using epsilon-greedy policy. */
+  /** Choose an action using the configured policy. */
   act(state) {
-    if (Math.random() < this.epsilon) {
-      return Math.floor(Math.random() * 4);
-    }
     const qVals = this._ensure(state);
+    switch (this.policy) {
+      case 'greedy':
+        return this._greedy(qVals);
+      case 'softmax':
+        return this._softmax(qVals);
+      case 'epsilon-greedy':
+      default:
+        return this._epsilonGreedy(qVals);
+    }
+  }
+
+  _random() {
+    return Math.floor(Math.random() * 4);
+  }
+
+  _greedy(qVals) {
     let best = 0;
     for (let i = 1; i < qVals.length; i++) {
       if (qVals[i] > qVals[best]) best = i;
     }
     return best;
+  }
+
+  _epsilonGreedy(qVals) {
+    if (Math.random() < this.epsilon) {
+      return this._random();
+    }
+    return this._greedy(qVals);
+  }
+
+  _softmax(qVals) {
+    const max = Math.max(...qVals);
+    const exps = qVals.map(v => Math.exp((v - max) / this.temperature));
+    const sum = exps.reduce((a, b) => a + b, 0);
+    let r = Math.random() * sum;
+    for (let i = 0; i < exps.length; i++) {
+      r -= exps[i];
+      if (r <= 0) return i;
+    }
+    return exps.length - 1;
   }
 
   /** Reduce exploration rate after learning. */
@@ -65,6 +99,8 @@ export class RLAgent {
       learningRate: this.learningRate,
       epsilonDecay: this.epsilonDecay,
       minEpsilon: this.minEpsilon,
+      policy: this.policy,
+      temperature: this.temperature,
       qTable: table
     };
   }
@@ -76,7 +112,9 @@ export class RLAgent {
       gamma: data.gamma,
       learningRate: data.learningRate,
       epsilonDecay: data.epsilonDecay,
-      minEpsilon: data.minEpsilon
+      minEpsilon: data.minEpsilon,
+      policy: data.policy,
+      temperature: data.temperature
     });
     for (const [k, v] of Object.entries(data.qTable || {})) {
       agent.qTable.set(k, new Float32Array(v));

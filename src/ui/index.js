@@ -10,8 +10,10 @@ import { LiveChart } from './liveChart.js';
 const size = 5;
 const env = new GridWorldEnvironment(size);
 
+const policySelect = document.getElementById('policy-select');
+
 function createAgent(type) {
-  const options = { epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05 };
+  const options = { epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05, policy: policySelect.value };
   if (type === 'sarsa') return new SarsaAgent(options);
   if (type === 'expected') return new ExpectedSarsaAgent(options);
   if (type === 'dyna') return new DynaQAgent(options);
@@ -73,6 +75,7 @@ const trainer = new RLTrainer(agent, env, {
 
 epsilonSlider.value = agent.epsilon;
 epsilonValue.textContent = agent.epsilon.toFixed(2);
+policySelect.value = agent.policy;
 intervalSlider.value = trainer.intervalMs;
 intervalValue.textContent = trainer.intervalMs;
 syncLearningRate();
@@ -83,7 +86,12 @@ agentSelect.addEventListener('change', e => {
   trainer.reset();
   epsilonSlider.value = agent.epsilon;
   epsilonValue.textContent = agent.epsilon.toFixed(2);
+  policySelect.value = agent.policy;
   syncLearningRate();
+});
+
+policySelect.addEventListener('change', e => {
+  agent.policy = e.target.value;
 });
 
 epsilonSlider.addEventListener('input', e => {
@@ -119,6 +127,7 @@ document.getElementById('load').onclick = () => {
   agent = loadAgent(trainer);
   epsilonSlider.value = agent.epsilon;
   epsilonValue.textContent = agent.epsilon.toFixed(2);
+  policySelect.value = agent.policy;
   syncLearningRate();
   render(trainer.state);
 };
