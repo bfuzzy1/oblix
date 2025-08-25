@@ -1,19 +1,25 @@
 export class LiveChart {
-  constructor(canvas) {
+  constructor(canvas, windowSize = 10) {
     this.canvas = canvas;
     this.ctx = canvas.getContext('2d');
+    this.windowSize = windowSize;
     this.rewards = [];
     this.epsilons = [];
+    this.avgRewards = [];
   }
 
   push(reward, epsilon) {
     this.rewards.push(reward);
     this.epsilons.push(epsilon);
+    const start = Math.max(0, this.rewards.length - this.windowSize);
+    const slice = this.rewards.slice(start);
+    const avg = slice.reduce((a, b) => a + b, 0) / slice.length;
+    this.avgRewards.push(avg);
     this.draw();
   }
 
   draw() {
-    const { ctx, canvas, rewards, epsilons } = this;
+    const { ctx, canvas, rewards, epsilons, avgRewards } = this;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (rewards.length === 0) return;
     ctx.beginPath();
@@ -42,6 +48,16 @@ export class LiveChart {
     ctx.strokeStyle = '#4caf50';
     ctx.stroke();
 
+    ctx.beginPath();
+    avgRewards.forEach((r, i) => {
+      const x = i * stepX;
+      const y = canvas.height - ((r - minReward) / rewardRange) * canvas.height;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = '#ff9800';
+    ctx.stroke();
+
     const epsRange = 1;
     ctx.beginPath();
     epsilons.forEach((e, i) => {
@@ -61,6 +77,12 @@ export class LiveChart {
     ctx.fillRect(legendX, legendY, 10, 10);
     ctx.fillStyle = '#ccc';
     ctx.fillText('Reward', legendX + 15, legendY + 10);
+
+    legendY += 20;
+    ctx.fillStyle = '#ff9800';
+    ctx.fillRect(legendX, legendY, 10, 10);
+    ctx.fillStyle = '#ccc';
+    ctx.fillText('Avg Reward', legendX + 15, legendY + 10);
 
     legendY += 20;
     ctx.fillStyle = '#2196f3';
