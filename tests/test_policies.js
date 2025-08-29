@@ -16,4 +16,13 @@ export async function run(assert) {
   Math.random = () => 0;
   assert.strictEqual(softAgent.act(state), 0);
   Math.random = origRandom;
+
+  const ucbAgent = new RLAgent({ policy: 'ucb', ucbC: 1 });
+  ucbAgent.qTable.set(key, new Float32Array([1, 5, 3, 2]));
+  assert.strictEqual(ucbAgent.act(state, false), 0);
+  assert.strictEqual(ucbAgent.act(state), 0);
+  assert.strictEqual(ucbAgent.act(state), 1);
+  assert.strictEqual(ucbAgent.act(state), 2);
+  assert.strictEqual(ucbAgent.act(state), 3);
+  assert.strictEqual(ucbAgent.act(state), 1);
 }

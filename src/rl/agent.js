@@ -8,7 +8,9 @@ export class RLAgent {
     this.minEpsilon = options.minEpsilon ?? 0.01;
     this.policy = options.policy ?? 'epsilon-greedy';
     this.temperature = options.temperature ?? 1;
+    this.ucbC = options.ucbC ?? 2;
     this.qTable = new Map();
+    this.countTable = new Map();
   }
 
   _key(state) {
@@ -24,13 +26,15 @@ export class RLAgent {
   }
 
   /** Choose an action using the configured policy. */
-  act(state) {
+  act(state, update = true) {
     const qVals = this._ensure(state);
     switch (this.policy) {
       case 'greedy':
         return this._greedy(qVals);
       case 'softmax':
         return this._softmax(qVals);
+      case 'ucb':
+        return this._ucb(state, qVals, update);
       case 'epsilon-greedy':
       default:
         return this._epsilonGreedy(qVals);
@@ -68,6 +72,36 @@ export class RLAgent {
     return exps.length - 1;
   }
 
+  _ensureCount(state) {
+    const key = this._key(state);
+    if (!this.countTable.has(key)) {
+      this.countTable.set(key, new Uint32Array(4));
+    }
+    return this.countTable.get(key);
+  }
+
+  _ucb(state, qVals, update) {
+    const counts = this._ensureCount(state);
+    for (let i = 0; i < counts.length; i++) {
+      if (counts[i] === 0) {
+        if (update) counts[i]++;
+        return i;
+      }
+    }
+    const total = counts.reduce((a, b) => a + b, 0);
+    let best = 0;
+    let bestScore = -Infinity;
+    for (let i = 0; i < qVals.length; i++) {
+      const score = qVals[i] + this.ucbC * Math.sqrt(Math.log(total) / counts[i]);
+      if (score > bestScore) {
+        bestScore = score;
+        best = i;
+      }
+    }
+    if (update) counts[best]++;
+    return best;
+  }
+
   /** Reduce exploration rate after learning. */
   decayEpsilon() {
     this.epsilon = Math.max(this.minEpsilon, this.epsilon * this.epsilonDecay);
@@ -86,12 +120,16 @@ export class RLAgent {
   reset() {
     this.epsilon = this.initialEpsilon;
     this.qTable.clear();
+    this.countTable.clear();
   }
 
   /** Serialize agent state to a plain object. */
   toJSON() {
     const table = Object.fromEntries(
       Array.from(this.qTable.entries()).map(([k, v]) => [k, Array.from(v)])
+    );
+    const counts = Object.fromEntries(
+      Array.from(this.countTable.entries()).map(([k, v]) => [k, Array.from(v)])
     );
     return {
       epsilon: this.epsilon,
@@ -101,7 +139,9 @@ export class RLAgent {
       minEpsilon: this.minEpsilon,
       policy: this.policy,
       temperature: this.temperature,
-      qTable: table
+      ucbC: this.ucbC,
+      qTable: table,
+      countTable: counts
     };
   }
 
@@ -114,10 +154,14 @@ export class RLAgent {
       epsilonDecay: data.epsilonDecay,
       minEpsilon: data.minEpsilon,
       policy: data.policy,
-      temperature: data.temperature
+      temperature: data.temperature,
+      ucbC: data.ucbC
     });
     for (const [k, v] of Object.entries(data.qTable || {})) {
       agent.qTable.set(k, new Float32Array(v));
+    }
+    for (const [k, v] of Object.entries(data.countTable || {})) {
+      agent.countTable.set(k, new Uint32Array(v));
     }
     return agent;
   }
