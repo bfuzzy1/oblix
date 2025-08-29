@@ -33,6 +33,8 @@ export class RLAgent {
         return this._greedy(qVals);
       case 'softmax':
         return this._softmax(qVals);
+      case 'thompson':
+        return this._thompson(state, qVals, update);
       case 'ucb':
         return this._ucb(state, qVals, update);
       case 'epsilon-greedy':
@@ -70,6 +72,30 @@ export class RLAgent {
       if (r <= 0) return i;
     }
     return exps.length - 1;
+  }
+
+  _gaussian() {
+    let u = 0;
+    let v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+
+  _thompson(state, qVals, update) {
+    const counts = this._ensureCount(state);
+    let best = 0;
+    let bestSample = -Infinity;
+    for (let i = 0; i < qVals.length; i++) {
+      const variance = 1 / (counts[i] + 1);
+      const sample = qVals[i] + this._gaussian() * Math.sqrt(variance);
+      if (sample > bestSample) {
+        bestSample = sample;
+        best = i;
+      }
+    }
+    if (update) counts[best]++;
+    return best;
   }
 
   _ensureCount(state) {

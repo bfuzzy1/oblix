@@ -25,4 +25,10 @@ export async function run(assert) {
   assert.strictEqual(ucbAgent.act(state), 2);
   assert.strictEqual(ucbAgent.act(state), 3);
   assert.strictEqual(ucbAgent.act(state), 1);
+
+  const thompAgent = new RLAgent({ policy: 'thompson' });
+  thompAgent.qTable.set(key, new Float32Array([1, 5, 3, 2]));
+  thompAgent._gaussian = () => 0;
+  assert.strictEqual(thompAgent.act(state), 1);
+  assert.strictEqual(thompAgent.countTable.get(key)[1], 1);
 }
