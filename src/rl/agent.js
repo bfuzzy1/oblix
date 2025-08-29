@@ -26,7 +26,7 @@ export class RLAgent {
   }
 
   /** Choose an action using the configured policy. */
-  act(state) {
+  act(state, update = true) {
     const qVals = this._ensure(state);
     switch (this.policy) {
       case 'greedy':
@@ -34,7 +34,7 @@ export class RLAgent {
       case 'softmax':
         return this._softmax(qVals);
       case 'ucb':
-        return this._ucb(state, qVals);
+        return this._ucb(state, qVals, update);
       case 'epsilon-greedy':
       default:
         return this._epsilonGreedy(qVals);
@@ -80,11 +80,11 @@ export class RLAgent {
     return this.countTable.get(key);
   }
 
-  _ucb(state, qVals) {
+  _ucb(state, qVals, update) {
     const counts = this._ensureCount(state);
     for (let i = 0; i < counts.length; i++) {
       if (counts[i] === 0) {
-        counts[i]++;
+        if (update) counts[i]++;
         return i;
       }
     }
@@ -98,7 +98,7 @@ export class RLAgent {
         best = i;
       }
     }
-    counts[best]++;
+    if (update) counts[best]++;
     return best;
   }
 

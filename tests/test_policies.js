@@ -19,6 +19,7 @@ export async function run(assert) {
 
   const ucbAgent = new RLAgent({ policy: 'ucb', ucbC: 1 });
   ucbAgent.qTable.set(key, new Float32Array([1, 5, 3, 2]));
+  assert.strictEqual(ucbAgent.act(state, false), 0);
   assert.strictEqual(ucbAgent.act(state), 0);
   assert.strictEqual(ucbAgent.act(state), 1);
   assert.strictEqual(ucbAgent.act(state), 2);

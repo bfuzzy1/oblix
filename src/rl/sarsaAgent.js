@@ -6,7 +6,7 @@ export class SarsaAgent extends RLAgent {
     const nextQ = this._ensure(nextState);
     let nextAction = 0;
     if (!done) {
-      nextAction = this.act(nextState);
+      nextAction = this.act(nextState, false);
     }
     const target = reward + (done ? 0 : this.gamma * nextQ[nextAction]);
     qVals[action] += this.learningRate * (target - qVals[action]);
