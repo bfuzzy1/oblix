@@ -15,4 +15,10 @@ export async function run(assert) {
   const rlVal = rl.qTable.get(key)[3];
   const qlVal = ql.qTable.get(key)[3];
   assert.ok(qlVal > rlVal);
+
+  ql.qTable.set(key, new Float32Array([1, 2, 3, 4]));
+  const json = ql.toJSON();
+  const restored = QLambdaAgent.fromJSON(json);
+  assert.strictEqual(restored.lambda, ql.lambda);
+  assert.deepStrictEqual(Array.from(restored.qTable.get(key)), [1, 2, 3, 4]);
 }

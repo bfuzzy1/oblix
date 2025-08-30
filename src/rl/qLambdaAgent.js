@@ -45,23 +45,20 @@ export class QLambdaAgent extends RLAgent {
   }
 
   static fromJSON(data) {
+    const base = RLAgent.fromJSON(data);
     const agent = new QLambdaAgent({
-      epsilon: data.epsilon,
-      gamma: data.gamma,
-      learningRate: data.learningRate,
-      epsilonDecay: data.epsilonDecay,
-      minEpsilon: data.minEpsilon,
-      policy: data.policy,
-      temperature: data.temperature,
-      ucbC: data.ucbC,
+      epsilon: base.epsilon,
+      gamma: base.gamma,
+      learningRate: base.learningRate,
+      epsilonDecay: base.epsilonDecay,
+      minEpsilon: base.minEpsilon,
+      policy: base.policy,
+      temperature: base.temperature,
+      ucbC: base.ucbC,
       lambda: data.lambda
     });
-    for (const [k, v] of Object.entries(data.qTable || {})) {
-      agent.qTable.set(k, new Float32Array(v));
-    }
-    for (const [k, v] of Object.entries(data.countTable || {})) {
-      agent.countTable.set(k, new Uint32Array(v));
-    }
+    agent.qTable = base.qTable;
+    agent.countTable = base.countTable;
     return agent;
   }
 }

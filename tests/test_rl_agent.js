@@ -1,7 +1,14 @@
 import { RLAgent } from '../src/rl/agent.js';
 import { saveAgent, loadAgent } from '../src/rl/storage.js';
+import { mapToObject, objectToMap } from '../src/rl/utils/serialization.js';
 
 export async function run(assert) {
+  const map = new Map([['a', new Float32Array([1, 2])]]);
+  const obj = mapToObject(map);
+  assert.deepStrictEqual(obj, { a: [1, 2] });
+  const restored = objectToMap(obj, Float32Array);
+  assert.deepStrictEqual(Array.from(restored.get('a')), [1, 2]);
+
   const agent = new RLAgent({
     epsilon: 1,
     epsilonDecay: 0.5,
