@@ -12,7 +12,16 @@ export class DynaQAgent extends RLAgent {
     return `${this._key(state)}|${action}`;
   }
 
-  learn(state, action, reward, nextState, done) {
+  /**
+   * Update the model with an observed transition.
+   * @param {ArrayLike<number>} state - state before the action
+   * @param {number} action - action taken
+   * @param {number} reward - reward received
+   * @param {ArrayLike<number>} nextState - state after the action
+   * @param {boolean} done - whether the transition ended the episode
+   * @returns {{state: Float32Array, nextState: Float32Array}} processed states
+   */
+  _updateModel(state, action, reward, nextState, done) {
     const s = new Float32Array(state);
     const ns = new Float32Array(nextState);
     const key = this._saKey(s, action);
@@ -20,12 +29,28 @@ export class DynaQAgent extends RLAgent {
       this.stateActions.push({ state: s, action });
     }
     this.model.set(key, { nextState: ns, reward, done });
+    return { state: s, nextState: ns };
+  }
 
-    const qVals = this._ensure(s);
-    const nextQ = this._ensure(ns);
+  /**
+   * Update Q-values based on real experience.
+   * @param {Float32Array} state - current state
+   * @param {number} action - action taken
+   * @param {number} reward - reward received
+   * @param {Float32Array} nextState - state after the action
+   * @param {boolean} done - whether the transition ended the episode
+   */
+  _updateQValues(state, action, reward, nextState, done) {
+    const qVals = this._ensure(state);
+    const nextQ = this._ensure(nextState);
     const maxNext = done ? 0 : Math.max(...nextQ);
     qVals[action] += this.learningRate * (reward + this.gamma * maxNext - qVals[action]);
+  }
 
+  /**
+   * Execute planning steps using the learned model.
+   */
+  _runPlanningSteps() {
     const total = this.stateActions.length;
     for (let i = 0; i < this.planningSteps && total > 0; i++) {
       const idx = Math.floor(Math.random() * total);
@@ -40,7 +65,18 @@ export class DynaQAgent extends RLAgent {
       const pmaxNext = pd ? 0 : Math.max(...pnextQ);
       pq[pa] += this.learningRate * (pr + this.gamma * pmaxNext - pq[pa]);
     }
+  }
 
+  learn(state, action, reward, nextState, done) {
+    const { state: s, nextState: ns } = this._updateModel(
+      state,
+      action,
+      reward,
+      nextState,
+      done
+    );
+    this._updateQValues(s, action, reward, ns, done);
+    this._runPlanningSteps();
     this.decayEpsilon();
   }
 }
