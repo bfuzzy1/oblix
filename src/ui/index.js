@@ -4,6 +4,7 @@ import { SarsaAgent } from '../rl/sarsaAgent.js';
 import { ExpectedSarsaAgent } from '../rl/expectedSarsaAgent.js';
 import { DynaQAgent } from '../rl/dynaQAgent.js';
 import { QLambdaAgent } from '../rl/qLambdaAgent.js';
+import { MonteCarloAgent } from '../rl/monteCarloAgent.js';
 import { RLTrainer } from '../rl/training.js';
 import { saveAgent, loadAgent } from '../rl/storage.js';
 import { LiveChart } from './liveChart.js';
@@ -27,6 +28,7 @@ function createAgent(type) {
   if (type === 'expected') return new ExpectedSarsaAgent(options);
   if (type === 'dyna') return new DynaQAgent(options);
   if (type === 'qlambda') return new QLambdaAgent(options);
+  if (type === 'mc') return new MonteCarloAgent(options);
   return new RLAgent(options);
 }
 
