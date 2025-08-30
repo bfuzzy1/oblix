@@ -158,6 +158,7 @@ export class RLAgent {
       Array.from(this.countTable.entries()).map(([k, v]) => [k, Array.from(v)])
     );
     return {
+      type: 'rl',
       epsilon: this.epsilon,
       gamma: this.gamma,
       learningRate: this.learningRate,
