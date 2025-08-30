@@ -34,7 +34,7 @@ export class RLAgent {
   _selectAction(qVals, state, update = true) {
     switch (this.policy) {
       case 'greedy':
-        return this._greedy(qVals);
+        return this.bestAction(qVals);
       case 'softmax':
         return this._softmax(qVals);
       case 'thompson':
@@ -57,7 +57,7 @@ export class RLAgent {
     return Math.floor(Math.random() * 4);
   }
 
-  _greedy(qVals) {
+  bestAction(qVals) {
     let best = 0;
     for (let i = 1; i < qVals.length; i++) {
       if (qVals[i] > qVals[best]) best = i;
@@ -69,7 +69,7 @@ export class RLAgent {
     if (Math.random() < this.epsilon) {
       return this._random();
     }
-    return this._greedy(qVals);
+    return this.bestAction(qVals);
   }
 
   _softmax(qVals) {

@@ -58,6 +58,46 @@ export async function run(assert) {
     assert.strictEqual(action, 3);
   }
 
+  {
+    const agent = new DoubleQAgent();
+    const state = new Float32Array([0, 0]);
+    const next = new Float32Array([1, 0]);
+    const nextKey = Array.from(next).join(',');
+    agent.qTableA.set(nextKey, new Float32Array([0, 0, 1, 0]));
+    agent.qTableB.set(nextKey, new Float32Array([1, 0, 0, 0]));
+    const origRand = Math.random;
+    Math.random = () => 0.4;
+    let called = false;
+    agent.bestAction = arr => {
+      called = true;
+      assert.strictEqual(arr, agent.qTableA.get(nextKey));
+      return 2;
+    };
+    agent.learn(state, 0, 0, next, false);
+    assert.ok(called);
+    Math.random = origRand;
+  }
+
+  {
+    const agent = new DoubleQAgent();
+    const state = new Float32Array([0, 0]);
+    const next = new Float32Array([1, 0]);
+    const nextKey = Array.from(next).join(',');
+    agent.qTableA.set(nextKey, new Float32Array([1, 0, 0, 0]));
+    agent.qTableB.set(nextKey, new Float32Array([0, 0, 1, 0]));
+    const origRand = Math.random;
+    Math.random = () => 0.6;
+    let called = false;
+    agent.bestAction = arr => {
+      called = true;
+      assert.strictEqual(arr, agent.qTableB.get(nextKey));
+      return 2;
+    };
+    agent.learn(state, 0, 0, next, false);
+    assert.ok(called);
+    Math.random = origRand;
+  }
+
   const steps = 5000;
   const qAgent = await train(new RLAgent({ epsilon: 1, epsilonDecay: 1, gamma: 0.9, learningRate: 0.1 }), steps, 42);
   const dqAgent = await train(new DoubleQAgent({ epsilon: 1, epsilonDecay: 1, gamma: 0.9, learningRate: 0.1 }), steps, 42);

@@ -6,10 +6,7 @@ export class ExpectedSarsaAgent extends RLAgent {
     const nextQ = this._ensure(nextState);
     let expected = 0;
     if (!done) {
-      let best = 0;
-      for (let i = 1; i < nextQ.length; i++) {
-        if (nextQ[i] > nextQ[best]) best = i;
-      }
+      const best = this.bestAction(nextQ);
       const numActions = nextQ.length;
       const epsPart = this.epsilon / numActions;
       for (let i = 0; i < numActions; i++) {

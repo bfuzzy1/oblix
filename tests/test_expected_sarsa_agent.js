@@ -15,6 +15,19 @@ export async function run(assert) {
   const updated = agent.qTable.get(keyState)[0];
   assert.strictEqual(updated, 4.4375);
 
+  let called = false;
+  const spyAgent = new ExpectedSarsaAgent();
+  const ns = new Float32Array([1, 0]);
+  const keyNs = Array.from(ns).join(',');
+  spyAgent.qTable.set(keyNs, new Float32Array([0, 0, 0, 1]));
+  spyAgent.bestAction = arr => {
+    called = true;
+    assert.strictEqual(arr, spyAgent.qTable.get(keyNs));
+    return 3;
+  };
+  spyAgent.learn(new Float32Array([0, 0]), 0, 0, ns, false);
+  assert.ok(called);
+
   const decayAgent = new ExpectedSarsaAgent({
     epsilon: 1,
     epsilonDecay: 0.5,
