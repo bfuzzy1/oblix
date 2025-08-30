@@ -1,98 +1,117 @@
 import { createAgent } from './agentFactory.js';
 import { saveAgent, loadAgent } from '../rl/storage.js';
 
-export function bindControls(trainer, agent, render) {
-  let currentAgent = agent;
+function getElements() {
+  return {
+    agentSelect: document.getElementById('agent-select'),
+    policySelect: document.getElementById('policy-select'),
+    epsilonSlider: document.getElementById('epsilon-slider'),
+    epsilonValue: document.getElementById('epsilon-value'),
+    intervalSlider: document.getElementById('interval-slider'),
+    intervalValue: document.getElementById('interval-value'),
+    learningRateSlider: document.getElementById('learning-rate-slider'),
+    learningRateValue: document.getElementById('learning-rate-value'),
+    lambdaSlider: document.getElementById('lambda-slider'),
+    lambdaValue: document.getElementById('lambda-value')
+  };
+}
 
-  const agentSelect = document.getElementById('agent-select');
-  const policySelect = document.getElementById('policy-select');
-  const epsilonSlider = document.getElementById('epsilon-slider');
-  const epsilonValue = document.getElementById('epsilon-value');
-  const intervalSlider = document.getElementById('interval-slider');
-  const intervalValue = document.getElementById('interval-value');
-  const learningRateSlider = document.getElementById('learning-rate-slider');
-  const learningRateValue = document.getElementById('learning-rate-value');
-  const lambdaSlider = document.getElementById('lambda-slider');
-  const lambdaValue = document.getElementById('lambda-value');
+function syncLearningRate(agent, els) {
+  els.learningRateSlider.value = agent.learningRate;
+  els.learningRateValue.textContent = agent.learningRate.toFixed(2);
+}
 
-  function syncLearningRate() {
-    learningRateSlider.value = currentAgent.learningRate;
-    learningRateValue.textContent = currentAgent.learningRate.toFixed(2);
-  }
+function syncLambda(agent, els) {
+  const val = agent.lambda ?? parseFloat(els.lambdaSlider.value);
+  els.lambdaSlider.value = val;
+  els.lambdaValue.textContent = val.toFixed(2);
+}
 
-  function syncLambda() {
-    lambdaSlider.value = currentAgent.lambda ?? parseFloat(lambdaSlider.value);
-    const val = parseFloat(lambdaSlider.value);
-    lambdaValue.textContent = val.toFixed(2);
-  }
+function initializeControls(trainer, agent, els) {
+  els.epsilonSlider.value = agent.epsilon;
+  els.epsilonValue.textContent = agent.epsilon.toFixed(2);
+  els.policySelect.value = agent.policy;
+  els.intervalSlider.value = trainer.intervalMs;
+  els.intervalValue.textContent = trainer.intervalMs;
+  syncLearningRate(agent, els);
+  syncLambda(agent, els);
+}
 
-  epsilonSlider.value = currentAgent.epsilon;
-  epsilonValue.textContent = currentAgent.epsilon.toFixed(2);
-  policySelect.value = currentAgent.policy;
-  intervalSlider.value = trainer.intervalMs;
-  intervalValue.textContent = trainer.intervalMs;
-  syncLearningRate();
-  syncLambda();
-
-  agentSelect.addEventListener('change', e => {
-    currentAgent = createAgent(e.target.value, {
-      policy: policySelect.value,
-      lambda: parseFloat(lambdaSlider.value)
+function bindAgentSelection(trainer, els, getAgent, setAgent) {
+  els.agentSelect.addEventListener('change', e => {
+    const newAgent = createAgent(e.target.value, {
+      policy: els.policySelect.value,
+      lambda: parseFloat(els.lambdaSlider.value)
     });
-    trainer.agent = currentAgent;
+    setAgent(newAgent);
+    trainer.agent = newAgent;
     trainer.reset();
-    epsilonSlider.value = currentAgent.epsilon;
-    epsilonValue.textContent = currentAgent.epsilon.toFixed(2);
-    policySelect.value = currentAgent.policy;
-    syncLearningRate();
-    syncLambda();
+    initializeControls(trainer, newAgent, els);
   });
+}
 
-  policySelect.addEventListener('change', e => {
-    currentAgent.policy = e.target.value;
+function bindPolicySelection(els, getAgent) {
+  els.policySelect.addEventListener('change', e => {
+    getAgent().policy = e.target.value;
   });
+}
 
-  epsilonSlider.addEventListener('input', e => {
+function bindSliders(trainer, els, getAgent) {
+  els.epsilonSlider.addEventListener('input', e => {
     const val = parseFloat(e.target.value);
-    currentAgent.epsilon = val;
+    const agent = getAgent();
+    agent.epsilon = val;
     trainer.metrics.epsilon = val;
-    epsilonValue.textContent = val.toFixed(2);
+    els.epsilonValue.textContent = val.toFixed(2);
     document.getElementById('epsilon').textContent = val.toFixed(2);
   });
 
-  intervalSlider.addEventListener('input', e => {
+  els.intervalSlider.addEventListener('input', e => {
     const val = parseInt(e.target.value, 10);
     trainer.setIntervalMs(val);
-    intervalValue.textContent = val;
+    els.intervalValue.textContent = val;
   });
 
-  learningRateSlider.addEventListener('input', e => {
+  els.learningRateSlider.addEventListener('input', e => {
     const val = parseFloat(e.target.value);
-    currentAgent.learningRate = val;
-    learningRateValue.textContent = val.toFixed(2);
+    const agent = getAgent();
+    agent.learningRate = val;
+    els.learningRateValue.textContent = val.toFixed(2);
   });
 
-  lambdaSlider.addEventListener('input', e => {
+  els.lambdaSlider.addEventListener('input', e => {
     const val = parseFloat(e.target.value);
-    currentAgent.lambda = val;
-    lambdaValue.textContent = val.toFixed(2);
+    const agent = getAgent();
+    agent.lambda = val;
+    els.lambdaValue.textContent = val.toFixed(2);
   });
+}
 
+function bindPersistence(trainer, els, getAgent, setAgent, render) {
   document.getElementById('start').onclick = () => trainer.start();
   document.getElementById('pause').onclick = () => trainer.pause();
   document.getElementById('reset').onclick = () => {
     trainer.reset();
-    epsilonSlider.value = currentAgent.epsilon;
-    epsilonValue.textContent = currentAgent.epsilon.toFixed(2);
-    syncLearningRate();
+    initializeControls(trainer, getAgent(), els);
   };
-  document.getElementById('save').onclick = () => saveAgent(currentAgent);
+  document.getElementById('save').onclick = () => saveAgent(getAgent());
   document.getElementById('load').onclick = () => {
-    currentAgent = loadAgent(trainer);
-    epsilonSlider.value = currentAgent.epsilon;
-    epsilonValue.textContent = currentAgent.epsilon.toFixed(2);
-    policySelect.value = currentAgent.policy;
-    syncLearningRate();
+    const loaded = loadAgent(trainer);
+    setAgent(loaded);
+    initializeControls(trainer, loaded, els);
     render(trainer.state);
   };
+}
+
+export function bindControls(trainer, agent, render) {
+  let currentAgent = agent;
+  const getAgent = () => currentAgent;
+  const setAgent = a => { currentAgent = a; };
+  const els = getElements();
+
+  initializeControls(trainer, currentAgent, els);
+  bindAgentSelection(trainer, els, getAgent, setAgent);
+  bindPolicySelection(els, getAgent);
+  bindSliders(trainer, els, getAgent);
+  bindPersistence(trainer, els, getAgent, setAgent, render);
 }

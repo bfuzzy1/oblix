@@ -1,6 +1,7 @@
 import { RLAgent } from './agent.js';
 import { GridWorldEnvironment } from './environment.js';
 import { ExperienceReplay } from './experienceReplay.js';
+import { MetricsTracker } from './metricsTracker.js';
 
 export class RLTrainer {
   constructor(agent, env, options = {}) {
@@ -27,13 +28,9 @@ export class RLTrainer {
     this.isStepping = false; // prevents overlapping step calls
     this.timeout = null;
     this.state = null;
-    this.metrics = {
-      episode: 1,
-      steps: 0,
-      cumulativeReward: 0,
-      epsilon: this.agent.epsilon
-    };
-    this.episodeRewards = [];
+    this.metricsTracker = new MetricsTracker(this.agent);
+    this.metrics = this.metricsTracker.data;
+    this.episodeRewards = this.metricsTracker.episodeRewards;
   }
 
   async _applyTransition() {
@@ -55,19 +52,13 @@ export class RLTrainer {
   }
 
   _updateMetrics({ reward, done }) {
-    this.metrics.steps += 1;
-    this.metrics.cumulativeReward += reward;
-    this.metrics.epsilon = this.agent.epsilon;
+    this.metrics = this.metricsTracker.update(reward, this.agent);
     if (this.onStep) this.onStep(this.state, reward, done, { ...this.metrics });
   }
 
   _handleEpisodeEnd(done) {
     if (!done) return;
-    this.episodeRewards.push(this.metrics.cumulativeReward);
-    this.metrics.episode += 1;
-    this.metrics.steps = 0;
-    this.metrics.cumulativeReward = 0;
-    this.metrics.epsilon = this.agent.epsilon;
+    this.metrics = this.metricsTracker.endEpisode(this.agent);
     this.state = this.env.reset();
     if (this.onStep) {
       this.onStep(this.state, 0, false, { ...this.metrics });
@@ -126,13 +117,9 @@ export class RLTrainer {
       this.agent.reset();
     }
     this.state = this.env.reset();
-    this.metrics = {
-      episode: 1,
-      steps: 0,
-      cumulativeReward: 0,
-      epsilon: this.agent.epsilon
-    };
-    this.episodeRewards = [];
+    this.metricsTracker.reset(this.agent);
+    this.metrics = this.metricsTracker.data;
+    this.episodeRewards = this.metricsTracker.episodeRewards;
     if (this.onStep) {
       this.onStep(this.state, 0, false, { ...this.metrics });
     }
