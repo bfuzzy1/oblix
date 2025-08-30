@@ -1,6 +1,7 @@
 import { RLAgent } from './agent.js';
 import { RLTrainer } from './training.js';
 import { DoubleQAgent } from './doubleQAgent.js';
+import { OptimisticAgent } from './optimisticAgent.js';
 
 export function saveAgent(agent, storage = globalThis.localStorage) {
   const data = JSON.stringify(agent.toJSON());
@@ -14,6 +15,8 @@ export function loadAgent(trainer, storage = globalThis.localStorage) {
   let agent;
   if (parsed.type === 'double') {
     agent = DoubleQAgent.fromJSON(parsed);
+  } else if (parsed.type === 'optimistic') {
+    agent = OptimisticAgent.fromJSON(parsed);
   } else {
     agent = RLAgent.fromJSON(parsed);
   }

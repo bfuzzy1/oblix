@@ -18,6 +18,9 @@ export async function run(assert) {
   assert.ok(html.includes('<option value="double">Double Q-learning</option>'));
   assert.ok(js.includes("import { DoubleQAgent } from '../rl/doubleQAgent.js';"));
   assert.ok(js.includes('double: DoubleQAgent'));
+  assert.ok(html.includes('<option value="optimistic">Optimistic</option>'));
+  assert.ok(js.includes("import { OptimisticAgent } from '../rl/optimisticAgent.js';"));
+  assert.ok(js.includes('optimistic: OptimisticAgent'));
   assert.ok(!html.includes('<option value="dqn">'));
   assert.ok(!html.includes('@tensorflow/tfjs'));
   assert.ok(!js.includes('@tensorflow/tfjs'));

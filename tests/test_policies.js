@@ -31,4 +31,12 @@ export async function run(assert) {
   thompAgent._gaussian = () => 0;
   assert.strictEqual(thompAgent.act(state), 1);
   assert.strictEqual(thompAgent.countTable.get(key)[1], 1);
+
+  const randAgent = new RLAgent({ policy: 'random' });
+  const origRand = Math.random;
+  Math.random = () => 0.95;
+  assert.strictEqual(randAgent.act(state), 3);
+  Math.random = () => 0.1;
+  assert.strictEqual(randAgent.act(state), 0);
+  Math.random = origRand;
 }

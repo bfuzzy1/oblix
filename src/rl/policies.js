@@ -3,7 +3,8 @@ export const POLICIES = {
   GREEDY: 'greedy',
   SOFTMAX: 'softmax',
   THOMPSON: 'thompson',
-  UCB: 'ucb'
+  UCB: 'ucb',
+  RANDOM: 'random'
 };
 
 export function selectAction(policy, agent, state, qVals, update = true) {
@@ -16,6 +17,8 @@ export function selectAction(policy, agent, state, qVals, update = true) {
       return agent._thompson(state, qVals, update);
     case POLICIES.UCB:
       return agent._ucb(state, qVals, update);
+    case POLICIES.RANDOM:
+      return agent._random();
     case POLICIES.EPSILON_GREEDY:
     default:
       return agent._epsilonGreedy(qVals);

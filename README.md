@@ -8,7 +8,9 @@
 - **Tabular Q-Learning Agent:** Value estimates stored in a simple lookup table.
 - **SARSA and Expected SARSA Agents:** Alternatives to standard Q-learning.
 - **Dyna-Q Agent:** Combines Q-learning with planning from a learned model.
+- **Optimistic Q-Learning Agent:** Uses high initial values to encourage exploration.
 - **Epsilon-Greedy Exploration:** Exploration rate automatically decays during training.
+- **Random Policy:** Baseline policy that selects actions uniformly at random.
 - **Episode Trainer:** Run training loops with callbacks for visualization.
 - **Pure ES6 Modules:** No build step, works with static file hosting.
 - **Interactive Demo:** Open `index.html` to watch the agent learn in real time.
