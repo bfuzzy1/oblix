@@ -24,7 +24,8 @@ export class RLTrainer {
       options.bufferBeta ?? 0.4
     ) : null);
     this.isRunning = false;
-    this.interval = null;
+    this.isStepping = false; // prevents overlapping step calls
+    this.timeout = null;
     this.state = null;
     this.metrics = {
       episode: 1,
@@ -81,28 +82,36 @@ export class RLTrainer {
     this._handleEpisodeEnd(transition.done);
   }
 
+  _runLoop() {
+    if (!this.isRunning) return;
+    // use setTimeout so each step completes before scheduling the next
+    this.timeout = setTimeout(async () => {
+      if (this.isStepping) return;
+      this.isStepping = true;
+      await this.step();
+      this.isStepping = false;
+      this._runLoop();
+    }, this.intervalMs);
+  }
+
   start() {
     if (this.isRunning) return;
     this.state = this.env.reset();
     this.isRunning = true;
-    this.interval = setInterval(async () => {
-      await this.step();
-    }, this.intervalMs);
+    this._runLoop();
   }
 
   setIntervalMs(ms) {
     this.intervalMs = ms;
-    if (this.isRunning) {
-      if (this.interval) clearInterval(this.interval);
-      this.interval = setInterval(async () => {
-        await this.step();
-      }, this.intervalMs);
+    if (this.isRunning && !this.isStepping) {
+      if (this.timeout) clearTimeout(this.timeout);
+      this._runLoop();
     }
   }
 
   pause() {
     if (!this.isRunning) return;
-    if (this.interval) clearInterval(this.interval);
+    if (this.timeout) clearTimeout(this.timeout);
     this.isRunning = false;
   }
 
