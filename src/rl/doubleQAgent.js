@@ -24,19 +24,7 @@ export class DoubleQAgent extends RLAgent {
   act(state, update = true) {
     const [qa, qb] = this._ensureBoth(state);
     const qVals = qa.map((v, i) => (v + qb[i]) / 2);
-    switch (this.policy) {
-      case 'greedy':
-        return this._greedy(qVals);
-      case 'softmax':
-        return this._softmax(qVals);
-      case 'thompson':
-        return this._thompson(state, qVals, update);
-      case 'ucb':
-        return this._ucb(state, qVals, update);
-      case 'epsilon-greedy':
-      default:
-        return this._epsilonGreedy(qVals);
-    }
+    return this._selectAction(qVals, state, update);
   }
 
   learn(state, action, reward, nextState, done) {

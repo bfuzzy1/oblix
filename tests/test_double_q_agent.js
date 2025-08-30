@@ -39,6 +39,25 @@ async function train(agent, steps, seed) {
 }
 
 export async function run(assert) {
+  {
+    const agent = new DoubleQAgent();
+    const state = new Float32Array([0, 0]);
+    const key = Array.from(state).join(',');
+    agent.qTableA.set(key, new Float32Array([1, 2, 3, 4]));
+    agent.qTableB.set(key, new Float32Array([4, 3, 2, 1]));
+    let called = false;
+    agent._selectAction = (qVals, s, update) => {
+      called = true;
+      assert.deepStrictEqual(Array.from(qVals), [2.5, 2.5, 2.5, 2.5]);
+      assert.strictEqual(s, state);
+      assert.strictEqual(update, false);
+      return 3;
+    };
+    const action = agent.act(state, false);
+    assert.ok(called);
+    assert.strictEqual(action, 3);
+  }
+
   const steps = 5000;
   const qAgent = await train(new RLAgent({ epsilon: 1, epsilonDecay: 1, gamma: 0.9, learningRate: 0.1 }), steps, 42);
   const dqAgent = await train(new DoubleQAgent({ epsilon: 1, epsilonDecay: 1, gamma: 0.9, learningRate: 0.1 }), steps, 42);
