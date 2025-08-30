@@ -33,17 +33,11 @@ export class DoubleQAgent extends RLAgent {
     const [qa, qb] = this._ensureBoth(state);
     const [nextQa, nextQb] = this._ensureBoth(nextState);
     if (updateA) {
-      let best = 0;
-      for (let i = 1; i < nextQa.length; i++) {
-        if (nextQa[i] > nextQa[best]) best = i;
-      }
+      const best = this.bestAction(nextQa);
       const target = reward + (done ? 0 : this.gamma * nextQb[best]);
       qa[action] += this.learningRate * (target - qa[action]);
     } else {
-      let best = 0;
-      for (let i = 1; i < nextQb.length; i++) {
-        if (nextQb[i] > nextQb[best]) best = i;
-      }
+      const best = this.bestAction(nextQb);
       const target = reward + (done ? 0 : this.gamma * nextQa[best]);
       qb[action] += this.learningRate * (target - qb[action]);
     }
