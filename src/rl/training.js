@@ -35,35 +35,50 @@ export class RLTrainer {
     this.episodeRewards = [];
   }
 
-  async step() {
-    if (!this.state) return;
+  async _applyTransition() {
     const action = await this.agent.act(this.state);
     const { state: nextState, reward, done } = this.env.step(action);
     const transition = { state: this.state, action, reward, nextState, done };
     await this.agent.learn(transition.state, transition.action, transition.reward, transition.nextState, transition.done);
-    if (this.replayBuffer) {
-      this.replayBuffer.add(transition, 1);
-      const samples = this.replayBuffer.sample(this.replaySamples, this.replayStrategy);
-      for (const t of samples) {
-        await this.agent.learn(t.state, t.action, t.reward, t.nextState, t.done);
-      }
-    }
     this.state = nextState;
+    return transition;
+  }
+
+  async _processReplay(transition) {
+    if (!this.replayBuffer) return;
+    this.replayBuffer.add(transition, 1);
+    const samples = this.replayBuffer.sample(this.replaySamples, this.replayStrategy);
+    for (const t of samples) {
+      await this.agent.learn(t.state, t.action, t.reward, t.nextState, t.done);
+    }
+  }
+
+  _updateMetrics({ reward, done }) {
     this.metrics.steps += 1;
     this.metrics.cumulativeReward += reward;
     this.metrics.epsilon = this.agent.epsilon;
     if (this.onStep) this.onStep(this.state, reward, done, { ...this.metrics });
-    if (done) {
-      this.episodeRewards.push(this.metrics.cumulativeReward);
-      this.metrics.episode += 1;
-      this.metrics.steps = 0;
-      this.metrics.cumulativeReward = 0;
-      this.metrics.epsilon = this.agent.epsilon;
-      this.state = this.env.reset();
-      if (this.onStep) {
-        this.onStep(this.state, 0, false, { ...this.metrics });
-      }
+  }
+
+  _handleEpisodeEnd(done) {
+    if (!done) return;
+    this.episodeRewards.push(this.metrics.cumulativeReward);
+    this.metrics.episode += 1;
+    this.metrics.steps = 0;
+    this.metrics.cumulativeReward = 0;
+    this.metrics.epsilon = this.agent.epsilon;
+    this.state = this.env.reset();
+    if (this.onStep) {
+      this.onStep(this.state, 0, false, { ...this.metrics });
     }
+  }
+
+  async step() {
+    if (!this.state) return;
+    const transition = await this._applyTransition();
+    await this._processReplay(transition);
+    this._updateMetrics(transition);
+    this._handleEpisodeEnd(transition.done);
   }
 
   start() {
