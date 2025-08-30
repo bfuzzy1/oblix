@@ -18,6 +18,10 @@ export class QLambdaAgent extends RLAgent {
   learn(state, action, reward, nextState, done) {
     const qVals = this._ensure(state);
     const nextQ = this._ensure(nextState);
+    const greedy = this._greedy(qVals);
+    if (action !== greedy) {
+      this.eligibility.clear();
+    }
     const elig = this._ensureEligibility(state);
     elig[action] += 1;
     const target = reward + (done ? 0 : this.gamma * Math.max(...nextQ));

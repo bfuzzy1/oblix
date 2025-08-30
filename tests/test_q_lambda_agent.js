@@ -7,12 +7,21 @@ export async function run(assert) {
   const s0 = new Float32Array([0, 0]);
   const s1 = new Float32Array([1, 0]);
   const s2 = new Float32Array([2, 0]);
-  rl.learn(s0, 3, -0.01, s1, false);
-  ql.learn(s0, 3, -0.01, s1, false);
-  rl.learn(s1, 3, 1, s2, true);
-  ql.learn(s1, 3, 1, s2, true);
+  rl.learn(s0, 0, -0.01, s1, false);
+  ql.learn(s0, 0, -0.01, s1, false);
+  rl.learn(s1, 0, 1, s2, true);
+  ql.learn(s1, 0, 1, s2, true);
   const key = Array.from(s0).join(',');
-  const rlVal = rl.qTable.get(key)[3];
-  const qlVal = ql.qTable.get(key)[3];
+  const rlVal = rl.qTable.get(key)[0];
+  const qlVal = ql.qTable.get(key)[0];
   assert.ok(qlVal > rlVal);
+
+  const agent = new QLambdaAgent({ epsilon: 0, learningRate: 0.5, gamma: 0.9, lambda: 0.8 });
+  const a0 = new Float32Array([0, 0]);
+  const a1 = new Float32Array([1, 0]);
+  agent.learn(a0, 0, 0, a1, false);
+  agent.learn(a1, 1, 0, a1, false);
+  assert.equal(agent.eligibility.size, 1);
+  const key0 = Array.from(a0).join(',');
+  assert.ok(!agent.eligibility.has(key0));
 }
