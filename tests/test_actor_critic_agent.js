@@ -37,6 +37,10 @@ export async function run(assert) {
   const probs = agent.policyProbs(state);
   const sum = probs.reduce((a, b) => a + b, 0);
   assert.ok(Math.abs(sum - 1) < 1e-6);
+  assert.equal(agent.epsilon, 0);
+  agent.epsilon = 0.5;
+  agent.reset();
+  assert.equal(agent.epsilon, 0);
 
   const origRandom = Math.random;
   seedRandom(1);

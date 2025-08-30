@@ -4,6 +4,10 @@ export class ActorCriticAgent {
     this.alphaCritic = options.alphaCritic ?? 0.1;
     this.alphaActor = options.alphaActor ?? 0.1;
     this.temperature = options.temperature ?? 1;
+    this.initialEpsilon = options.epsilon ?? 0;
+    this.epsilon = this.initialEpsilon;
+    this.epsilonDecay = options.epsilonDecay ?? 1;
+    this.minEpsilon = options.minEpsilon ?? 0;
     this.policyTable = new Map();
     this.valueTable = new Map();
   }
@@ -65,7 +69,12 @@ export class ActorCriticAgent {
     }
   }
 
+  decayEpsilon() {
+    this.epsilon = Math.max(this.minEpsilon, this.epsilon * this.epsilonDecay);
+  }
+
   reset() {
+    this.epsilon = this.initialEpsilon;
     this.policyTable.clear();
     this.valueTable.clear();
   }
