@@ -25,9 +25,11 @@ export class RLAgent {
     return this.qTable.get(key);
   }
 
-  /** Choose an action using the configured policy. */
-  act(state, update = true) {
-    const qVals = this._ensure(state);
+  /**
+   * Select an action using the configured policy.
+   * @protected
+   */
+  _selectAction(qVals, state, update = true) {
     switch (this.policy) {
       case 'greedy':
         return this._greedy(qVals);
@@ -41,6 +43,12 @@ export class RLAgent {
       default:
         return this._epsilonGreedy(qVals);
     }
+  }
+
+  /** Choose an action using the configured policy. */
+  act(state, update = true) {
+    const qVals = this._ensure(state);
+    return this._selectAction(qVals, state, update);
   }
 
   _random() {
