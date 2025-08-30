@@ -52,4 +52,52 @@ export async function run(assert) {
   });
   assert.strictEqual(trainer.episodeRewards.length, 1);
   assert.strictEqual(trainer.episodeRewards[0], 0.99);
+
+  const env2 = new GridWorldEnvironment(2);
+  class SlowAgent {
+    constructor() {
+      this.epsilon = 0.1;
+    }
+    act() {
+      return new Promise(resolve => setTimeout(() => resolve(0), 20));
+    }
+    learn() {
+      return new Promise(resolve => setTimeout(resolve, 20));
+    }
+  }
+  const agent2 = new SlowAgent();
+  const trainer2 = new RLTrainer(agent2, env2, { intervalMs: 5 });
+  let concurrent = 0;
+  let maxConcurrent = 0;
+  const originalStep = trainer2.step.bind(trainer2);
+  trainer2.step = async () => {
+    concurrent++;
+    if (concurrent > maxConcurrent) maxConcurrent = concurrent;
+    await originalStep();
+    concurrent--;
+  };
+  trainer2.start();
+  await new Promise(resolve => setTimeout(resolve, 100));
+  trainer2.pause();
+  assert.strictEqual(maxConcurrent, 1);
+
+  const env3 = new GridWorldEnvironment(2);
+  class ErrorAgent {
+    constructor() {
+      this.epsilon = 0.2;
+    }
+    act() { return 0; }
+    learn() {}
+  }
+  const agent3 = new ErrorAgent();
+  const trainer3 = new RLTrainer(agent3, env3, { intervalMs: 5 });
+  let calls = 0;
+  trainer3.step = async () => {
+    calls++;
+    if (calls === 1) throw new Error('fail');
+  };
+  trainer3.start();
+  await new Promise(resolve => setTimeout(resolve, 40));
+  trainer3.pause();
+  assert.ok(calls >= 2);
 }
