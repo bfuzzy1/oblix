@@ -21,6 +21,7 @@ export class OptimisticAgent extends RLAgent {
 
   toJSON() {
     const data = super.toJSON();
+    data.type = 'optimistic';
     data.initialValue = this.initialValue;
     return data;
   }
