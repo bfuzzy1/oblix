@@ -12,6 +12,9 @@ export async function run(assert) {
   assert.ok(html.includes('<option value="qlambda">Q(&lambda;)</option>'));
   assert.ok(js.includes("import { QLambdaAgent } from '../rl/qLambdaAgent.js';"));
   assert.ok(js.includes("if (type === 'qlambda') return new QLambdaAgent(options);"));
+  assert.ok(html.includes('<option value="ac">Actor-Critic</option>'));
+  assert.ok(js.includes("import { ActorCriticAgent } from '../rl/actorCriticAgent.js';"));
+  assert.ok(js.includes("if (type === 'ac') return new ActorCriticAgent(options);"));
   assert.ok(!html.includes('<option value="dqn">'));
   assert.ok(!html.includes('@tensorflow/tfjs'));
   assert.ok(!js.includes('@tensorflow/tfjs'));
