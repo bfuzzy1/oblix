@@ -3,6 +3,7 @@ import { RLAgent } from '../rl/agent.js';
 import { SarsaAgent } from '../rl/sarsaAgent.js';
 import { ExpectedSarsaAgent } from '../rl/expectedSarsaAgent.js';
 import { DynaQAgent } from '../rl/dynaQAgent.js';
+import { QLambdaAgent } from '../rl/qLambdaAgent.js';
 import { RLTrainer } from '../rl/training.js';
 import { saveAgent, loadAgent } from '../rl/storage.js';
 import { LiveChart } from './liveChart.js';
@@ -11,12 +12,21 @@ const size = 5;
 const env = new GridWorldEnvironment(size);
 
 const policySelect = document.getElementById('policy-select');
+const lambdaSlider = document.getElementById('lambda-slider');
+const lambdaValue = document.getElementById('lambda-value');
 
 function createAgent(type) {
-  const options = { epsilon: 1, epsilonDecay: 0.995, minEpsilon: 0.05, policy: policySelect.value };
+  const options = {
+    epsilon: 1,
+    epsilonDecay: 0.995,
+    minEpsilon: 0.05,
+    policy: policySelect.value,
+    lambda: parseFloat(lambdaSlider.value)
+  };
   if (type === 'sarsa') return new SarsaAgent(options);
   if (type === 'expected') return new ExpectedSarsaAgent(options);
   if (type === 'dyna') return new DynaQAgent(options);
+  if (type === 'qlambda') return new QLambdaAgent(options);
   return new RLAgent(options);
 }
 
@@ -36,6 +46,12 @@ const learningRateValue = document.getElementById('learning-rate-value');
 function syncLearningRate() {
   learningRateSlider.value = agent.learningRate;
   learningRateValue.textContent = agent.learningRate.toFixed(2);
+}
+
+function syncLambda() {
+  lambdaSlider.value = agent.lambda ?? parseFloat(lambdaSlider.value);
+  const val = parseFloat(lambdaSlider.value);
+  lambdaValue.textContent = val.toFixed(2);
 }
 
 function render(state) {
@@ -79,6 +95,7 @@ policySelect.value = agent.policy;
 intervalSlider.value = trainer.intervalMs;
 intervalValue.textContent = trainer.intervalMs;
 syncLearningRate();
+syncLambda();
 
 agentSelect.addEventListener('change', e => {
   agent = createAgent(e.target.value);
@@ -88,6 +105,7 @@ agentSelect.addEventListener('change', e => {
   epsilonValue.textContent = agent.epsilon.toFixed(2);
   policySelect.value = agent.policy;
   syncLearningRate();
+  syncLambda();
 });
 
 policySelect.addEventListener('change', e => {
@@ -112,6 +130,12 @@ learningRateSlider.addEventListener('input', e => {
   const val = parseFloat(e.target.value);
   agent.learningRate = val;
   learningRateValue.textContent = val.toFixed(2);
+});
+
+lambdaSlider.addEventListener('input', e => {
+  const val = parseFloat(e.target.value);
+  agent.lambda = val;
+  lambdaValue.textContent = val.toFixed(2);
 });
 
 document.getElementById('start').onclick = () => trainer.start();
