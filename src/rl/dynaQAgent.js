@@ -33,21 +33,6 @@ export class DynaQAgent extends RLAgent {
   }
 
   /**
-   * Update Q-values based on real experience.
-   * @param {Float32Array} state - current state
-   * @param {number} action - action taken
-   * @param {number} reward - reward received
-   * @param {Float32Array} nextState - state after the action
-   * @param {boolean} done - whether the transition ended the episode
-   */
-  _updateQValues(state, action, reward, nextState, done) {
-    const qVals = this._ensure(state);
-    const nextQ = this._ensure(nextState);
-    const maxNext = done ? 0 : Math.max(...nextQ);
-    qVals[action] += this.learningRate * (reward + this.gamma * maxNext - qVals[action]);
-  }
-
-  /**
    * Execute planning steps using the learned model.
    */
   _runPlanningSteps() {
@@ -67,6 +52,9 @@ export class DynaQAgent extends RLAgent {
     }
   }
 
+  /**
+   * Learn from real experience and then perform planning updates.
+   */
   learn(state, action, reward, nextState, done) {
     const { state: s, nextState: ns } = this._updateModel(
       state,
@@ -75,8 +63,7 @@ export class DynaQAgent extends RLAgent {
       nextState,
       done
     );
-    this._updateQValues(s, action, reward, ns, done);
+    super.learn(s, action, reward, ns, done);
     this._runPlanningSteps();
-    this.decayEpsilon();
   }
 }
