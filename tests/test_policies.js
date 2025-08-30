@@ -11,9 +11,9 @@ export async function run(assert) {
   const softAgent = new RLAgent({ policy: 'softmax', temperature: 1 });
   softAgent.qTable.set(key, new Float32Array([1, 5, 1, 1]));
   const origRandom = Math.random;
-  Math.random = () => 0.5;
+  Math.random = () => { origRandom(); return 0.5; };
   assert.strictEqual(softAgent.act(state), 1);
-  Math.random = () => 0;
+  Math.random = () => { origRandom(); return 0; };
   assert.strictEqual(softAgent.act(state), 0);
   Math.random = origRandom;
 
@@ -31,4 +31,12 @@ export async function run(assert) {
   thompAgent._gaussian = () => 0;
   assert.strictEqual(thompAgent.act(state), 1);
   assert.strictEqual(thompAgent.countTable.get(key)[1], 1);
+
+  const randAgent = new RLAgent({ policy: 'random' });
+  const origRand = Math.random;
+  Math.random = () => { origRand(); return 0.95; };
+  assert.strictEqual(randAgent.act(state), 3);
+  Math.random = () => { origRand(); return 0.1; };
+  assert.strictEqual(randAgent.act(state), 0);
+  Math.random = origRand;
 }

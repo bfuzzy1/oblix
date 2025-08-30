@@ -7,6 +7,7 @@ import { QLambdaAgent } from '../rl/qLambdaAgent.js';
 import { MonteCarloAgent } from '../rl/monteCarloAgent.js';
 import { ActorCriticAgent } from '../rl/actorCriticAgent.js';
 import { DoubleQAgent } from '../rl/doubleQAgent.js';
+import { OptimisticAgent } from '../rl/optimisticAgent.js';
 
 const agentFactory = {
   rl: RLAgent,
@@ -16,7 +17,8 @@ const agentFactory = {
   qlambda: QLambdaAgent,
   mc: MonteCarloAgent,
   ac: ActorCriticAgent,
-  double: DoubleQAgent
+  double: DoubleQAgent,
+  optimistic: OptimisticAgent
 };
 
 export function createAgent(type, options = {}) {
