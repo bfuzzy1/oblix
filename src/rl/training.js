@@ -1,5 +1,6 @@
 import { RLAgent } from './agent.js';
 import { GridWorldEnvironment } from './environment.js';
+import { ExperienceReplay } from './experienceReplay.js';
 
 export class RLTrainer {
   constructor(agent, env, options = {}) {
@@ -15,6 +16,13 @@ export class RLTrainer {
         this.liveChart.push(metrics.cumulativeReward, metrics.epsilon);
       }
     };
+    this.replaySamples = options.replaySamples ?? 0;
+    this.replayStrategy = options.replayStrategy || 'uniform';
+    this.replayBuffer = options.replayBuffer || (this.replaySamples > 0 ? new ExperienceReplay(
+      options.bufferCapacity ?? 1000,
+      options.bufferAlpha ?? 0.6,
+      options.bufferBeta ?? 0.4
+    ) : null);
     this.isRunning = false;
     this.interval = null;
     this.state = null;
@@ -31,7 +39,15 @@ export class RLTrainer {
     if (!this.state) return;
     const action = await this.agent.act(this.state);
     const { state: nextState, reward, done } = this.env.step(action);
-    await this.agent.learn(this.state, action, reward, nextState, done);
+    const transition = { state: this.state, action, reward, nextState, done };
+    await this.agent.learn(transition.state, transition.action, transition.reward, transition.nextState, transition.done);
+    if (this.replayBuffer) {
+      this.replayBuffer.add(transition, 1);
+      const samples = this.replayBuffer.sample(this.replaySamples, this.replayStrategy);
+      for (const t of samples) {
+        await this.agent.learn(t.state, t.action, t.reward, t.nextState, t.done);
+      }
+    }
     this.state = nextState;
     this.metrics.steps += 1;
     this.metrics.cumulativeReward += reward;
