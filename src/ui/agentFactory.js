@@ -1,0 +1,33 @@
+import { RLAgent } from '../rl/agent.js';
+import { SarsaAgent } from '../rl/sarsaAgent.js';
+import { ExpectedSarsaAgent } from '../rl/expectedSarsaAgent.js';
+import { DynaQAgent } from '../rl/dynaQAgent.js';
+import { QLambdaAgent } from '../rl/qLambdaAgent.js';
+import { MonteCarloAgent } from '../rl/monteCarloAgent.js';
+import { ActorCriticAgent } from '../rl/actorCriticAgent.js';
+import { DoubleQAgent } from '../rl/doubleQAgent.js';
+
+const agentFactory = {
+  rl: RLAgent,
+  sarsa: SarsaAgent,
+  expected: ExpectedSarsaAgent,
+  dyna: DynaQAgent,
+  qlambda: QLambdaAgent,
+  mc: MonteCarloAgent,
+  ac: ActorCriticAgent,
+  double: DoubleQAgent
+};
+
+export function createAgent(type, options = {}) {
+  const defaults = {
+    epsilon: 1,
+    epsilonDecay: 0.995,
+    minEpsilon: 0.05,
+    policy: 'egreedy',
+    lambda: 0
+  };
+  const AgentClass = agentFactory[type] || RLAgent;
+  return new AgentClass({ ...defaults, ...options });
+}
+
+export { agentFactory };
