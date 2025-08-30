@@ -6,6 +6,7 @@ import { DynaQAgent } from '../rl/dynaQAgent.js';
 import { QLambdaAgent } from '../rl/qLambdaAgent.js';
 import { MonteCarloAgent } from '../rl/monteCarloAgent.js';
 import { ActorCriticAgent } from '../rl/actorCriticAgent.js';
+import { DoubleQAgent } from '../rl/doubleQAgent.js';
 import { RLTrainer } from '../rl/training.js';
 import { saveAgent, loadAgent } from '../rl/storage.js';
 import { LiveChart } from './liveChart.js';
@@ -31,6 +32,7 @@ function createAgent(type) {
   if (type === 'qlambda') return new QLambdaAgent(options);
   if (type === 'mc') return new MonteCarloAgent(options);
   if (type === 'ac') return new ActorCriticAgent(options);
+  if (type === 'double') return new DoubleQAgent(options);
   return new RLAgent(options);
 }
 
