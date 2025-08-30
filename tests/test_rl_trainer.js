@@ -80,4 +80,24 @@ export async function run(assert) {
   await new Promise(resolve => setTimeout(resolve, 100));
   trainer2.pause();
   assert.strictEqual(maxConcurrent, 1);
+
+  const env3 = new GridWorldEnvironment(2);
+  class ErrorAgent {
+    constructor() {
+      this.epsilon = 0.2;
+    }
+    act() { return 0; }
+    learn() {}
+  }
+  const agent3 = new ErrorAgent();
+  const trainer3 = new RLTrainer(agent3, env3, { intervalMs: 5 });
+  let calls = 0;
+  trainer3.step = async () => {
+    calls++;
+    if (calls === 1) throw new Error('fail');
+  };
+  trainer3.start();
+  await new Promise(resolve => setTimeout(resolve, 40));
+  trainer3.pause();
+  assert.ok(calls >= 2);
 }

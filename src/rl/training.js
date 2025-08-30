@@ -88,9 +88,14 @@ export class RLTrainer {
     this.timeout = setTimeout(async () => {
       if (this.isStepping) return;
       this.isStepping = true;
-      await this.step();
-      this.isStepping = false;
-      this._runLoop();
+      try {
+        await this.step();
+      } catch (err) {
+        console.error(err);
+      } finally {
+        this.isStepping = false;
+        this._runLoop();
+      }
     }, this.intervalMs);
   }
 
