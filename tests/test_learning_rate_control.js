@@ -3,9 +3,9 @@ import { JSDOM } from 'jsdom';
 
 export async function run(assert) {
   const js = fs.readFileSync('src/ui/bindControls.js', 'utf8');
-  assert.ok(js.includes("const learningRateSlider = document.getElementById('learning-rate-slider');"));
+  assert.ok(js.includes("document.getElementById('learning-rate-slider')"));
   assert.ok(js.includes("learningRateSlider.addEventListener('input'"));
-  assert.ok(js.includes('currentAgent.learningRate'));
+  assert.ok(js.includes('agent.learningRate = val;'));
   assert.ok(js.includes('learningRateValue.textContent = val.toFixed(2);'));
 
   const dom = new JSDOM(`<input id="learning-rate-slider"><span id="learning-rate-value"></span>`);

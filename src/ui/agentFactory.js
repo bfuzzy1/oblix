@@ -1,4 +1,5 @@
 import { RLAgent } from '../rl/agent.js';
+import { POLICIES } from '../rl/policies.js';
 import { SarsaAgent } from '../rl/sarsaAgent.js';
 import { ExpectedSarsaAgent } from '../rl/expectedSarsaAgent.js';
 import { DynaQAgent } from '../rl/dynaQAgent.js';
@@ -23,7 +24,7 @@ export function createAgent(type, options = {}) {
     epsilon: 1,
     epsilonDecay: 0.995,
     minEpsilon: 0.05,
-    policy: 'egreedy',
+    policy: POLICIES.EPSILON_GREEDY,
     lambda: 0
   };
   const AgentClass = agentFactory[type] || RLAgent;

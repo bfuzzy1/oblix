@@ -1,4 +1,5 @@
 import { mapToObject, objectToMap } from './utils/serialization.js';
+import { POLICIES, selectAction } from './policies.js';
 
 export class RLAgent {
   constructor(options = {}) {
@@ -8,7 +9,7 @@ export class RLAgent {
     this.learningRate = options.learningRate ?? 0.1;
     this.epsilonDecay = options.epsilonDecay ?? 0.99;
     this.minEpsilon = options.minEpsilon ?? 0.01;
-    this.policy = options.policy ?? 'epsilon-greedy';
+    this.policy = options.policy ?? POLICIES.EPSILON_GREEDY;
     this.temperature = options.temperature ?? 1;
     this.ucbC = options.ucbC ?? 2;
     this.qTable = new Map();
@@ -32,19 +33,7 @@ export class RLAgent {
    * @protected
    */
   _selectAction(qVals, state, update = true) {
-    switch (this.policy) {
-      case 'greedy':
-        return this.bestAction(qVals);
-      case 'softmax':
-        return this._softmax(qVals);
-      case 'thompson':
-        return this._thompson(state, qVals, update);
-      case 'ucb':
-        return this._ucb(state, qVals, update);
-      case 'epsilon-greedy':
-      default:
-        return this._epsilonGreedy(qVals);
-    }
+    return selectAction(this.policy, this, state, qVals, update);
   }
 
   /** Choose an action using the configured policy. */
