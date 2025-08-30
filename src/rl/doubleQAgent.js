@@ -1,4 +1,5 @@
 import { RLAgent } from './agent.js';
+import { mapToObject, objectToMap } from './utils/serialization.js';
 
 export class DoubleQAgent extends RLAgent {
   constructor(options = {}) {
@@ -56,51 +57,29 @@ export class DoubleQAgent extends RLAgent {
   }
 
   toJSON() {
-    const tableA = Object.fromEntries(
-      Array.from(this.qTableA.entries()).map(([k, v]) => [k, Array.from(v)])
-    );
-    const tableB = Object.fromEntries(
-      Array.from(this.qTableB.entries()).map(([k, v]) => [k, Array.from(v)])
-    );
-    const counts = Object.fromEntries(
-      Array.from(this.countTable.entries()).map(([k, v]) => [k, Array.from(v)])
-    );
-    return {
-      type: 'double',
-      epsilon: this.epsilon,
-      gamma: this.gamma,
-      learningRate: this.learningRate,
-      epsilonDecay: this.epsilonDecay,
-      minEpsilon: this.minEpsilon,
-      policy: this.policy,
-      temperature: this.temperature,
-      ucbC: this.ucbC,
-      qTableA: tableA,
-      qTableB: tableB,
-      countTable: counts
-    };
+    const data = super.toJSON();
+    data.type = 'double';
+    delete data.qTable;
+    data.qTableA = mapToObject(this.qTableA);
+    data.qTableB = mapToObject(this.qTableB);
+    return data;
   }
 
   static fromJSON(data) {
+    const base = RLAgent.fromJSON(data);
     const agent = new DoubleQAgent({
-      epsilon: data.epsilon,
-      gamma: data.gamma,
-      learningRate: data.learningRate,
-      epsilonDecay: data.epsilonDecay,
-      minEpsilon: data.minEpsilon,
-      policy: data.policy,
-      temperature: data.temperature,
-      ucbC: data.ucbC
+      epsilon: base.epsilon,
+      gamma: base.gamma,
+      learningRate: base.learningRate,
+      epsilonDecay: base.epsilonDecay,
+      minEpsilon: base.minEpsilon,
+      policy: base.policy,
+      temperature: base.temperature,
+      ucbC: base.ucbC
     });
-    for (const [k, v] of Object.entries(data.qTableA || {})) {
-      agent.qTableA.set(k, new Float32Array(v));
-    }
-    for (const [k, v] of Object.entries(data.qTableB || {})) {
-      agent.qTableB.set(k, new Float32Array(v));
-    }
-    for (const [k, v] of Object.entries(data.countTable || {})) {
-      agent.countTable.set(k, new Uint32Array(v));
-    }
+    agent.countTable = base.countTable;
+    agent.qTableA = objectToMap(data.qTableA, Float32Array);
+    agent.qTableB = objectToMap(data.qTableB, Float32Array);
     return agent;
   }
 }

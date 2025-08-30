@@ -69,4 +69,13 @@ export async function run(assert) {
   const avg = qa.map((v, i) => (v + qb[i]) / 2);
   const dMax = Math.max(...avg);
   assert.ok(qMax > dMax);
+
+  dqAgent.qTableA.set(key, new Float32Array([1, 2, 3, 4]));
+  dqAgent.qTableB.set(key, new Float32Array([4, 3, 2, 1]));
+  dqAgent.countTable.set(key, new Uint32Array([1, 2, 3, 4]));
+  const json = dqAgent.toJSON();
+  const restored = DoubleQAgent.fromJSON(json);
+  assert.deepStrictEqual(Array.from(restored.qTableA.get(key)), [1, 2, 3, 4]);
+  assert.deepStrictEqual(Array.from(restored.qTableB.get(key)), [4, 3, 2, 1]);
+  assert.deepStrictEqual(Array.from(restored.countTable.get(key)), [1, 2, 3, 4]);
 }

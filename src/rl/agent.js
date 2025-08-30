@@ -1,3 +1,5 @@
+import { mapToObject, objectToMap } from './utils/serialization.js';
+
 export class RLAgent {
   constructor(options = {}) {
     this.initialEpsilon = options.epsilon ?? 0.1;
@@ -159,12 +161,6 @@ export class RLAgent {
 
   /** Serialize agent state to a plain object. */
   toJSON() {
-    const table = Object.fromEntries(
-      Array.from(this.qTable.entries()).map(([k, v]) => [k, Array.from(v)])
-    );
-    const counts = Object.fromEntries(
-      Array.from(this.countTable.entries()).map(([k, v]) => [k, Array.from(v)])
-    );
     return {
       type: 'rl',
       epsilon: this.epsilon,
@@ -175,8 +171,8 @@ export class RLAgent {
       policy: this.policy,
       temperature: this.temperature,
       ucbC: this.ucbC,
-      qTable: table,
-      countTable: counts
+      qTable: mapToObject(this.qTable),
+      countTable: mapToObject(this.countTable)
     };
   }
 
@@ -192,12 +188,8 @@ export class RLAgent {
       temperature: data.temperature,
       ucbC: data.ucbC
     });
-    for (const [k, v] of Object.entries(data.qTable || {})) {
-      agent.qTable.set(k, new Float32Array(v));
-    }
-    for (const [k, v] of Object.entries(data.countTable || {})) {
-      agent.countTable.set(k, new Uint32Array(v));
-    }
+    agent.qTable = objectToMap(data.qTable, Float32Array);
+    agent.countTable = objectToMap(data.countTable, Uint32Array);
     return agent;
   }
 }
