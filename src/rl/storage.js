@@ -24,3 +24,14 @@ export function loadAgent(trainer, storage = globalThis.localStorage) {
   trainer.reset();
   return agent;
 }
+
+export function saveEnvironment(env, storage = globalThis.localStorage) {
+  const data = JSON.stringify({ size: env.size, obstacles: env.obstacles });
+  storage.setItem('environment', data);
+}
+
+export function loadEnvironment(storage = globalThis.localStorage) {
+  const data = storage.getItem('environment');
+  if (!data) return null;
+  return JSON.parse(data);
+}

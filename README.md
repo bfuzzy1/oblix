@@ -14,6 +14,8 @@
 - **Episode Trainer:** Run training loops with callbacks for visualization.
 - **Pure ES6 Modules:** No build step, works with static file hosting.
 - **Interactive Demo:** Open `index.html` to watch the agent learn in real time.
+- **Adjustable Grid Size:** Change the environment dimensions directly from the UI.
+- **Environment Persistence:** Save and load grid size and obstacles.
 
 ## Project Structure
 
@@ -64,3 +66,4 @@ const restored = RLAgent.fromJSON(saved);
 ## Frontend Demo
 
 Open `index.html` in a browser to interact with the grid world. Use the Start, Pause and Reset buttons to control training and watch the agent improve.
+Use the Grid Size input to resize the environment and toggle cells to set obstacles. The Save and Load buttons persist both the agent and the environment layout in your browser.

@@ -4,11 +4,12 @@ import { LiveChart } from './liveChart.js';
 import { createAgent } from './agentFactory.js';
 import { initRenderer, render } from './renderGrid.js';
 import { bindControls } from './bindControls.js';
+import { saveEnvironment } from '../rl/storage.js';
 
-const size = 5;
-const env = new GridWorldEnvironment(size);
 const gridEl = document.getElementById('grid');
-initRenderer(env, gridEl, size);
+const gridSizeInput = document.getElementById('grid-size');
+let env = new GridWorldEnvironment(parseInt(gridSizeInput.value, 10));
+initRenderer(env, gridEl, env.size);
 
 const policySelect = document.getElementById('policy-select');
 const lambdaSlider = document.getElementById('lambda-slider');
@@ -34,6 +35,20 @@ const trainer = new RLTrainer(agent, env, {
   }
 });
 
-bindControls(trainer, agent, render);
+function rebuildEnvironment(size, obstacles = []) {
+  env = new GridWorldEnvironment(size, obstacles);
+  trainer.env = env;
+  initRenderer(env, gridEl, size);
+  trainer.reset();
+  gridSizeInput.value = size;
+  saveEnvironment(env);
+}
+
+gridSizeInput.addEventListener('change', e => {
+  const newSize = parseInt(e.target.value, 10);
+  rebuildEnvironment(newSize);
+});
+
+bindControls(trainer, agent, render, () => env, rebuildEnvironment);
 
 render(env.reset());
