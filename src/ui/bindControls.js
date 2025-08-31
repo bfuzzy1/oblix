@@ -1,5 +1,5 @@
 import { createAgent } from './agentFactory.js';
-import { saveAgent, loadAgent } from '../rl/storage.js';
+import { saveAgent, loadAgent, saveEnvironment, loadEnvironment } from '../rl/storage.js';
 
 function getElements() {
   return {
@@ -87,23 +87,30 @@ function bindSliders(trainer, els, getAgent) {
   });
 }
 
-function bindPersistence(trainer, els, getAgent, setAgent, render) {
+function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEnv) {
   document.getElementById('start').onclick = () => trainer.start();
   document.getElementById('pause').onclick = () => trainer.pause();
   document.getElementById('reset').onclick = () => {
     trainer.reset();
     initializeControls(trainer, getAgent(), els);
   };
-  document.getElementById('save').onclick = () => saveAgent(getAgent());
+  document.getElementById('save').onclick = () => {
+    saveAgent(getAgent());
+    saveEnvironment(getEnv());
+  };
   document.getElementById('load').onclick = () => {
     const loaded = loadAgent(trainer);
     setAgent(loaded);
     initializeControls(trainer, loaded, els);
+    const envData = loadEnvironment();
+    if (envData) {
+      setEnv(envData.size, envData.obstacles);
+    }
     render(trainer.state);
   };
 }
 
-export function bindControls(trainer, agent, render) {
+export function bindControls(trainer, agent, render, getEnv, setEnv) {
   let currentAgent = agent;
   const getAgent = () => currentAgent;
   const setAgent = a => { currentAgent = a; };
@@ -113,5 +120,5 @@ export function bindControls(trainer, agent, render) {
   bindAgentSelection(trainer, els, getAgent, setAgent);
   bindPolicySelection(els, getAgent);
   bindSliders(trainer, els, getAgent);
-  bindPersistence(trainer, els, getAgent, setAgent, render);
+  bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEnv);
 }

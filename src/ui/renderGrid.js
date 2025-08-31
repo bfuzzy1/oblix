@@ -1,3 +1,5 @@
+import { saveEnvironment } from '../rl/storage.js';
+
 let env;
 let gridEl;
 let size;
@@ -22,6 +24,7 @@ export function render(state) {
         if (x === env.agentPos.x && y === env.agentPos.y) return;
         if (x === size - 1 && y === size - 1) return;
         env.toggleObstacle(x, y);
+        saveEnvironment(env);
         render(env.getState());
       });
       gridEl.appendChild(cell);
