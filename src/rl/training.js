@@ -33,6 +33,16 @@ export class RLTrainer {
     this.episodeRewards = this.metricsTracker.episodeRewards;
   }
 
+  _initializeTrainerState() {
+    this.state = this.env.reset();
+    this.metricsTracker.reset(this.agent);
+    this.metrics = this.metricsTracker.data;
+    this.episodeRewards = this.metricsTracker.episodeRewards;
+    if (this.onStep) {
+      this.onStep(this.state, 0, false, { ...this.metrics });
+    }
+  }
+
   async _applyTransition() {
     const action = await this.agent.act(this.state);
     const { state: nextState, reward, done } = this.env.step(action);
@@ -116,13 +126,12 @@ export class RLTrainer {
     if (typeof this.agent.reset === 'function') {
       this.agent.reset();
     }
-    this.state = this.env.reset();
-    this.metricsTracker.reset(this.agent);
-    this.metrics = this.metricsTracker.data;
-    this.episodeRewards = this.metricsTracker.episodeRewards;
-    if (this.onStep) {
-      this.onStep(this.state, 0, false, { ...this.metrics });
-    }
+    this._initializeTrainerState();
+  }
+
+  resetTrainerState() {
+    this.pause();
+    this._initializeTrainerState();
   }
 
   static async trainEpisodes(agent, env, episodes = 10, maxSteps = 50) {

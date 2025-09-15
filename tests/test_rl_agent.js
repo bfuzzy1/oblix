@@ -42,12 +42,17 @@ export async function run(assert) {
   const trainer = {
     agent: greedyAgent,
     resetCalled: false,
-    reset() { this.resetCalled = true; }
+    resetTrainerStateCalled: false,
+    reset() { this.resetCalled = true; },
+    resetTrainerState() { this.resetTrainerStateCalled = true; }
   };
   saveAgent(greedyAgent, storage);
   trainer.agent = new RLAgent();
   loadAgent(trainer, storage);
-  assert.ok(trainer.resetCalled);
+  assert.ok(trainer.resetTrainerStateCalled);
+  assert.strictEqual(trainer.resetCalled, false);
   const restoredAction = trainer.agent.act(state);
   assert.strictEqual(restoredAction, action);
+  const restoredTable = trainer.agent.qTable.get(key);
+  assert.deepStrictEqual(Array.from(restoredTable), Array.from(greedyAgent.qTable.get(key)));
 }
