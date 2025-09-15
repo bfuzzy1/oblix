@@ -45,7 +45,12 @@ export class ActorCriticAgent {
   }
 
   act(state) {
-    const probs = this.policyProbs(state);
+    const prefs = this._ensurePolicy(state);
+    const actionCount = prefs.length;
+    if (this.epsilon > 0 && Math.random() < this.epsilon) {
+      return Math.floor(Math.random() * actionCount);
+    }
+    const probs = this._softmax(Array.from(prefs));
     let r = Math.random();
     for (let i = 0; i < probs.length; i++) {
       r -= probs[i];
@@ -67,6 +72,7 @@ export class ActorCriticAgent {
       const grad = (i === action ? 1 - probs[i] : -probs[i]);
       prefs[i] += this.alphaActor * tdError * grad;
     }
+    this.decayEpsilon();
   }
 
   decayEpsilon() {

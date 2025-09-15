@@ -42,6 +42,53 @@ export async function run(assert) {
   agent.reset();
   assert.equal(agent.epsilon, 0);
 
+  {
+    const originalRandom = Math.random;
+    const sequence = [0.1, 0.6];
+    let index = 0;
+    Math.random = () => {
+      if (index >= sequence.length) throw new Error('Unexpected Math.random call');
+      return sequence[index++];
+    };
+    try {
+      const exploringAgent = new ActorCriticAgent({ epsilon: 0.5 });
+      const randomAction = exploringAgent.act(state);
+      assert.strictEqual(randomAction, 2);
+    } finally {
+      Math.random = originalRandom;
+    }
+  }
+
+  {
+    const originalRandom = Math.random;
+    const sequence = [0.9, 0.6];
+    let index = 0;
+    Math.random = () => {
+      if (index >= sequence.length) throw new Error('Unexpected Math.random call');
+      return sequence[index++];
+    };
+    try {
+      const greedyAgent = new ActorCriticAgent({ epsilon: 0.5 });
+      const softmaxAction = greedyAgent.act(state);
+      assert.strictEqual(softmaxAction, 2);
+    } finally {
+      Math.random = originalRandom;
+    }
+  }
+
+  const epsilonAgent = new ActorCriticAgent({ epsilon: 0.7 });
+  epsilonAgent.epsilon = 0.1;
+  epsilonAgent.reset();
+  assert.equal(epsilonAgent.epsilon, 0.7);
+
+  const decayAgent = new ActorCriticAgent({ epsilon: 0.8, epsilonDecay: 0.5, minEpsilon: 0.2 });
+  const decayState = new Float32Array([2, 2]);
+  const decayNextState = new Float32Array([3, 3]);
+  decayAgent.learn(decayState, 0, 1, decayNextState, false);
+  assert.ok(Math.abs(decayAgent.epsilon - 0.4) < 1e-8);
+  decayAgent.learn(decayState, 1, 1, decayNextState, true);
+  assert.ok(Math.abs(decayAgent.epsilon - 0.2) < 1e-8);
+
   const origRandom = Math.random;
   seedRandom(1);
   const randomAgent = new RLAgent({ epsilon: 1, learningRate: 0 });
