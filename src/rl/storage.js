@@ -20,13 +20,25 @@ export function loadAgent(trainer, storage = globalThis.localStorage) {
   } else {
     agent = RLAgent.fromJSON(parsed);
   }
-  trainer.agent = agent;
+  Object.defineProperty(agent, '__factoryType', {
+    value: parsed.type || 'rl',
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+  let assigned = agent;
+  if (typeof trainer.setAgent === 'function') {
+    const result = trainer.setAgent(agent);
+    assigned = result || trainer.agent;
+  } else {
+    trainer.agent = agent;
+  }
   if (typeof trainer.resetTrainerState === 'function') {
     trainer.resetTrainerState();
   } else {
     trainer.reset();
   }
-  return agent;
+  return assigned;
 }
 
 export function saveEnvironment(env, storage = globalThis.localStorage) {

@@ -60,10 +60,9 @@ function bindAgentSelection(trainer, els, getAgent, setAgent) {
       policy: els.policySelect.value,
       lambda: parseFloat(els.lambdaSlider.value)
     });
-    setAgent(newAgent);
-    trainer.agent = newAgent;
+    const assigned = setAgent(newAgent);
     trainer.reset();
-    initializeControls(trainer, newAgent, els);
+    initializeControls(trainer, assigned, els);
   });
 }
 
@@ -120,8 +119,8 @@ function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEn
   };
   document.getElementById('load').onclick = () => {
     const loaded = loadAgent(trainer);
-    setAgent(loaded);
-    initializeControls(trainer, loaded, els);
+    const assigned = setAgent(loaded, { skipTrainer: true });
+    initializeControls(trainer, assigned, els);
     const envData = loadEnvironment();
     if (envData) {
       setEnv(envData.size, envData.obstacles);
@@ -133,7 +132,21 @@ function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEn
 export function bindControls(trainer, agent, render, getEnv, setEnv) {
   let currentAgent = agent;
   const getAgent = () => currentAgent;
-  const setAgent = a => { currentAgent = a; };
+  const setAgent = (a, options = {}) => {
+    let nextAgent = a;
+    if (!options.skipTrainer) {
+      if (typeof trainer.setAgent === 'function') {
+        const result = trainer.setAgent(a);
+        nextAgent = result || trainer.agent;
+      } else {
+        trainer.agent = a;
+      }
+    } else if (typeof trainer.setAgent === 'function') {
+      nextAgent = trainer.agent;
+    }
+    currentAgent = nextAgent;
+    return currentAgent;
+  };
   const els = getElements();
 
   initializeControls(trainer, currentAgent, els);
