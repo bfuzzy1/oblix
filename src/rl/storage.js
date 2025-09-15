@@ -21,7 +21,11 @@ export function loadAgent(trainer, storage = globalThis.localStorage) {
     agent = RLAgent.fromJSON(parsed);
   }
   trainer.agent = agent;
-  trainer.reset();
+  if (typeof trainer.resetTrainerState === 'function') {
+    trainer.resetTrainerState();
+  } else {
+    trainer.reset();
+  }
   return agent;
 }
 

@@ -22,12 +22,15 @@ export async function run(assert) {
   const trainer = {
     agent: persistent,
     resetCalled: false,
-    reset() { this.resetCalled = true; }
+    resetTrainerStateCalled: false,
+    reset() { this.resetCalled = true; },
+    resetTrainerState() { this.resetTrainerStateCalled = true; }
   };
   saveAgent(persistent, storage);
   trainer.agent = null;
   loadAgent(trainer, storage);
-  assert.ok(trainer.resetCalled);
+  assert.ok(trainer.resetTrainerStateCalled);
+  assert.strictEqual(trainer.resetCalled, false);
   assert.ok(trainer.agent instanceof OptimisticAgent);
   const restored = trainer.agent.qTable.get(key);
   assert.deepStrictEqual(Array.from(restored), [2, 2, 2, 2]);
