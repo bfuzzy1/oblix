@@ -32,7 +32,7 @@ export class LiveChart {
       ctx.moveTo(x, 0);
       ctx.lineTo(x, canvas.height);
     }
-    ctx.strokeStyle = '#ccc';
+    ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
     ctx.stroke();
     const maxReward = Math.max(...rewards);
     const minReward = Math.min(...rewards);
@@ -45,7 +45,7 @@ export class LiveChart {
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = '#4caf50';
+    ctx.strokeStyle = '#5eead4';
     ctx.stroke();
 
     ctx.beginPath();
@@ -55,7 +55,7 @@ export class LiveChart {
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = '#ff9800';
+    ctx.strokeStyle = '#fbbf24';
     ctx.stroke();
 
     const epsRange = 1;
@@ -66,28 +66,28 @@ export class LiveChart {
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = '#2196f3';
+    ctx.strokeStyle = '#38bdf8';
     ctx.stroke();
 
-    ctx.font = '12px sans-serif';
+    ctx.font = "12px 'Inter', sans-serif";
     const legendX = 10;
     let legendY = 10;
 
-    ctx.fillStyle = '#4caf50';
+    ctx.fillStyle = '#5eead4';
     ctx.fillRect(legendX, legendY, 10, 10);
-    ctx.fillStyle = '#ccc';
+    ctx.fillStyle = '#e2e8f0';
     ctx.fillText('Reward', legendX + 15, legendY + 10);
 
     legendY += 20;
-    ctx.fillStyle = '#ff9800';
+    ctx.fillStyle = '#fbbf24';
     ctx.fillRect(legendX, legendY, 10, 10);
-    ctx.fillStyle = '#ccc';
+    ctx.fillStyle = '#e2e8f0';
     ctx.fillText('Avg Reward', legendX + 15, legendY + 10);
 
     legendY += 20;
-    ctx.fillStyle = '#2196f3';
+    ctx.fillStyle = '#38bdf8';
     ctx.fillRect(legendX, legendY, 10, 10);
-    ctx.fillStyle = '#ccc';
+    ctx.fillStyle = '#e2e8f0';
     ctx.fillText('Epsilon', legendX + 15, legendY + 10);
   }
 }
