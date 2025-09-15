@@ -2,68 +2,152 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>oblix-rl demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="./src/ui/styles.css">
 </head>
 <body>
-  <h1>oblix-rl Grid World</h1>
-  <div id="grid"></div>
-  <div id="metrics">
-    <div>Episode: <span id="episode">1</span></div>
-    <div>Steps: <span id="steps">0</span></div>
-    <div>Cumulative Reward: <span id="reward">0</span></div>
-    <div>Epsilon: <span id="epsilon">1</span></div>
+  <div class="app-shell">
+    <header class="app-header surface">
+      <div class="header-body">
+        <span class="eyebrow">Interactive reinforcement learning lab</span>
+        <h1>oblix-rl Grid World</h1>
+        <p class="lead">
+          Experiment with on-policy and off-policy agents, tune exploration, and watch learning dynamics unfold live.
+        </p>
+      </div>
+      <a class="header-link" href="https://github.com/bfuzzy1/oblix" target="_blank" rel="noopener noreferrer">
+        View on GitHub
+      </a>
+    </header>
+
+    <main class="app-main">
+      <section class="main-column">
+        <section class="surface panel">
+          <div class="panel-header">
+            <h2>Simulation</h2>
+            <span class="status-chip"><span class="status-dot"></span>Live training</span>
+          </div>
+          <div class="grid-wrapper">
+            <div id="grid"></div>
+          </div>
+          <div class="metrics-grid" id="metrics">
+            <div class="metric-card">
+              <span class="metric-label">Episode</span>
+              <span class="metric-value" id="episode">1</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Steps</span>
+              <span class="metric-value" id="steps">0</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Cumulative reward</span>
+              <span class="metric-value" id="reward">0.00</span>
+            </div>
+            <div class="metric-card">
+              <span class="metric-label">Epsilon</span>
+              <span class="metric-value" id="epsilon">1.00</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="surface panel">
+          <div class="panel-header">
+            <h2>Learning telemetry</h2>
+            <p class="panel-subtitle">Reward, moving average, and exploration rate</p>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="liveChart" width="720" height="320"></canvas>
+          </div>
+        </section>
+      </section>
+
+      <aside class="control-column">
+        <section class="surface controls-panel">
+          <h2>Agent controls</h2>
+          <p class="panel-subtitle">Switch strategies and fine-tune parameters to see how the policy adapts.</p>
+
+          <div class="control-grid">
+            <label class="control-block" for="agent-select">
+              <span class="control-label">Agent</span>
+              <select id="agent-select" class="control-input">
+                <option value="rl">Q-learning</option>
+                <option value="double">Double Q-learning</option>
+                <option value="mc">Monte Carlo</option>
+                <option value="qlambda">Q(&lambda;)</option>
+                <option value="sarsa">SARSA</option>
+                <option value="expected">Expected SARSA</option>
+                <option value="dyna">Dyna-Q</option>
+                <option value="ac">Actor-Critic</option>
+                <option value="optimistic">Optimistic</option>
+              </select>
+            </label>
+
+            <label class="control-block" for="policy-select">
+              <span class="control-label">Policy</span>
+              <select id="policy-select" class="control-input">
+                <option value="epsilon-greedy">Epsilon-Greedy</option>
+                <option value="greedy">Greedy</option>
+                <option value="softmax">Softmax</option>
+                <option value="ucb">UCB</option>
+                <option value="thompson">Thompson Sampling</option>
+                <option value="random">Random</option>
+              </select>
+            </label>
+
+            <div class="control-block">
+              <div class="slider-header">
+                <span class="control-label">Exploration &epsilon;</span>
+                <span class="value-pill" id="epsilon-value">1.00</span>
+              </div>
+              <input type="range" id="epsilon-slider" min="0" max="1" step="0.01" value="1" class="control-slider">
+            </div>
+
+            <div class="control-block">
+              <div class="slider-header">
+                <span class="control-label">Learning rate</span>
+                <span class="value-pill" id="learning-rate-value">0.10</span>
+              </div>
+              <input type="range" id="learning-rate-slider" min="0" max="1" step="0.01" value="0.1" class="control-slider">
+            </div>
+
+            <div class="control-block">
+              <div class="slider-header">
+                <span class="control-label">Trace decay &lambda;</span>
+                <span class="value-pill" id="lambda-value">0.90</span>
+              </div>
+              <input type="range" id="lambda-slider" min="0" max="1" step="0.01" value="0.9" class="control-slider">
+            </div>
+
+            <div class="control-block">
+              <div class="slider-header">
+                <span class="control-label">Update interval (ms)</span>
+                <span class="value-pill" id="interval-value">100</span>
+              </div>
+              <input type="range" id="interval-slider" min="10" max="1000" step="10" value="100" class="control-slider">
+            </div>
+
+            <label class="control-block" for="grid-size">
+              <span class="control-label">Grid size</span>
+              <input type="number" id="grid-size" min="2" max="20" value="5" class="control-input control-number">
+            </label>
+          </div>
+
+          <div class="button-row">
+            <button id="start" class="btn primary">Start</button>
+            <button id="pause" class="btn">Pause</button>
+            <button id="reset" class="btn">Reset</button>
+            <button id="save" class="btn subtle">Save</button>
+            <button id="load" class="btn subtle">Load</button>
+          </div>
+        </section>
+      </aside>
+    </main>
   </div>
-  <canvas id="liveChart" width="400" height="200"></canvas>
-  <div>
-    <label>Agent:
-        <select id="agent-select">
-          <option value="rl">Q-learning</option>
-          <option value="double">Double Q-learning</option>
-          <option value="mc">Monte Carlo</option>
-          <option value="qlambda">Q(&lambda;)</option>
-          <option value="sarsa">SARSA</option>
-          <option value="expected">Expected SARSA</option>
-          <option value="dyna">Dyna-Q</option>
-          <option value="ac">Actor-Critic</option>
-          <option value="optimistic">Optimistic</option>
-        </select>
-      </label>
-    </div>
-  <div>
-    <label>Policy:
-        <select id="policy-select">
-          <option value="epsilon-greedy">Epsilon-Greedy</option>
-          <option value="greedy">Greedy</option>
-          <option value="softmax">Softmax</option>
-          <option value="ucb">UCB</option>
-          <option value="thompson">Thompson Sampling</option>
-          <option value="random">Random</option>
-        </select>
-      </label>
-    </div>
-  <div>
-    <label>Epsilon: <input type="range" id="epsilon-slider" min="0" max="1" step="0.01" value="1"><span id="epsilon-value">1</span></label>
-  </div>
-  <div>
-    <label>Learning Rate: <input type="range" id="learning-rate-slider" min="0" max="1" step="0.01" value="0.1"><span id="learning-rate-value">0.10</span></label>
-  </div>
-  <div>
-    <label>Lambda: <input type="range" id="lambda-slider" min="0" max="1" step="0.01" value="0.9"><span id="lambda-value">0.90</span></label>
-  </div>
-  <div>
-    <label>Interval (ms): <input type="range" id="interval-slider" min="10" max="1000" step="10" value="100"><span id="interval-value">100</span></label>
-  </div>
-  <div>
-    <label>Grid Size: <input type="number" id="grid-size" min="2" max="20" value="5"></label>
-  </div>
-  <div>
-    <button id="start">Start</button>
-    <button id="pause">Pause</button>
-    <button id="reset">Reset</button>
-    <button id="save">Save</button>
-    <button id="load">Load</button>
-  </div>
+
   <script type="module" src="./src/ui/index.js"></script>
 </body>
 </html>

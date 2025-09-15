@@ -50,7 +50,7 @@ export async function run(assert) {
   assert.deepStrictEqual(chart.avgRewards.map(v => +v.toFixed(2)), [-0.01, 0.49, 0.49]);
   assert.deepStrictEqual(chart.epsilons.map(v => +v.toFixed(2)), [0.1, 0.1, 0.1]);
   assert.strictEqual(canvas.ctx.clearCount, 3);
-  const expectedStrokes = ['#ccc', '#4caf50', '#ff9800', '#2196f3'];
+  const expectedStrokes = ['rgba(148, 163, 184, 0.25)', '#5eead4', '#fbbf24', '#38bdf8'];
   for (let i = 0; i < canvas.ctx.strokeStyles.length; i += 4) {
     assert.deepStrictEqual(
       canvas.ctx.strokeStyles.slice(i, i + 4),
@@ -61,7 +61,7 @@ export async function run(assert) {
   const avgEntry = canvas.ctx.texts.find(t => t.text === 'Avg Reward');
   const epsilonEntry = canvas.ctx.texts.find(t => t.text === 'Epsilon');
   assert.ok(rewardEntry && avgEntry && epsilonEntry);
-  assert.strictEqual(rewardEntry.style, '#ccc');
-  assert.strictEqual(avgEntry.style, '#ccc');
-  assert.strictEqual(epsilonEntry.style, '#ccc');
+  assert.strictEqual(rewardEntry.style, '#e2e8f0');
+  assert.strictEqual(avgEntry.style, '#e2e8f0');
+  assert.strictEqual(epsilonEntry.style, '#e2e8f0');
 }
