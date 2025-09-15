@@ -134,6 +134,13 @@ export class RLTrainer {
     this._initializeTrainerState();
   }
 
+  async getAgentState() {
+    if (!this.agent || typeof this.agent.toJSON !== 'function') {
+      return null;
+    }
+    return this.agent.toJSON();
+  }
+
   static async trainEpisodes(agent, env, episodes = 10, maxSteps = 50) {
     for (let ep = 0; ep < episodes; ep++) {
       let state = env.reset();

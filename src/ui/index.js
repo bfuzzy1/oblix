@@ -92,6 +92,34 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
     cumulativeReward: 0,
     epsilon: initialAgent.epsilon ?? 1
   };
+  const pendingAgentStateRequests = new Map();
+  let nextAgentStateRequestId = 0;
+
+  function fallbackAgentState() {
+    if (!rawAgent || typeof rawAgent.toJSON !== 'function') {
+      return null;
+    }
+    return rawAgent.toJSON();
+  }
+
+  function requestAgentState() {
+    if (!worker) {
+      return Promise.resolve(fallbackAgentState());
+    }
+    return new Promise(resolve => {
+      const requestId = nextAgentStateRequestId++;
+      const timeout = setTimeout(() => {
+        pendingAgentStateRequests.delete(requestId);
+        resolve(fallbackAgentState());
+      }, 1000);
+      pendingAgentStateRequests.set(requestId, { resolve, timeout });
+      worker.postMessage({
+        type: 'agent:getState',
+        payload: { requestId }
+      });
+    });
+  }
+
   const trainerProxy = {
     intervalMs: options.intervalMs ?? 100,
     metrics,
@@ -128,7 +156,8 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
         this.state = newEnv.getState();
       }
       sendConfig();
-    }
+    },
+    getAgentState: requestAgentState
   };
 
   function wrapAgent(agentInstance) {
@@ -205,6 +234,16 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
 
   worker.onmessage = event => {
     const { type, payload } = event.data || {};
+    if (type === 'agent:state') {
+      const requestId = payload?.requestId;
+      if (requestId !== undefined && pendingAgentStateRequests.has(requestId)) {
+        const { resolve, timeout } = pendingAgentStateRequests.get(requestId);
+        pendingAgentStateRequests.delete(requestId);
+        clearTimeout(timeout);
+        resolve(payload?.agent ?? fallbackAgentState());
+      }
+      return;
+    }
     if (type !== 'progress' || !payload) return;
     trainerProxy.state = payload.state;
     trainerProxy.episodeRewards = payload.episodeRewards || trainerProxy.episodeRewards;

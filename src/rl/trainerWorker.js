@@ -47,6 +47,20 @@ function emitProgress(state, reward, done, metrics) {
   });
 }
 
+function emitAgentState(requestId) {
+  if (!postToHost) return;
+  const snapshot = agent && typeof agent.toJSON === 'function'
+    ? agent.toJSON()
+    : null;
+  postToHost({
+    type: 'agent:state',
+    payload: {
+      requestId,
+      agent: snapshot
+    }
+  });
+}
+
 function configureTrainer(payload) {
   if (!payload) return;
   if (trainer) {
@@ -101,6 +115,9 @@ function handleMessage(message) {
       break;
     case 'agent:update':
       updateAgent(payload);
+      break;
+    case 'agent:getState':
+      emitAgentState(payload?.requestId);
       break;
   }
 }
