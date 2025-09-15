@@ -30,7 +30,15 @@ export function createAgent(type, options = {}) {
     lambda: 0
   };
   const AgentClass = agentFactory[type] || RLAgent;
-  return new AgentClass({ ...defaults, ...options });
+  const resolvedType = agentFactory[type] ? type : 'rl';
+  const agent = new AgentClass({ ...defaults, ...options });
+  Object.defineProperty(agent, '__factoryType', {
+    value: resolvedType,
+    writable: true,
+    configurable: true,
+    enumerable: false
+  });
+  return agent;
 }
 
 export { agentFactory };

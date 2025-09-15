@@ -1,10 +1,11 @@
 import { GridWorldEnvironment } from '../rl/environment.js';
-import { RLTrainer } from '../rl/training.js';
 import { LiveChart } from './liveChart.js';
 import { createAgent } from './agentFactory.js';
 import { initRenderer, render } from './renderGrid.js';
 import { bindControls } from './bindControls.js';
 import { saveEnvironment } from '../rl/storage.js';
+
+const supportsWorker = typeof Worker !== 'undefined';
 
 const gridEl = document.getElementById('grid');
 const gridSizeInput = document.getElementById('grid-size');
@@ -14,30 +15,58 @@ initRenderer(env, gridEl, env.size);
 const policySelect = document.getElementById('policy-select');
 const lambdaSlider = document.getElementById('lambda-slider');
 
-let agent = createAgent('rl', {
+let baseAgent = createAgent('rl', {
   policy: policySelect.value,
   lambda: parseFloat(lambdaSlider.value)
 });
 
 const liveChart = new LiveChart(document.getElementById('liveChart'));
-const trainer = new RLTrainer(agent, env, {
-  intervalMs: 100,
-  liveChart,
-  onStep: (state, reward, done, metrics) => {
-    render(state, trainer.agent);
-    document.getElementById('episode').textContent = metrics.episode;
-    document.getElementById('steps').textContent = metrics.steps;
-    document.getElementById('reward').textContent = metrics.cumulativeReward.toFixed(2);
-    document.getElementById('epsilon').textContent = metrics.epsilon.toFixed(2);
+const metricsEls = {
+  episode: document.getElementById('episode'),
+  steps: document.getElementById('steps'),
+  reward: document.getElementById('reward'),
+  epsilon: document.getElementById('epsilon'),
+  epsilonSlider: document.getElementById('epsilon-slider'),
+  epsilonValue: document.getElementById('epsilon-value')
+};
 
-    document.getElementById('epsilon-slider').value = metrics.epsilon;
-    document.getElementById('epsilon-value').textContent = metrics.epsilon.toFixed(2);
-  }
-});
+function handleProgress(state, reward, done, metrics) {
+  render(state);
+  metricsEls.episode.textContent = metrics.episode;
+  metricsEls.steps.textContent = metrics.steps;
+  metricsEls.reward.textContent = metrics.cumulativeReward.toFixed(2);
+  metricsEls.epsilon.textContent = metrics.epsilon.toFixed(2);
+  metricsEls.epsilonSlider.value = metrics.epsilon;
+  metricsEls.epsilonValue.textContent = metrics.epsilon.toFixed(2);
+}
+
+let trainer;
+let agent;
+
+if (supportsWorker) {
+  trainer = createWorkerTrainer(baseAgent, env, {
+    intervalMs: 100,
+    liveChart,
+    onProgress: handleProgress
+  });
+  agent = trainer.agent;
+} else {
+  const { RLTrainer } = await import('../rl/training.js');
+  trainer = new RLTrainer(baseAgent, env, {
+    intervalMs: 100,
+    liveChart,
+    onStep: handleProgress
+  });
+  agent = baseAgent;
+}
 
 function rebuildEnvironment(size, obstacles = []) {
   env = new GridWorldEnvironment(size, obstacles);
-  trainer.env = env;
+  if (typeof trainer.setEnvironment === 'function') {
+    trainer.setEnvironment(env);
+  } else {
+    trainer.env = env;
+  }
   initRenderer(env, gridEl, size);
   trainer.reset();
   gridSizeInput.value = size;
@@ -51,4 +80,146 @@ gridSizeInput.addEventListener('change', e => {
 
 bindControls(trainer, agent, render, () => env, rebuildEnvironment);
 
-render(env.reset(), agent);
+render(env.reset());
+
+function createWorkerTrainer(initialAgent, initialEnv, options) {
+  const worker = new Worker(new URL('../rl/trainerWorker.js', import.meta.url), { type: 'module' });
+  let currentEnv = initialEnv;
+  let rawAgent = initialAgent;
+  const metrics = {
+    episode: 1,
+    steps: 0,
+    cumulativeReward: 0,
+    epsilon: initialAgent.epsilon ?? 1
+  };
+  const trainerProxy = {
+    intervalMs: options.intervalMs ?? 100,
+    metrics,
+    state: typeof currentEnv.getState === 'function' ? currentEnv.getState() : null,
+    episodeRewards: [],
+    agent: null,
+    start() {
+      worker.postMessage({ type: 'start' });
+    },
+    pause() {
+      worker.postMessage({ type: 'pause' });
+    },
+    reset() {
+      worker.postMessage({ type: 'reset' });
+    },
+    resetTrainerState() {
+      worker.postMessage({ type: 'resetTrainerState' });
+    },
+    setIntervalMs(ms) {
+      this.intervalMs = ms;
+      worker.postMessage({ type: 'interval', payload: ms });
+    },
+    setAgent(newAgent) {
+      rawAgent = newAgent;
+      const proxy = wrapAgent(newAgent);
+      this.agent = proxy;
+      metrics.epsilon = newAgent.epsilon ?? metrics.epsilon;
+      sendConfig();
+      return proxy;
+    },
+    setEnvironment(newEnv) {
+      currentEnv = newEnv;
+      if (typeof newEnv.getState === 'function') {
+        this.state = newEnv.getState();
+      }
+      sendConfig();
+    }
+  };
+
+  function wrapAgent(agentInstance) {
+    return new Proxy(agentInstance, {
+      set(target, prop, value) {
+        target[prop] = value;
+        if (prop !== '__factoryType') {
+          worker.postMessage({
+            type: 'agent:update',
+            payload: { [prop]: value }
+          });
+        }
+        return true;
+      },
+      get(target, prop) {
+        return target[prop];
+      }
+    });
+  }
+
+  function serializeAgent(agentInstance) {
+    const fields = [
+      'epsilon',
+      'epsilonDecay',
+      'minEpsilon',
+      'policy',
+      'learningRate',
+      'lambda',
+      'gamma',
+      'temperature',
+      'ucbC',
+      'alphaCritic',
+      'alphaActor',
+      'alpha',
+      'beta',
+      'planningSteps',
+      'exploringStarts',
+      'initialValue'
+    ];
+    const params = {};
+    for (const key of fields) {
+      if (agentInstance[key] !== undefined) {
+        params[key] = agentInstance[key];
+      }
+    }
+    return params;
+  }
+
+  function cloneObstacles(obstacles) {
+    return (obstacles || []).map(o => ({ x: o.x, y: o.y }));
+  }
+
+  function sendConfig() {
+    worker.postMessage({
+      type: 'config',
+      payload: {
+        agent: {
+          type: rawAgent.__factoryType || 'rl',
+          params: serializeAgent(rawAgent)
+        },
+        env: {
+          size: currentEnv.size,
+          obstacles: cloneObstacles(currentEnv.obstacles)
+        },
+        trainer: {
+          intervalMs: trainerProxy.intervalMs
+        }
+      }
+    });
+  }
+
+  trainerProxy.agent = wrapAgent(rawAgent);
+  metrics.epsilon = rawAgent.epsilon ?? metrics.epsilon;
+
+  worker.onmessage = event => {
+    const { type, payload } = event.data || {};
+    if (type !== 'progress' || !payload) return;
+    trainerProxy.state = payload.state;
+    trainerProxy.episodeRewards = payload.episodeRewards || trainerProxy.episodeRewards;
+    if (payload.metrics) {
+      Object.assign(trainerProxy.metrics, payload.metrics);
+    }
+    if (typeof options.onProgress === 'function' && payload.metrics) {
+      options.onProgress(payload.state, payload.reward, payload.done, payload.metrics);
+    }
+    if (options.liveChart && payload.metrics) {
+      options.liveChart.push(payload.metrics.cumulativeReward, payload.metrics.epsilon);
+    }
+  };
+
+  sendConfig();
+
+  return trainerProxy;
+}
