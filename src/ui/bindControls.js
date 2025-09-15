@@ -126,7 +126,7 @@ function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEn
     if (envData) {
       setEnv(envData.size, envData.obstacles);
     }
-    render(trainer.state);
+    render(trainer.state, getAgent());
   };
 }
 

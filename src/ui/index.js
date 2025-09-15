@@ -24,7 +24,7 @@ const trainer = new RLTrainer(agent, env, {
   intervalMs: 100,
   liveChart,
   onStep: (state, reward, done, metrics) => {
-    render(state);
+    render(state, trainer.agent);
     document.getElementById('episode').textContent = metrics.episode;
     document.getElementById('steps').textContent = metrics.steps;
     document.getElementById('reward').textContent = metrics.cumulativeReward.toFixed(2);
@@ -51,4 +51,4 @@ gridSizeInput.addEventListener('change', e => {
 
 bindControls(trainer, agent, render, () => env, rebuildEnvironment);
 
-render(env.reset());
+render(env.reset(), agent);
