@@ -16,6 +16,8 @@ body {
   width: 40px;
   height: 40px;
   border: 1px solid #555;
+  position: relative;
+  overflow: hidden;
 }
 
 .agent {
@@ -28,6 +30,50 @@ body {
 
 .obstacle {
   background: #f44336;
+}
+
+.q-layer {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-rows: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 1fr);
+  pointer-events: none;
+}
+
+.q-value {
+  font-size: 10px;
+  color: #f0f0f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  padding: 1px;
+  margin: 1px;
+  text-shadow: 0 0 3px #000;
+  pointer-events: none;
+}
+
+.q-value.q-up {
+  grid-area: 1 / 2 / 2 / 3;
+}
+
+.q-value.q-down {
+  grid-area: 3 / 2 / 4 / 3;
+}
+
+.q-value.q-left {
+  grid-area: 2 / 1 / 3 / 2;
+}
+
+.q-value.q-right {
+  grid-area: 2 / 3 / 3 / 4;
+}
+
+.q-value.best {
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  font-weight: 600;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.5);
 }
 
 button {
