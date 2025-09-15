@@ -113,8 +113,15 @@ function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEn
     trainer.reset();
     initializeControls(trainer, getAgent(), els);
   };
-  document.getElementById('save').onclick = () => {
-    saveAgent(getAgent());
+  document.getElementById('save').onclick = async () => {
+    let agentForSave = getAgent();
+    if (typeof trainer.getAgentState === 'function') {
+      const snapshot = await trainer.getAgentState();
+      if (snapshot) {
+        agentForSave = { toJSON: () => snapshot };
+      }
+    }
+    saveAgent(agentForSave);
     saveEnvironment(getEnv());
   };
   document.getElementById('load').onclick = () => {
