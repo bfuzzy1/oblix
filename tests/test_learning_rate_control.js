@@ -7,6 +7,9 @@ export async function run(assert) {
   assert.ok(js.includes("learningRateSlider.addEventListener('input'"));
   assert.ok(js.includes('agent.learningRate = val;'));
   assert.ok(js.includes('learningRateValue.textContent = val.toFixed(2);'));
+  assert.ok(js.includes('if (agent.learningRate === undefined) {'));
+  assert.ok(js.includes("learningRateSlider.disabled = true;"));
+  assert.ok(js.includes("learningRateValue.textContent = 'N/A';"));
 
   const dom = new JSDOM(`<input id="learning-rate-slider"><span id="learning-rate-value"></span>`);
   const { document, Event } = dom.window;

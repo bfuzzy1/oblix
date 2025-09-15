@@ -16,9 +16,26 @@ function getElements() {
   };
 }
 
+function hasLearningRate(agent) {
+  return agent && agent.learningRate !== undefined;
+}
+
 function syncLearningRate(agent, els) {
+  if (!hasLearningRate(agent)) {
+    return;
+  }
   els.learningRateSlider.value = agent.learningRate;
   els.learningRateValue.textContent = agent.learningRate.toFixed(2);
+}
+
+function updateLearningRateControl(agent, els) {
+  if (hasLearningRate(agent)) {
+    els.learningRateSlider.disabled = false;
+    syncLearningRate(agent, els);
+  } else {
+    els.learningRateSlider.disabled = true;
+    els.learningRateValue.textContent = 'N/A';
+  }
 }
 
 function syncLambda(agent, els) {
@@ -33,7 +50,7 @@ function initializeControls(trainer, agent, els) {
   els.policySelect.value = agent.policy;
   els.intervalSlider.value = trainer.intervalMs;
   els.intervalValue.textContent = trainer.intervalMs;
-  syncLearningRate(agent, els);
+  updateLearningRateControl(agent, els);
   syncLambda(agent, els);
 }
 
@@ -73,8 +90,11 @@ function bindSliders(trainer, els, getAgent) {
   });
 
   els.learningRateSlider.addEventListener('input', e => {
-    const val = parseFloat(e.target.value);
     const agent = getAgent();
+    if (agent.learningRate === undefined) {
+      return;
+    }
+    const val = parseFloat(e.target.value);
     agent.learningRate = val;
     els.learningRateValue.textContent = val.toFixed(2);
   });
