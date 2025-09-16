@@ -1,8 +1,20 @@
+export const DEFAULT_REWARD_CONFIG = Object.freeze({
+  stepPenalty: -0.01,
+  obstaclePenalty: -0.1,
+  goalReward: 1
+});
+
+function normalizeNumber(value, fallback) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
 export class GridWorldEnvironment {
-  constructor(size = 5, obstacles = []) {
+  constructor(size = 5, obstacles = [], rewardConfig = {}) {
     this.size = size;
     this.obstacles = [];
     this.obstacleSet = new Set();
+    this.setRewardConfig(rewardConfig);
     this.setObstacles(obstacles);
     this.reset();
   }
@@ -40,6 +52,24 @@ export class GridWorldEnvironment {
     );
   }
 
+  setRewardConfig(rewardConfig = {}) {
+    const source = rewardConfig && typeof rewardConfig === 'object'
+      ? rewardConfig
+      : {};
+    const merged = { ...DEFAULT_REWARD_CONFIG, ...source };
+    this.stepPenalty = normalizeNumber(merged.stepPenalty, DEFAULT_REWARD_CONFIG.stepPenalty);
+    this.obstaclePenalty = normalizeNumber(merged.obstaclePenalty, DEFAULT_REWARD_CONFIG.obstaclePenalty);
+    this.goalReward = normalizeNumber(merged.goalReward, DEFAULT_REWARD_CONFIG.goalReward);
+  }
+
+  getRewardConfig() {
+    return {
+      stepPenalty: this.stepPenalty,
+      obstaclePenalty: this.obstaclePenalty,
+      goalReward: this.goalReward
+    };
+  }
+
   /**
    * Step the environment with an action.
    * @param action 0:up,1:down,2:left,3:right
@@ -62,12 +92,12 @@ export class GridWorldEnvironment {
         break;
     }
     if (this.isObstacle(newX, newY)) {
-      return { state: this.getState(), reward: -0.1, done: false };
+      return { state: this.getState(), reward: this.obstaclePenalty, done: false };
     }
     this.agentPos = { x: newX, y: newY };
     const done =
       this.agentPos.x === this.size - 1 && this.agentPos.y === this.size - 1;
-    const reward = done ? 1 : -0.01;
+    const reward = done ? this.goalReward : this.stepPenalty;
     return { state: this.getState(), reward, done };
   }
 }

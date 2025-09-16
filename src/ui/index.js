@@ -1,4 +1,4 @@
-import { GridWorldEnvironment } from '../rl/environment.js';
+import { GridWorldEnvironment, DEFAULT_REWARD_CONFIG } from '../rl/environment.js';
 import { LiveChart } from './liveChart.js';
 import { createAgent } from './agentFactory.js';
 import { initRenderer, render } from './renderGrid.js';
@@ -9,7 +9,30 @@ const supportsWorker = typeof Worker !== 'undefined';
 
 const gridEl = document.getElementById('grid');
 const gridSizeInput = document.getElementById('grid-size');
-let env = new GridWorldEnvironment(parseInt(gridSizeInput.value, 10));
+const stepPenaltyInput = document.getElementById('step-penalty');
+const obstaclePenaltyInput = document.getElementById('obstacle-penalty');
+const goalRewardInput = document.getElementById('goal-reward');
+
+function parseGridSize(value) {
+  const size = parseInt(value, 10);
+  return Number.isFinite(size) ? size : 5;
+}
+
+function parseRewardValue(inputEl, fallback) {
+  if (!inputEl) return fallback;
+  const num = Number(inputEl.value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function getRewardConfigFromInputs() {
+  return {
+    stepPenalty: parseRewardValue(stepPenaltyInput, DEFAULT_REWARD_CONFIG.stepPenalty),
+    obstaclePenalty: parseRewardValue(obstaclePenaltyInput, DEFAULT_REWARD_CONFIG.obstaclePenalty),
+    goalReward: parseRewardValue(goalRewardInput, DEFAULT_REWARD_CONFIG.goalReward)
+  };
+}
+
+let env = new GridWorldEnvironment(parseGridSize(gridSizeInput.value), [], getRewardConfigFromInputs());
 let trainer;
 let agent;
 
@@ -68,8 +91,9 @@ if (supportsWorker) {
   agent = baseAgent;
 }
 
-function rebuildEnvironment(size, obstacles = []) {
-  env = new GridWorldEnvironment(size, obstacles);
+function rebuildEnvironment(size, obstacles = [], rewards) {
+  const rewardConfig = rewards ?? getRewardConfigFromInputs();
+  env = new GridWorldEnvironment(size, obstacles, rewardConfig);
   if (typeof trainer.setEnvironment === 'function') {
     trainer.setEnvironment(env);
   } else {
@@ -79,10 +103,11 @@ function rebuildEnvironment(size, obstacles = []) {
   trainer.reset();
   gridSizeInput.value = size;
   saveEnvironment(env);
+  return env;
 }
 
 gridSizeInput.addEventListener('change', e => {
-  const newSize = parseInt(e.target.value, 10);
+  const newSize = parseGridSize(e.target.value);
   rebuildEnvironment(newSize);
 });
 
@@ -220,7 +245,41 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
     return (obstacles || []).map(o => ({ x: o.x, y: o.y }));
   }
 
+  function getEnvRewardConfig(environment) {
+    if (!environment) return null;
+    if (typeof environment.getRewardConfig === 'function') {
+      return environment.getRewardConfig();
+    }
+    if (
+      environment.stepPenalty !== undefined
+      || environment.obstaclePenalty !== undefined
+      || environment.goalReward !== undefined
+    ) {
+      return {
+        stepPenalty: environment.stepPenalty,
+        obstaclePenalty: environment.obstaclePenalty,
+        goalReward: environment.goalReward
+      };
+    }
+    return null;
+  }
+
+  function sanitizeReward(value, fallback) {
+    const num = Number(value);
+    return Number.isFinite(num) ? num : fallback;
+  }
+
+  function cloneRewardConfig(rewards) {
+    if (!rewards) return undefined;
+    return {
+      stepPenalty: sanitizeReward(rewards.stepPenalty, DEFAULT_REWARD_CONFIG.stepPenalty),
+      obstaclePenalty: sanitizeReward(rewards.obstaclePenalty, DEFAULT_REWARD_CONFIG.obstaclePenalty),
+      goalReward: sanitizeReward(rewards.goalReward, DEFAULT_REWARD_CONFIG.goalReward)
+    };
+  }
+
   function sendConfig() {
+    const rewards = cloneRewardConfig(getEnvRewardConfig(currentEnv));
     worker.postMessage({
       type: 'config',
       payload: {
@@ -231,7 +290,8 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
         },
         env: {
           size: currentEnv.size,
-          obstacles: cloneObstacles(currentEnv.obstacles)
+          obstacles: cloneObstacles(currentEnv.obstacles),
+          ...(rewards ? { rewards } : {})
         },
         trainer: {
           intervalMs: trainerProxy.intervalMs

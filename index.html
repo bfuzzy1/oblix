@@ -134,6 +134,18 @@
               <span class="control-label">Grid size</span>
               <input type="number" id="grid-size" min="2" max="20" value="5" class="control-input control-number">
             </label>
+            <label class="control-block" for="step-penalty">
+              <span class="control-label">Step penalty</span>
+              <input type="number" id="step-penalty" step="0.01" value="-0.01" class="control-input control-number">
+            </label>
+            <label class="control-block" for="obstacle-penalty">
+              <span class="control-label">Obstacle penalty</span>
+              <input type="number" id="obstacle-penalty" step="0.01" value="-0.1" class="control-input control-number">
+            </label>
+            <label class="control-block" for="goal-reward">
+              <span class="control-label">Goal reward</span>
+              <input type="number" id="goal-reward" step="0.01" value="1" class="control-input control-number">
+            </label>
           </div>
 
           <div class="button-row">

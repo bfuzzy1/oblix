@@ -69,12 +69,13 @@ function configureTrainer(payload) {
   const trainerConfig = payload.trainer || {};
   const envSize = envConfig.size ?? environment?.size ?? 5;
   const obstacles = envConfig.obstacles || [];
+  const rewardConfig = envConfig.rewards ? { ...envConfig.rewards } : null;
   const agentType = agentConfig.type || agent?.__factoryType || 'rl';
   const revision = agentConfig.revision;
   const intervalMs = trainerConfig.intervalMs ?? trainer?.intervalMs ?? 100;
 
   if (!trainer) {
-    environment = new GridWorldEnvironment(envSize, obstacles);
+    environment = new GridWorldEnvironment(envSize, obstacles, rewardConfig || undefined);
     agent = createAgent(agentType, agentConfig.params || {});
     trainer = new RLTrainer(agent, environment, {
       intervalMs,
@@ -100,11 +101,14 @@ function configureTrainer(payload) {
 
   const sizeChanged = !environment || environment.size !== envSize;
   if (!environment || sizeChanged) {
-    environment = new GridWorldEnvironment(envSize, obstacles);
-  } else if (typeof environment.setObstacles === 'function') {
-    environment.setObstacles(obstacles);
+    environment = new GridWorldEnvironment(envSize, obstacles, rewardConfig || undefined);
   } else {
-    environment = new GridWorldEnvironment(envSize, obstacles);
+    if (typeof environment.setObstacles === 'function') {
+      environment.setObstacles(obstacles);
+    }
+    if (rewardConfig && typeof environment.setRewardConfig === 'function') {
+      environment.setRewardConfig(rewardConfig);
+    }
   }
 
   const shouldRebuildTrainer = shouldReplaceAgent || sizeChanged;
