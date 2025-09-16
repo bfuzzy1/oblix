@@ -9,6 +9,16 @@ export class ExperienceReplay {
     this.position = 0;
   }
 
+  get size() {
+    return this.buffer.length;
+  }
+
+  clear() {
+    this.buffer.length = 0;
+    this.priorities.length = 0;
+    this.position = 0;
+  }
+
   add(transition, priority = 1) {
     if (this.buffer.length < this.capacity) {
       this.buffer.push(transition);
