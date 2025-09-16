@@ -32,6 +32,7 @@ if (canUsePostMessage) {
 let trainer = null;
 let agent = null;
 let environment = null;
+let agentRevision = null;
 
 function emitProgress(state, reward, done, metrics) {
   if (!trainer || !postToHost) return;
@@ -63,21 +64,81 @@ function emitAgentState(requestId) {
 
 function configureTrainer(payload) {
   if (!payload) return;
-  if (trainer) {
-    trainer.pause();
-  }
   const envConfig = payload.env || {};
   const agentConfig = payload.agent || {};
   const trainerConfig = payload.trainer || {};
-  environment = new GridWorldEnvironment(envConfig.size ?? 5, envConfig.obstacles || []);
-  agent = createAgent(agentConfig.type || 'rl', agentConfig.params || {});
-  trainer = new RLTrainer(agent, environment, {
-    intervalMs: trainerConfig.intervalMs ?? 100,
-    onStep: (state, reward, done, metrics) => {
-      emitProgress(state, reward, done, metrics);
+  const envSize = envConfig.size ?? environment?.size ?? 5;
+  const obstacles = envConfig.obstacles || [];
+  const agentType = agentConfig.type || agent?.__factoryType || 'rl';
+  const revision = agentConfig.revision;
+  const intervalMs = trainerConfig.intervalMs ?? trainer?.intervalMs ?? 100;
+
+  if (!trainer) {
+    environment = new GridWorldEnvironment(envSize, obstacles);
+    agent = createAgent(agentType, agentConfig.params || {});
+    trainer = new RLTrainer(agent, environment, {
+      intervalMs,
+      onStep: (state, reward, done, metrics) => {
+        emitProgress(state, reward, done, metrics);
+      }
+    });
+    trainer.resetTrainerState();
+    if (revision !== undefined) {
+      agentRevision = revision;
     }
-  });
-  trainer.resetTrainerState();
+    return;
+  }
+
+  const wasRunning = trainer.isRunning;
+  const typeChanged = agent?.__factoryType !== agentType;
+  const revisionChanged = revision !== undefined && revision !== agentRevision;
+  const shouldReplaceAgent = !agent || typeChanged || revisionChanged;
+
+  if (shouldReplaceAgent) {
+    agent = createAgent(agentType, agentConfig.params || {});
+  }
+
+  const sizeChanged = !environment || environment.size !== envSize;
+  if (!environment || sizeChanged) {
+    environment = new GridWorldEnvironment(envSize, obstacles);
+  } else if (typeof environment.setObstacles === 'function') {
+    environment.setObstacles(obstacles);
+  } else {
+    environment = new GridWorldEnvironment(envSize, obstacles);
+  }
+
+  const shouldRebuildTrainer = shouldReplaceAgent || sizeChanged;
+  if (shouldRebuildTrainer && trainer) {
+    trainer.pause();
+  }
+
+  if (shouldRebuildTrainer) {
+    trainer = new RLTrainer(agent, environment, {
+      intervalMs,
+      onStep: (state, reward, done, metrics) => {
+        emitProgress(state, reward, done, metrics);
+      }
+    });
+    trainer.resetTrainerState();
+  } else {
+    const intervalChanged = typeof trainerConfig.intervalMs === 'number'
+      && trainerConfig.intervalMs !== trainer.intervalMs;
+    if (intervalChanged) {
+      trainer.setIntervalMs(trainerConfig.intervalMs);
+    }
+    trainer.env = environment;
+    if (!trainer.state) {
+      trainer.resetTrainerState();
+    }
+  }
+
+  if (revision !== undefined) {
+    agentRevision = revision;
+  }
+
+  if (wasRunning && shouldRebuildTrainer) {
+    trainer.start();
+  }
 }
 
 function updateAgent(params) {

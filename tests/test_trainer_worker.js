@@ -34,7 +34,8 @@ export async function run(assert) {
       payload: {
         agent: {
           type: 'rl',
-          params: { epsilon: 0.5, learningRate: 0.1 }
+          params: { epsilon: 0.5, learningRate: 0.1 },
+          revision: 0
         },
         env: {
           size: 2,
@@ -60,6 +61,40 @@ export async function run(assert) {
       msg => msg.type === 'progress' && msg.payload.metrics.steps > 0
     );
     assert.ok(progressed.payload.metrics.steps > 0);
+
+    worker.postMessage({
+      type: 'config',
+      payload: {
+        agent: {
+          type: 'rl',
+          params: { epsilon: 0.5, learningRate: 0.1 },
+          revision: 0
+        },
+        env: {
+          size: 2,
+          obstacles: [{ x: 0, y: 1 }]
+        },
+        trainer: {
+          intervalMs: 5
+        }
+      }
+    });
+    const requestId = 1234;
+    worker.postMessage({
+      type: 'agent:getState',
+      payload: { requestId }
+    });
+    await waitFor(
+      worker,
+      msg => msg.type === 'agent:state' && msg.payload?.requestId === requestId
+    );
+    const continued = await waitFor(
+      worker,
+      msg => msg.type === 'progress'
+        && msg.payload.metrics.steps > 0
+        && msg.payload.metrics.episode >= progressed.payload.metrics.episode
+    );
+    assert.ok(continued.payload.metrics.steps > 0);
 
     worker.postMessage({ type: 'pause' });
     worker.postMessage({ type: 'resetTrainerState' });
