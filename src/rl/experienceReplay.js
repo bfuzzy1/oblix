@@ -58,7 +58,9 @@ export class ExperienceReplay {
       return batch;
     }
     const probabilities = scaled.map(w => w / total);
-    const weighted = probabilities.map(p => (p > 0 ? Math.pow(p, this.beta) : 0));
+    const weighted = probabilities.map(p =>
+      p > 0 ? Math.pow(size * p, -this.beta) : 0
+    );
     const maxWeight = weighted.reduce((max, val) => (val > max ? val : max), 0) || 1;
     const normalizedWeights = weighted.map(w => (w === 0 ? 0 : w / maxWeight));
     const batch = [];

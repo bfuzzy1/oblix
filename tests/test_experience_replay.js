@@ -41,9 +41,10 @@ export async function run(testAssert) {
   const highSample = weightedSamples.find(t => t.state === 'high');
   testAssert.ok(lowSample);
   testAssert.ok(highSample);
-  testAssert.ok(highSample.weight > lowSample.weight);
+  testAssert.ok(lowSample.weight > highSample.weight);
   testAssert.ok(highSample.weight <= 1);
   testAssert.ok(lowSample.weight >= 0);
+  testAssert.ok(lowSample.weight <= 1);
 
   const zeroPriorityBuffer = new ExperienceReplay(3, 1, 0.2, 0.5);
   zeroPriorityBuffer.add({ state: 'first' }, 0);
@@ -104,13 +105,14 @@ export async function run(testAssert) {
   trainer.state = env.reset();
   await trainer.step();
   testAssert.strictEqual(replay.buffer.length, 1);
-  testAssert.strictEqual(agent.calls.length, 2);
+  testAssert.strictEqual(agent.calls.length, 3);
   testAssert.strictEqual(agent.calls[0].length, 5);
   testAssert.strictEqual(agent.calls[1].length, 6);
+  testAssert.strictEqual(agent.calls[2].length, 5);
   testAssert.deepStrictEqual(agent.calls[0], agent.calls[1].slice(0, 5));
-  testAssert.strictEqual(agent.calls[1][5], 1);=======
-  testAssert.deepStrictEqual(agent.calls[0], agent.calls[1]);
+  testAssert.strictEqual(agent.calls[1][5], 1);
+  testAssert.deepStrictEqual(agent.calls[0], agent.calls[2]);
   testAssert.strictEqual(agent.errorCalls.length, 1);
-  testAssert.deepStrictEqual(agent.errorCalls[0], agent.calls[1]);
+  testAssert.deepStrictEqual(agent.errorCalls[0], agent.calls[2]);
   testAssert.strictEqual(replay.priorities[0], Math.abs(agent.tdErrorValue));
 }
