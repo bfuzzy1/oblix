@@ -3,11 +3,13 @@ import { saveEnvironment } from '../rl/storage.js';
 let env;
 let gridEl;
 let size;
+let onEnvironmentChange;
 
-export function initRenderer(environment, element, gridSize) {
+export function initRenderer(environment, element, gridSize, environmentChangeCallback = null) {
   env = environment;
   gridEl = element;
   size = gridSize;
+  onEnvironmentChange = environmentChangeCallback;
   gridEl.style.setProperty('--size', size);
 }
 
@@ -28,6 +30,9 @@ export function render(state) {
         if (x === size - 1 && y === size - 1) return;
         env.toggleObstacle(x, y);
         saveEnvironment(env);
+        if (typeof onEnvironmentChange === 'function') {
+          onEnvironmentChange(env);
+        }
         render(env.getState());
       });
       gridEl.appendChild(cell);
