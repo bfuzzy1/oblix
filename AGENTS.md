@@ -20,6 +20,9 @@
 - Update README and inline comments when behavior changes
 - Keep docs concise and in English
 
+### Tooling
+- Use `rg` (ripgrep) for code searches; avoid `grep -R` for performance
+
 ## Testing
 - Add tests for each new feature or bug fix
 - Run `node tests/run.js` and ensure it passes before committing (skip for documentation-only changes)
