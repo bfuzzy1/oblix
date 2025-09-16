@@ -28,9 +28,15 @@ export async function run(testAssert) {
     constructor() {
       this.epsilon = 0;
       this.calls = [];
+      this.errorCalls = [];
+      this.tdErrorValue = 0.42;
     }
     act() {
       return 0;
+    }
+    computeTdError(...args) {
+      this.errorCalls.push(args);
+      return this.tdErrorValue;
     }
     async learn(...args) {
       this.calls.push(args);
@@ -49,4 +55,7 @@ export async function run(testAssert) {
   testAssert.strictEqual(replay.buffer.length, 1);
   testAssert.strictEqual(agent.calls.length, 2);
   testAssert.deepStrictEqual(agent.calls[0], agent.calls[1]);
+  testAssert.strictEqual(agent.errorCalls.length, 1);
+  testAssert.deepStrictEqual(agent.errorCalls[0], agent.calls[1]);
+  testAssert.strictEqual(replay.priorities[0], Math.abs(agent.tdErrorValue));
 }

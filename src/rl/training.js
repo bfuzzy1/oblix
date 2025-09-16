@@ -57,7 +57,16 @@ export class RLTrainer {
     this.replayBuffer.add(transition, 1);
     const samples = this.replayBuffer.sample(this.replaySamples, this.replayStrategy);
     for (const t of samples) {
+      let tdError = null;
+      if (typeof this.agent.computeTdError === 'function') {
+        tdError = await this.agent.computeTdError(t.state, t.action, t.reward, t.nextState, t.done);
+      } else if (typeof this.agent.tdError === 'function') {
+        tdError = await this.agent.tdError(t.state, t.action, t.reward, t.nextState, t.done);
+      }
       await this.agent.learn(t.state, t.action, t.reward, t.nextState, t.done);
+      if (Number.isFinite(tdError)) {
+        this.replayBuffer.updatePriority(t.index, Math.abs(tdError));
+      }
     }
   }
 

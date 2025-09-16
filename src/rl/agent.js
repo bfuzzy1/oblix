@@ -141,6 +141,18 @@ export class RLAgent {
     this.decayEpsilon();
   }
 
+  /**
+   * Compute the temporal-difference error for a transition.
+   * Agents can override this to customize replay priority updates.
+   */
+  computeTdError(state, action, reward, nextState, done) {
+    const qVals = this._ensure(state);
+    const nextQ = this._ensure(nextState);
+    const maxNext = done ? 0 : Math.max(...nextQ);
+    const target = reward + this.gamma * maxNext;
+    return target - qVals[action];
+  }
+
   /** Reset agent to initial state. */
   reset() {
     this.epsilon = this.initialEpsilon;
