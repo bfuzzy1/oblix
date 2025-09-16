@@ -5,9 +5,38 @@ import { initRenderer, render } from '../src/ui/renderGrid.js';
 export async function run(assert) {
   const previousWindow = global.window;
   const previousDocument = global.document;
+  const previousLocalStorage = globalThis.localStorage;
   const dom = new JSDOM(`<div id="grid"></div>`, { pretendToBeVisual: true });
   global.window = dom.window;
   global.document = dom.window.document;
+
+  const storageMock = (() => {
+    let store = new Map();
+    return {
+      getItem(key) {
+        return store.has(key) ? store.get(key) : null;
+      },
+      setItem(key, value) {
+        store.set(String(key), String(value));
+      },
+      removeItem(key) {
+        store.delete(key);
+      },
+      clear() {
+        store.clear();
+      }
+    };
+  })();
+
+  Object.defineProperty(global.window, 'localStorage', {
+    configurable: true,
+    value: storageMock
+  });
+  Object.defineProperty(globalThis, 'localStorage', {
+    configurable: true,
+    writable: true,
+    value: storageMock
+  });
 
   try {
     const gridEl = document.getElementById('grid');
@@ -23,43 +52,22 @@ export async function run(assert) {
 
     render(env.getState(), agent);
 
-    const cells = gridEl.querySelectorAll('.cell');
+    let cells = gridEl.querySelectorAll('.cell');
     assert.strictEqual(cells.length, 4);
 
+    const overlays = gridEl.querySelectorAll('.q-layer, .q-value');
+    assert.strictEqual(overlays.length, 0, 'grid should not render q-value overlays');
+
     const cell00 = cells[0];
-    const left00 = cell00.querySelector('.q-value.q-left');
-    assert.ok(left00, 'left q-value should exist for cell (0,0)');
-    assert.strictEqual(left00.dataset.action, 'left');
-    assert.strictEqual(parseFloat(left00.dataset.value).toFixed(2), '0.80');
-    assert.strictEqual(cell00.querySelector('.q-value.best').dataset.action, 'left');
+    assert.ok(cell00.classList.contains('agent'), 'starting cell should display agent');
 
-    const down00 = cell00.querySelector('.q-value.q-down');
-    assert.ok(down00.textContent.includes('-0.50'));
-    if (down00.style.background.startsWith('rgba')) {
-      const components = down00.style.background.match(/\d+\.\d+|\d+/g) || [];
-      assert.ok(components.length >= 2, 'rgba color should provide at least red and green components');
-      const [r, g] = components.map(Number);
-      assert.ok(r >= g, 'negative q-value should emphasise red channel');
-    } else {
-      assert.ok(down00.style.background.startsWith('hsla(0'));
-    }
+    const goalCell = cells[3];
+    assert.ok(goalCell.classList.contains('goal'), 'bottom-right cell should display goal');
 
-    const cell10 = cells[1];
-    const right10 = cell10.querySelector('.q-value.q-right');
-    assert.ok(right10.textContent.includes('0.90'));
-    assert.strictEqual(parseFloat(right10.dataset.value).toFixed(2), '0.90');
-    assert.strictEqual(cell10.querySelector('.q-value.best').dataset.action, 'right');
-    if (right10.style.background.startsWith('rgba')) {
-      const components = right10.style.background.match(/\d+\.\d+|\d+/g) || [];
-      assert.ok(components.length >= 2, 'rgba color should provide at least red and green components');
-      const [r, g] = components.map(Number);
-      assert.ok(g >= r, 'positive q-value should emphasise green channel');
-    } else {
-      assert.ok(right10.style.background.startsWith('hsla(140'));
-    }
-
-    const up10 = cell10.querySelector('.q-value.q-up');
-    assert.ok(up10.textContent.includes('↑'));
+    const toggleCell = cells[1];
+    toggleCell.dispatchEvent(new dom.window.Event('click'));
+    cells = gridEl.querySelectorAll('.cell');
+    assert.ok(cells[1].classList.contains('obstacle'), 'clicked cell should toggle obstacle state');
   } finally {
     if (previousWindow === undefined) {
       delete global.window;
@@ -70,6 +78,11 @@ export async function run(assert) {
       delete global.document;
     } else {
       global.document = previousDocument;
+    }
+    if (previousLocalStorage === undefined) {
+      delete globalThis.localStorage;
+    } else {
+      globalThis.localStorage = previousLocalStorage;
     }
   }
 }
