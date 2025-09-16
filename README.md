@@ -1,41 +1,126 @@
 # oblix-rl
 
-**oblix-rl** is a browser-based reinforcement learning playground written entirely in JavaScript. It lets you build simple agents and environments and watch them learn directly in the browser without external dependencies.
+**oblix-rl** is a browser-based reinforcement learning playground built entirely with modern JavaScript modules. It provides a
+collection of tabular agents, a configurable grid world environment and lightweight utilities for experimenting with training
+loops directly in the browser or from simple scripts.
 
-## Features
+## Table of contents
+- [Overview](#overview)
+- [Quick start](#quick-start)
+  - [Install dependencies](#install-dependencies)
+  - [Start the browser demo](#start-the-browser-demo)
+  - [Run the test suite](#run-the-test-suite)
+- [Features](#features)
+  - [Agents](#agents)
+  - [Exploration policies](#exploration-policies)
+  - [Training utilities](#training-utilities)
+  - [Environment & UI](#environment--ui)
+  - [Persistence](#persistence)
+- [Directory layout](#directory-layout)
+- [Programmatic usage](#programmatic-usage)
+- [Contributing](#contributing)
+- [License](#license)
 
-- **Grid World Environment:** Discrete environment for quick experimentation.
-- **Tabular Q-Learning Agent:** Value estimates stored in a simple lookup table.
-- **SARSA and Expected SARSA Agents:** Alternatives to standard Q-learning.
-- **Dyna-Q Agent:** Combines Q-learning with planning from a learned model.
-- **Optimistic Q-Learning Agent:** Uses high initial values to encourage exploration.
-- **Epsilon-Greedy Exploration:** Exploration rate automatically decays during training.
-- **Random Policy:** Baseline policy that selects actions uniformly at random.
-- **Episode Trainer:** Run training loops with callbacks for visualization.
-- **Pure ES6 Modules:** No build step, works with static file hosting.
-- **Interactive Demo:** Open `index.html` to watch the agent learn in real time.
-- **Adjustable Grid Size:** Change the environment dimensions directly from the UI.
-- **Environment Persistence:** Save and load grid size and obstacles.
+## Overview
 
-## Project Structure
+The project focuses on small, understandable reinforcement learning examples rather than production-scale performance. Every
+piece of functionality lives in plain ES modules – no build step is required. Open the demo in a browser to watch agents explore
+and learn, or import the modules in Node.js to run automated experiments.
 
-- `src/` – core source files.
-  - `rl/` – reinforcement learning agents, environments and trainers.
-- `tests/` – unit tests executed with `node tests/run.js`.
+## Quick start
 
-## Running Tests
+### Install dependencies
 
+```bash
+npm install
 ```
+
+Dependencies are intentionally minimal (`jsdom` is used for DOM-enabled tests).
+
+### Start the browser demo
+
+Serve the repository root with any static file server so the ES modules can load correctly:
+
+```bash
+# Pick one of the following commands
+npx http-server .
+# or
+python3 -m http.server 8080
+```
+
+Then open `http://localhost:8080/index.html` (adjust the port if needed) to interact with the playground. The UI lets you tweak
+environment rewards, adjust exploration parameters, watch live charts and save/load progress.
+
+### Run the test suite
+
+```bash
 npm test
 ```
 
-## Getting Started
+The test runner loads every file in `tests/` and reports pass/fail status.
 
-The snippet below trains an agent in a 5x5 grid world:
+## Features
+
+### Agents
+
+- **RLAgent:** Baseline tabular Q-learning agent with epsilon decay.
+- **ExpectedSarsaAgent & SarsaAgent:** On-policy updates with configurable exploration.
+- **DoubleQAgent:** Mitigates maximisation bias by maintaining two Q-tables.
+- **DynaQAgent:** Blends real experience with model-based planning steps.
+- **QLambdaAgent:** Eligibility traces for faster credit assignment.
+- **MonteCarloAgent:** Batch value updates from complete episodes.
+- **ActorCriticAgent:** Separate policy and value tables with softmax action selection.
+- **OptimisticAgent:** Encourages exploration through optimistic initial values.
+
+### Exploration policies
+
+Choose from several action selection strategies provided by `src/rl/policies.js`:
+
+- Epsilon-greedy and greedy exploitation
+- Softmax/Boltzmann exploration
+- Thompson sampling with Gaussian noise
+- Upper Confidence Bound (UCB)
+- Uniform random actions for baseline comparisons
+
+### Training utilities
+
+- **RLTrainer:** Start, pause and reset training loops with adjustable step intervals.
+- **trainEpisodes helper:** Run synchronous training loops for scripted experiments.
+- **ExperienceReplay:** Uniform or prioritised sampling with automatic importance weights.
+- **MetricsTracker:** Episode counters, cumulative reward tracking and epsilon history.
+- **Worker-ready design:** `src/rl/trainerWorker.js` mirrors the trainer API for responsive UIs.
+
+### Environment & UI
+
+- **GridWorldEnvironment:** Adjustable size, obstacle editing and reward configuration.
+- **UI bindings:** `src/ui/` wires controls for grid editing, live charts and parameter tweaks.
+- **Pure ES modules:** Load directly in modern browsers without bundling.
+
+### Persistence
+
+- Save and restore agent state via `agent.toJSON()` / `RLAgent.fromJSON()`.
+- `src/rl/storage.js` stores agents and environments in `localStorage` for quick restarts.
+
+## Directory layout
+
+```
+├── index.html          # Browser playground entry point
+├── src/
+│   ├── rl/             # Agents, environments, trainers and utilities
+│   └── ui/             # UI bindings, live chart and agent factory
+├── tests/              # Node-based regression tests (npm test)
+├── package.json        # npm scripts and dependencies
+└── README.md           # Project documentation
+```
+
+## Programmatic usage
+
+All modules are ES modules, so they can be imported directly from scripts. The snippet below trains a Dyna-Q agent for several
+episodes and logs the serialised agent:
 
 ```js
 import { GridWorldEnvironment } from './src/rl/environment.js';
-import { ExpectedSarsaAgent } from './src/rl/expectedSarsaAgent.js';
+import { DynaQAgent } from './src/rl/dynaQAgent.js';
 import { RLTrainer } from './src/rl/training.js';
 
 const env = new GridWorldEnvironment(5, [], {
@@ -43,31 +128,43 @@ const env = new GridWorldEnvironment(5, [], {
   obstaclePenalty: -0.1,
   goalReward: 1
 });
-const agent = new ExpectedSarsaAgent({ epsilon: 0.2 });
-await RLTrainer.trainEpisodes(agent, env, 50, 50);
+
+const agent = new DynaQAgent({
+  epsilon: 0.2,
+  epsilonDecay: 0.995,
+  minEpsilon: 0.05,
+  planningSteps: 10
+});
+
+await RLTrainer.trainEpisodes(agent, env, 50, 75);
+console.log(agent.toJSON());
 ```
 
-This repository focuses solely on reinforcement learning; previous model training utilities have been removed in favor of streamlined RL components.
-
-## Dyna-Q Planning
-
-`DynaQAgent` augments standard Q-learning with a simple model of the environment. Each real interaction stores the observed transition `(s, a) -> (s', r)`. After the real update, the agent samples a number of these stored transitions and applies additional Q-learning updates, effectively "planning" using its learned model. The number of planning iterations is configured with the `planningSteps` option.
+To mirror the browser experience, create an `RLTrainer` instance and subscribe to its updates:
 
 ```js
-import { DynaQAgent } from './src/rl/dynaQAgent.js';
-const agent = new DynaQAgent({ planningSteps: 10 });
+import { RLTrainer } from './src/rl/training.js';
+import { ExperienceReplay } from './src/rl/experienceReplay.js';
+
+const trainer = new RLTrainer(agent, env, {
+  intervalMs: 50,
+  replaySamples: 32,
+  replayStrategy: 'priority',
+  replayBuffer: new ExperienceReplay(2000, 0.6, 0.4, 0.001),
+  onStep: (state, reward, done, metrics) => {
+    console.log(`reward: ${reward.toFixed(2)}`, metrics);
+  }
+});
+
+trainer.start();
+setTimeout(() => trainer.pause(), 5000);
 ```
 
-## Saving and Loading Agents
+## Contributing
 
-You can persist a trained agent by converting it to a plain object and later recreating it:
+Pull requests are welcome! Please follow the project coding style, keep documentation up to date and run `npm test` before
+submitting changes.
 
-```js
-const saved = agent.toJSON();
-const restored = RLAgent.fromJSON(saved);
-```
+## License
 
-## Frontend Demo
-
-Open `index.html` in a browser to interact with the grid world. Use the Start, Pause and Reset buttons to control training and watch the agent improve.
-Use the Grid Size input to resize the environment, tweak the step and obstacle penalties, and adjust the goal reward to explore different incentive structures. Toggle cells to set obstacles. The Save and Load buttons persist both the agent and the environment layout in your browser.
+[MIT](LICENSE)
