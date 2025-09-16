@@ -58,15 +58,33 @@ export class RLTrainer {
     const samples = this.replayBuffer.sample(this.replaySamples, this.replayStrategy);
     for (const t of samples) {
       const weight = t.weight ?? 1;
-      await this.agent.learn(t.state, t.action, t.reward, t.nextState, t.done, weight);
-      
-      let tdError = null;
-      if (typeof this.agent.computeTdError === 'function') {
-        tdError = await this.agent.computeTdError(t.state, t.action, t.reward, t.nextState, t.done);
-      } else if (typeof this.agent.tdError === 'function') {
-        tdError = await this.agent.tdError(t.state, t.action, t.reward, t.nextState, t.done);
+      let tdError = await this.agent.learn(
+        t.state,
+        t.action,
+        t.reward,
+        t.nextState,
+        t.done,
+        weight
+      );
+      if (!Number.isFinite(tdError)) {
+        if (typeof this.agent.computeTdError === 'function') {
+          tdError = await this.agent.computeTdError(
+            t.state,
+            t.action,
+            t.reward,
+            t.nextState,
+            t.done
+          );
+        } else if (typeof this.agent.tdError === 'function') {
+          tdError = await this.agent.tdError(
+            t.state,
+            t.action,
+            t.reward,
+            t.nextState,
+            t.done
+          );
+        }
       }
-      await this.agent.learn(t.state, t.action, t.reward, t.nextState, t.done);
       if (Number.isFinite(tdError)) {
         this.replayBuffer.updatePriority(t.index, Math.abs(tdError));
       }
