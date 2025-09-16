@@ -42,6 +42,19 @@ export async function run(testAssert) {
   testAssert.ok(lowSample);
   testAssert.ok(highSample);
   testAssert.ok(highSample.weight > lowSample.weight);
+  testAssert.ok(highSample.weight <= 1);
+  testAssert.ok(lowSample.weight >= 0);
+
+  const zeroPriorityBuffer = new ExperienceReplay(3, 1, 0.2, 0.5);
+  zeroPriorityBuffer.add({ state: 'first' }, 0);
+  zeroPriorityBuffer.add({ state: 'second' }, 0);
+  const zeroRandom = Math.random;
+  Math.random = () => 0.1;
+  const zeroSamples = zeroPriorityBuffer.sample(1, 'priority');
+  Math.random = zeroRandom;
+  testAssert.strictEqual(zeroSamples.length, 1);
+  testAssert.strictEqual(zeroSamples[0].weight, 1);
+  testAssert.strictEqual(zeroPriorityBuffer.beta, 0.7);
 
   // Beta annealing
   const annealBuffer = new ExperienceReplay(5, 1, 0.2, 0.3);
@@ -53,6 +66,13 @@ export async function run(testAssert) {
   annealBuffer.sample(1, 'priority');
   Math.random = betaRandom;
   testAssert.strictEqual(annealBuffer.beta, Math.min(1, startingBeta + annealBuffer.betaIncrement));
+
+  const noSampleBuffer = new ExperienceReplay(5, 1, 0.3, 0.4);
+  noSampleBuffer.add({ state: 'noop' }, 1);
+  const betaBeforeNoSample = noSampleBuffer.beta;
+  const emptyResult = noSampleBuffer.sample(0, 'priority');
+  testAssert.deepStrictEqual(emptyResult, []);
+  testAssert.strictEqual(noSampleBuffer.beta, betaBeforeNoSample);
 
   // Integration with RLTrainer
   class StubAgent {
