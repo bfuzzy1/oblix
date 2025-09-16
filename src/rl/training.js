@@ -33,14 +33,49 @@ export class RLTrainer {
     this.episodeRewards = this.metricsTracker.episodeRewards;
   }
 
+  _clearReplayBuffer() {
+    if (this.replayBuffer && typeof this.replayBuffer.clear === 'function') {
+      this.replayBuffer.clear();
+    }
+  }
+
+  _emitStep(state, reward, done) {
+    if (!this.onStep) return;
+    this.onStep(state, reward, done, { ...this.metrics });
+  }
+
+  async _computeReplayTdError(sample) {
+    const { state, action, reward, nextState, done } = sample;
+    const weight = sample.weight ?? 1;
+    let tdError = await this.agent.learn(state, action, reward, nextState, done, weight);
+    if (Number.isFinite(tdError)) {
+      return tdError;
+    }
+
+    if (typeof this.agent.computeTdError === 'function') {
+      tdError = await this.agent.computeTdError(state, action, reward, nextState, done);
+    } else if (typeof this.agent.tdError === 'function') {
+      tdError = await this.agent.tdError(state, action, reward, nextState, done);
+    }
+
+    return Number.isFinite(tdError) ? tdError : null;
+  }
+
+  _resetInternal({ resetAgent }) {
+    this.pause();
+    if (resetAgent && typeof this.agent.reset === 'function') {
+      this.agent.reset();
+    }
+    this._clearReplayBuffer();
+    this._initializeTrainerState();
+  }
+
   _initializeTrainerState() {
     this.state = this.env.reset();
     this.metricsTracker.reset(this.agent);
     this.metrics = this.metricsTracker.data;
     this.episodeRewards = this.metricsTracker.episodeRewards;
-    if (this.onStep) {
-      this.onStep(this.state, 0, false, { ...this.metrics });
-    }
+    this._emitStep(this.state, 0, false);
   }
 
   async _applyTransition() {
@@ -56,53 +91,24 @@ export class RLTrainer {
     if (!this.replayBuffer) return;
     this.replayBuffer.add(transition, 1);
     const samples = this.replayBuffer.sample(this.replaySamples, this.replayStrategy);
-    for (const t of samples) {
-      const weight = t.weight ?? 1;
-      let tdError = await this.agent.learn(
-        t.state,
-        t.action,
-        t.reward,
-        t.nextState,
-        t.done,
-        weight
-      );
-      if (!Number.isFinite(tdError)) {
-        if (typeof this.agent.computeTdError === 'function') {
-          tdError = await this.agent.computeTdError(
-            t.state,
-            t.action,
-            t.reward,
-            t.nextState,
-            t.done
-          );
-        } else if (typeof this.agent.tdError === 'function') {
-          tdError = await this.agent.tdError(
-            t.state,
-            t.action,
-            t.reward,
-            t.nextState,
-            t.done
-          );
-        }
-      }
-      if (Number.isFinite(tdError)) {
-        this.replayBuffer.updatePriority(t.index, Math.abs(tdError));
+    for (const sample of samples) {
+      const tdError = await this._computeReplayTdError(sample);
+      if (tdError !== null) {
+        this.replayBuffer.updatePriority(sample.index, Math.abs(tdError));
       }
     }
   }
 
   _updateMetrics({ reward, done }) {
     this.metrics = this.metricsTracker.update(reward, this.agent);
-    if (this.onStep) this.onStep(this.state, reward, done, { ...this.metrics });
+    this._emitStep(this.state, reward, done);
   }
 
   _handleEpisodeEnd(done) {
     if (!done) return;
     this.metrics = this.metricsTracker.endEpisode(this.agent);
     this.state = this.env.reset();
-    if (this.onStep) {
-      this.onStep(this.state, 0, false, { ...this.metrics });
-    }
+    this._emitStep(this.state, 0, false);
   }
 
   async step() {
@@ -152,22 +158,11 @@ export class RLTrainer {
   }
 
   reset() {
-    this.pause();
-    if (typeof this.agent.reset === 'function') {
-      this.agent.reset();
-    }
-    if (this.replayBuffer && typeof this.replayBuffer.clear === 'function') {
-      this.replayBuffer.clear();
-    }
-    this._initializeTrainerState();
+    this._resetInternal({ resetAgent: true });
   }
 
   resetTrainerState() {
-    this.pause();
-    if (this.replayBuffer && typeof this.replayBuffer.clear === 'function') {
-      this.replayBuffer.clear();
-    }
-    this._initializeTrainerState();
+    this._resetInternal({ resetAgent: false });
   }
 
   async getAgentState() {
