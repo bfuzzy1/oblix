@@ -1,10 +1,9 @@
 export class GridWorldEnvironment {
   constructor(size = 5, obstacles = []) {
     this.size = size;
-    this.obstacles = obstacles.map(o => ({ x: o.x, y: o.y }));
-    this.obstacleSet = new Set(
-      this.obstacles.map(o => `${o.x},${o.y}`)
-    );
+    this.obstacles = [];
+    this.obstacleSet = new Set();
+    this.setObstacles(obstacles);
     this.reset();
   }
 
@@ -32,6 +31,13 @@ export class GridWorldEnvironment {
       this.obstacles.push({ x, y });
       this.obstacleSet.add(key);
     }
+  }
+
+  setObstacles(obstacles = []) {
+    this.obstacles = obstacles.map(o => ({ x: o.x, y: o.y }));
+    this.obstacleSet = new Set(
+      this.obstacles.map(o => `${o.x},${o.y}`)
+    );
   }
 
   /**

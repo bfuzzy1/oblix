@@ -94,6 +94,7 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
   const worker = new Worker(new URL('../rl/trainerWorker.js', import.meta.url), { type: 'module' });
   let currentEnv = initialEnv;
   let rawAgent = initialAgent;
+  let agentRevision = 0;
   const metrics = {
     episode: 1,
     steps: 0,
@@ -152,6 +153,7 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
     },
     setAgent(newAgent) {
       rawAgent = newAgent;
+      agentRevision += 1;
       const proxy = wrapAgent(newAgent);
       this.agent = proxy;
       metrics.epsilon = newAgent.epsilon ?? metrics.epsilon;
@@ -224,7 +226,8 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
       payload: {
         agent: {
           type: rawAgent.__factoryType || 'rl',
-          params: serializeAgent(rawAgent)
+          params: serializeAgent(rawAgent),
+          revision: agentRevision
         },
         env: {
           size: currentEnv.size,
