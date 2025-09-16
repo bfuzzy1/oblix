@@ -41,7 +41,10 @@ export async function run(assert) {
   try {
     const gridEl = document.getElementById('grid');
     const env = new GridWorldEnvironment(2);
-    initRenderer(env, gridEl, env.size);
+    let environmentChanged = 0;
+    initRenderer(env, gridEl, env.size, () => {
+      environmentChanged += 1;
+    });
 
     const agent = {
       qTable: new Map([
@@ -68,6 +71,7 @@ export async function run(assert) {
     toggleCell.dispatchEvent(new dom.window.Event('click'));
     cells = gridEl.querySelectorAll('.cell');
     assert.ok(cells[1].classList.contains('obstacle'), 'clicked cell should toggle obstacle state');
+    assert.strictEqual(environmentChanged, 1, 'environment change callback should fire once');
   } finally {
     if (previousWindow === undefined) {
       delete global.window;

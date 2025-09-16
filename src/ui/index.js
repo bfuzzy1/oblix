@@ -10,7 +10,18 @@ const supportsWorker = typeof Worker !== 'undefined';
 const gridEl = document.getElementById('grid');
 const gridSizeInput = document.getElementById('grid-size');
 let env = new GridWorldEnvironment(parseInt(gridSizeInput.value, 10));
-initRenderer(env, gridEl, env.size);
+let trainer;
+let agent;
+
+function handleEnvironmentChange(updatedEnv = env) {
+  if (!trainer) return;
+  const nextEnv = updatedEnv || env;
+  if (typeof trainer.setEnvironment === 'function') {
+    trainer.setEnvironment(nextEnv);
+  }
+}
+
+initRenderer(env, gridEl, env.size, handleEnvironmentChange);
 
 const policySelect = document.getElementById('policy-select');
 const lambdaSlider = document.getElementById('lambda-slider');
@@ -40,9 +51,6 @@ function handleProgress(state, reward, done, metrics) {
   metricsEls.epsilonValue.textContent = metrics.epsilon.toFixed(2);
 }
 
-let trainer;
-let agent;
-
 if (supportsWorker) {
   trainer = createWorkerTrainer(baseAgent, env, {
     intervalMs: 100,
@@ -67,7 +75,7 @@ function rebuildEnvironment(size, obstacles = []) {
   } else {
     trainer.env = env;
   }
-  initRenderer(env, gridEl, size);
+  initRenderer(env, gridEl, size, handleEnvironmentChange);
   trainer.reset();
   gridSizeInput.value = size;
   saveEnvironment(env);
