@@ -12,6 +12,19 @@ export async function run(testAssert) {
   const states = buffer.buffer.map(t => t.state).sort();
   testAssert.deepStrictEqual(states, [2, 3]);
 
+  // Size getter and clearing
+  const clearBuffer = new ExperienceReplay(3);
+  testAssert.strictEqual(clearBuffer.size, 0);
+  clearBuffer.add({ state: 'first', action: 0, reward: 0, nextState: 'second', done: false }, 1);
+  clearBuffer.add({ state: 'second', action: 1, reward: 1, nextState: 'third', done: false }, 2);
+  testAssert.strictEqual(clearBuffer.size, 2);
+  testAssert.strictEqual(clearBuffer.priorities.length, 2);
+  clearBuffer.clear();
+  testAssert.strictEqual(clearBuffer.size, 0);
+  testAssert.strictEqual(clearBuffer.buffer.length, 0);
+  testAssert.strictEqual(clearBuffer.priorities.length, 0);
+  testAssert.strictEqual(clearBuffer.position, 0);
+
   // Sampling strategies
   const stratBuffer = new ExperienceReplay(3);
   stratBuffer.add({ state: 'a' }, 0);
@@ -113,4 +126,28 @@ export async function run(testAssert) {
   testAssert.strictEqual(agent.errorCalls.length, 1);
   testAssert.deepStrictEqual(agent.errorCalls[0], agent.calls[1].slice(0, 5));
   testAssert.strictEqual(replay.priorities[0], Math.abs(agent.tdErrorValue));
+
+  // Trainer reset clears replay buffer
+  const resetEnv = new GridWorldEnvironment(2);
+  const resetAgent = new StubAgent();
+  const resetReplay = new ExperienceReplay(5);
+  const resetTrainer = new RLTrainer(resetAgent, resetEnv, {
+    replayBuffer: resetReplay,
+    replaySamples: 1,
+    replayStrategy: 'uniform'
+  });
+  resetTrainer.state = resetEnv.reset();
+  await resetTrainer.step();
+  testAssert.ok(resetReplay.size > 0);
+  resetTrainer.reset();
+  testAssert.strictEqual(resetReplay.size, 0);
+  testAssert.strictEqual(resetReplay.priorities.length, 0);
+  testAssert.strictEqual(resetReplay.position, 0);
+
+  await resetTrainer.step();
+  testAssert.ok(resetReplay.size > 0);
+  resetTrainer.resetTrainerState();
+  testAssert.strictEqual(resetReplay.size, 0);
+  testAssert.strictEqual(resetReplay.priorities.length, 0);
+  testAssert.strictEqual(resetReplay.position, 0);
 }

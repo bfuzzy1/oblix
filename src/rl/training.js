@@ -156,11 +156,17 @@ export class RLTrainer {
     if (typeof this.agent.reset === 'function') {
       this.agent.reset();
     }
+    if (this.replayBuffer && typeof this.replayBuffer.clear === 'function') {
+      this.replayBuffer.clear();
+    }
     this._initializeTrainerState();
   }
 
   resetTrainerState() {
     this.pause();
+    if (this.replayBuffer && typeof this.replayBuffer.clear === 'function') {
+      this.replayBuffer.clear();
+    }
     this._initializeTrainerState();
   }
 
