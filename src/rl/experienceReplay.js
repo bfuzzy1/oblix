@@ -1,8 +1,9 @@
 export class ExperienceReplay {
-  constructor(capacity = 1000, alpha = 0.6, beta = 0.4) {
+  constructor(capacity = 1000, alpha = 0.6, beta = 0.4, betaIncrement = 0.001) {
     this.capacity = capacity;
     this.alpha = alpha;
     this.beta = beta;
+    this.betaIncrement = betaIncrement;
     this.buffer = [];
     this.priorities = [];
     this.position = 0;
@@ -34,30 +35,48 @@ export class ExperienceReplay {
     const batch = [];
     for (let i = 0; i < count; i++) {
       const idx = this._randomIndex();
-      batch.push({ index: idx, ...this.buffer[idx] });
+      batch.push({ index: idx, weight: 1, ...this.buffer[idx] });
     }
     return batch;
   }
 
   _samplePriority(count) {
-    const weights = this.priorities
-      .slice(0, this.buffer.length)
+    const size = this.buffer.length;
+    const scaled = this.priorities
+      .slice(0, size)
       .map(p => Math.pow(p, this.alpha));
-    const total = weights.reduce((a, b) => a + b, 0);
+    const total = scaled.reduce((a, b) => a + b, 0);
     if (total === 0) {
-      return this._sampleUniform(count);
+      const batch = [];
+      for (let i = 0; i < count; i++) {
+        const idx = this._randomIndex();
+        batch.push({ index: idx, weight: 1, ...this.buffer[idx] });
+      }
+      if (this.betaIncrement > 0 && this.beta < 1) {
+        this.beta = Math.min(1, this.beta + this.betaIncrement);
+      }
+      return batch;
     }
+    const probabilities = scaled.map(w => w / total);
+    const weighted = probabilities.map(p => (p > 0 ? Math.pow(p, this.beta) : 0));
+    const maxWeight = weighted.reduce((max, val) => (val > max ? val : max), 0) || 1;
+    const normalizedWeights = weighted.map(w => (w === 0 ? 0 : w / maxWeight));
     const batch = [];
     for (let i = 0; i < count; i++) {
-      const r = Math.random() * total;
+      const r = Math.random();
       let acc = 0;
+      let selected = this.buffer.length - 1;
       for (let j = 0; j < this.buffer.length; j++) {
-        acc += weights[j];
+        acc += probabilities[j];
         if (r <= acc) {
-          batch.push({ index: j, ...this.buffer[j] });
+          selected = j;
           break;
         }
       }
+      batch.push({ index: selected, weight: normalizedWeights[selected], ...this.buffer[selected] });
+    }
+    if (this.betaIncrement > 0 && this.beta < 1) {
+      this.beta = Math.min(1, this.beta + this.betaIncrement);
     }
     return batch;
   }

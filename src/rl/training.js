@@ -57,7 +57,8 @@ export class RLTrainer {
     this.replayBuffer.add(transition, 1);
     const samples = this.replayBuffer.sample(this.replaySamples, this.replayStrategy);
     for (const t of samples) {
-      await this.agent.learn(t.state, t.action, t.reward, t.nextState, t.done);
+      const weight = t.weight ?? 1;
+      await this.agent.learn(t.state, t.action, t.reward, t.nextState, t.done, weight);
     }
   }
 
