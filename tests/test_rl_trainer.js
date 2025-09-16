@@ -100,4 +100,89 @@ export async function run(assert) {
   await new Promise(resolve => setTimeout(resolve, 40));
   trainer3.pause();
   assert.ok(calls >= 2);
+
+  const env4 = new GridWorldEnvironment(2);
+  class ReplayAgent {
+    constructor() {
+      this.epsilon = 0.3;
+      this.learnCalls = [];
+      this.tdErrorCalls = [];
+    }
+    act() {
+      return 0;
+    }
+    async learn(state, action, reward, nextState, done, weight) {
+      this.learnCalls.push({ state, action, reward, nextState, done, weight });
+    }
+    async computeTdError(state, action, reward, nextState, done) {
+      this.tdErrorCalls.push({ state, action, reward, nextState, done });
+      return 0.5;
+    }
+  }
+  const agent4 = new ReplayAgent();
+  const sampleTransitions = [
+    {
+      index: 0,
+      state: new Float32Array([0, 0]),
+      action: 1,
+      reward: -0.01,
+      nextState: new Float32Array([0, 1]),
+      done: false,
+      weight: 0.4
+    },
+    {
+      index: 1,
+      state: new Float32Array([0, 1]),
+      action: 3,
+      reward: 1,
+      nextState: new Float32Array([1, 1]),
+      done: true,
+      weight: 0.9
+    }
+  ];
+  class StubReplayBuffer {
+    constructor(samples) {
+      this.samples = samples;
+      this.added = [];
+      this.sampleCalls = [];
+      this.priorityUpdates = [];
+    }
+    add(transition, priority) {
+      this.added.push({ transition, priority });
+    }
+    sample(count) {
+      this.sampleCalls.push(count);
+      return this.samples.map(sample => ({ ...sample }));
+    }
+    updatePriority(index, priority) {
+      this.priorityUpdates.push({ index, priority });
+    }
+  }
+  const replayBuffer = new StubReplayBuffer(sampleTransitions);
+  const trainer4 = new RLTrainer(agent4, env4, {
+    replaySamples: sampleTransitions.length,
+    replayStrategy: 'priority',
+    replayBuffer
+  });
+  trainer4.state = env4.reset();
+  await trainer4.step();
+  assert.strictEqual(replayBuffer.added.length, 1);
+  assert.deepStrictEqual(replayBuffer.sampleCalls, [sampleTransitions.length]);
+  assert.strictEqual(agent4.learnCalls.length, 1 + sampleTransitions.length);
+  assert.strictEqual(agent4.learnCalls[0].weight, undefined);
+  for (let i = 0; i < sampleTransitions.length; i++) {
+    const call = agent4.learnCalls[i + 1];
+    const sample = sampleTransitions[i];
+    assert.strictEqual(call.state, sample.state);
+    assert.strictEqual(call.action, sample.action);
+    assert.strictEqual(call.reward, sample.reward);
+    assert.strictEqual(call.nextState, sample.nextState);
+    assert.strictEqual(call.done, sample.done);
+    assert.strictEqual(call.weight, sample.weight);
+  }
+  assert.strictEqual(agent4.tdErrorCalls.length, sampleTransitions.length);
+  assert.strictEqual(replayBuffer.priorityUpdates.length, sampleTransitions.length);
+  for (const update of replayBuffer.priorityUpdates) {
+    assert.strictEqual(update.priority, 0.5);
+  }
 }

@@ -105,14 +105,12 @@ export async function run(testAssert) {
   trainer.state = env.reset();
   await trainer.step();
   testAssert.strictEqual(replay.buffer.length, 1);
-  testAssert.strictEqual(agent.calls.length, 3);
+  testAssert.strictEqual(agent.calls.length, 2);
   testAssert.strictEqual(agent.calls[0].length, 5);
   testAssert.strictEqual(agent.calls[1].length, 6);
-  testAssert.strictEqual(agent.calls[2].length, 5);
   testAssert.deepStrictEqual(agent.calls[0], agent.calls[1].slice(0, 5));
   testAssert.strictEqual(agent.calls[1][5], 1);
-  testAssert.deepStrictEqual(agent.calls[0], agent.calls[2]);
   testAssert.strictEqual(agent.errorCalls.length, 1);
-  testAssert.deepStrictEqual(agent.errorCalls[0], agent.calls[2]);
+  testAssert.deepStrictEqual(agent.errorCalls[0], agent.calls[1].slice(0, 5));
   testAssert.strictEqual(replay.priorities[0], Math.abs(agent.tdErrorValue));
 }
