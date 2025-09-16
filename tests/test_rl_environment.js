@@ -17,4 +17,30 @@ export async function run() {
   const key = Array.from(new Float32Array([0, 0])).join(',');
   const q = agent.qTable.get(key);
   assert.ok(q[3] >= q[2], 'Right action should have higher value than left');
+
+  const customEnv = new GridWorldEnvironment(2, [], {
+    stepPenalty: -0.5,
+    obstaclePenalty: -2,
+    goalReward: 5
+  });
+  assert.deepStrictEqual(customEnv.getRewardConfig(), {
+    stepPenalty: -0.5,
+    obstaclePenalty: -2,
+    goalReward: 5
+  });
+  customEnv.reset();
+  let stepResult = customEnv.step(3);
+  assert.strictEqual(stepResult.reward, -0.5);
+  assert.strictEqual(stepResult.done, false);
+  customEnv.reset();
+  customEnv.toggleObstacle(1, 0);
+  stepResult = customEnv.step(3);
+  assert.strictEqual(stepResult.reward, -2);
+  assert.strictEqual(stepResult.done, false);
+  customEnv.toggleObstacle(1, 0);
+  customEnv.reset();
+  customEnv.step(3);
+  stepResult = customEnv.step(1);
+  assert.strictEqual(stepResult.reward, 5);
+  assert.strictEqual(stepResult.done, true);
 }

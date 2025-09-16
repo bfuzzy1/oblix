@@ -42,12 +42,31 @@ export function loadAgent(trainer, storage = globalThis.localStorage) {
 }
 
 export function saveEnvironment(env, storage = globalThis.localStorage) {
-  const data = JSON.stringify({ size: env.size, obstacles: env.obstacles });
+  const rewards = typeof env.getRewardConfig === 'function'
+    ? env.getRewardConfig()
+    : {
+      stepPenalty: env.stepPenalty,
+      obstaclePenalty: env.obstaclePenalty,
+      goalReward: env.goalReward
+    };
+  const data = JSON.stringify({
+    size: env.size,
+    obstacles: env.obstacles,
+    rewards
+  });
   storage.setItem('environment', data);
 }
 
 export function loadEnvironment(storage = globalThis.localStorage) {
   const data = storage.getItem('environment');
   if (!data) return null;
-  return JSON.parse(data);
+  const parsed = JSON.parse(data);
+  const obstacles = Array.isArray(parsed.obstacles)
+    ? parsed.obstacles.map(o => ({ x: o.x, y: o.y }))
+    : [];
+  return {
+    size: parsed.size,
+    obstacles,
+    rewards: parsed.rewards
+  };
 }

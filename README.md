@@ -38,7 +38,11 @@ import { GridWorldEnvironment } from './src/rl/environment.js';
 import { ExpectedSarsaAgent } from './src/rl/expectedSarsaAgent.js';
 import { RLTrainer } from './src/rl/training.js';
 
-const env = new GridWorldEnvironment(5);
+const env = new GridWorldEnvironment(5, [], {
+  stepPenalty: -0.01,
+  obstaclePenalty: -0.1,
+  goalReward: 1
+});
 const agent = new ExpectedSarsaAgent({ epsilon: 0.2 });
 await RLTrainer.trainEpisodes(agent, env, 50, 50);
 ```
@@ -66,4 +70,4 @@ const restored = RLAgent.fromJSON(saved);
 ## Frontend Demo
 
 Open `index.html` in a browser to interact with the grid world. Use the Start, Pause and Reset buttons to control training and watch the agent improve.
-Use the Grid Size input to resize the environment and toggle cells to set obstacles. The Save and Load buttons persist both the agent and the environment layout in your browser.
+Use the Grid Size input to resize the environment, tweak the step and obstacle penalties, and adjust the goal reward to explore different incentive structures. Toggle cells to set obstacles. The Save and Load buttons persist both the agent and the environment layout in your browser.

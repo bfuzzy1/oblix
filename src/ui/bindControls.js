@@ -1,5 +1,6 @@
 import { createAgent } from './agentFactory.js';
 import { saveAgent, loadAgent, saveEnvironment, loadEnvironment } from '../rl/storage.js';
+import { DEFAULT_REWARD_CONFIG } from '../rl/environment.js';
 
 function getElements() {
   return {
@@ -12,7 +13,10 @@ function getElements() {
     learningRateSlider: document.getElementById('learning-rate-slider'),
     learningRateValue: document.getElementById('learning-rate-value'),
     lambdaSlider: document.getElementById('lambda-slider'),
-    lambdaValue: document.getElementById('lambda-value')
+    lambdaValue: document.getElementById('lambda-value'),
+    stepPenaltyInput: document.getElementById('step-penalty'),
+    obstaclePenaltyInput: document.getElementById('obstacle-penalty'),
+    goalRewardInput: document.getElementById('goal-reward')
   };
 }
 
@@ -44,7 +48,29 @@ function syncLambda(agent, els) {
   els.lambdaValue.textContent = val.toFixed(2);
 }
 
-function initializeControls(trainer, agent, els) {
+function getRewardConfig(env) {
+  if (!env) return { ...DEFAULT_REWARD_CONFIG };
+  if (typeof env.getRewardConfig === 'function') {
+    return env.getRewardConfig();
+  }
+  return {
+    stepPenalty: env.stepPenalty ?? DEFAULT_REWARD_CONFIG.stepPenalty,
+    obstaclePenalty: env.obstaclePenalty ?? DEFAULT_REWARD_CONFIG.obstaclePenalty,
+    goalReward: env.goalReward ?? DEFAULT_REWARD_CONFIG.goalReward
+  };
+}
+
+function syncEnvironmentControls(env, els) {
+  if (!els.stepPenaltyInput || !els.obstaclePenaltyInput || !els.goalRewardInput) {
+    return;
+  }
+  const rewards = getRewardConfig(env);
+  els.stepPenaltyInput.value = Number(rewards.stepPenalty);
+  els.obstaclePenaltyInput.value = Number(rewards.obstaclePenalty);
+  els.goalRewardInput.value = Number(rewards.goalReward);
+}
+
+function initializeControls(trainer, agent, env, els) {
   els.epsilonSlider.value = agent.epsilon;
   els.epsilonValue.textContent = agent.epsilon.toFixed(2);
   els.policySelect.value = agent.policy;
@@ -52,9 +78,10 @@ function initializeControls(trainer, agent, els) {
   els.intervalValue.textContent = trainer.intervalMs;
   updateLearningRateControl(agent, els);
   syncLambda(agent, els);
+  syncEnvironmentControls(env, els);
 }
 
-function bindAgentSelection(trainer, els, getAgent, setAgent) {
+function bindAgentSelection(trainer, els, getAgent, setAgent, getEnv) {
   els.agentSelect.addEventListener('change', e => {
     const newAgent = createAgent(e.target.value, {
       policy: els.policySelect.value,
@@ -62,7 +89,7 @@ function bindAgentSelection(trainer, els, getAgent, setAgent) {
     });
     const assigned = setAgent(newAgent);
     trainer.reset();
-    initializeControls(trainer, assigned, els);
+    initializeControls(trainer, assigned, getEnv(), els);
   });
 }
 
@@ -106,12 +133,47 @@ function bindSliders(trainer, els, getAgent) {
   });
 }
 
+function parseRewardInput(value, fallback) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function readRewardInputs(els, env) {
+  const current = getRewardConfig(env);
+  return {
+    stepPenalty: parseRewardInput(els.stepPenaltyInput?.value, current.stepPenalty),
+    obstaclePenalty: parseRewardInput(els.obstaclePenaltyInput?.value, current.obstaclePenalty),
+    goalReward: parseRewardInput(els.goalRewardInput?.value, current.goalReward)
+  };
+}
+
+function cloneObstacles(obstacles = []) {
+  return obstacles.map(o => ({ x: o.x, y: o.y }));
+}
+
+function bindEnvironmentControls(trainer, els, getAgent, getEnv, setEnv) {
+  if (!els.stepPenaltyInput || !els.obstaclePenaltyInput || !els.goalRewardInput) {
+    return;
+  }
+  const handleChange = () => {
+    const env = getEnv();
+    const rewards = readRewardInputs(els, env);
+    const size = env?.size ?? 5;
+    const obstacles = env ? cloneObstacles(env.obstacles) : [];
+    setEnv(size, obstacles, rewards);
+    initializeControls(trainer, getAgent(), getEnv(), els);
+  };
+  els.stepPenaltyInput.addEventListener('change', handleChange);
+  els.obstaclePenaltyInput.addEventListener('change', handleChange);
+  els.goalRewardInput.addEventListener('change', handleChange);
+}
+
 function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEnv) {
   document.getElementById('start').onclick = () => trainer.start();
   document.getElementById('pause').onclick = () => trainer.pause();
   document.getElementById('reset').onclick = () => {
     trainer.reset();
-    initializeControls(trainer, getAgent(), els);
+    initializeControls(trainer, getAgent(), getEnv(), els);
   };
   document.getElementById('save').onclick = async () => {
     let agentForSave = getAgent();
@@ -127,10 +189,11 @@ function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEn
   document.getElementById('load').onclick = () => {
     const loaded = loadAgent(trainer);
     const assigned = setAgent(loaded, { skipTrainer: true });
-    initializeControls(trainer, assigned, els);
+    initializeControls(trainer, assigned, getEnv(), els);
     const envData = loadEnvironment();
     if (envData) {
-      setEnv(envData.size, envData.obstacles);
+      setEnv(envData.size, envData.obstacles, envData.rewards);
+      initializeControls(trainer, getAgent(), getEnv(), els);
     }
     render(trainer.state);
   };
@@ -156,9 +219,10 @@ export function bindControls(trainer, agent, render, getEnv, setEnv) {
   };
   const els = getElements();
 
-  initializeControls(trainer, currentAgent, els);
-  bindAgentSelection(trainer, els, getAgent, setAgent);
+  initializeControls(trainer, currentAgent, getEnv(), els);
+  bindAgentSelection(trainer, els, getAgent, setAgent, getEnv);
   bindPolicySelection(els, getAgent);
   bindSliders(trainer, els, getAgent);
+  bindEnvironmentControls(trainer, els, getAgent, getEnv, setEnv);
   bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEnv);
 }
