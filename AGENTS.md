@@ -6,7 +6,7 @@
 
 ## Repository Structure
 - `src/rl/` – agents, environments and trainers
-- `tests/` – unit tests executed with `node tests/run.js`
+- `tests/` – unit tests executed with `npm test`
 
 ## Development Guidelines
 
@@ -25,7 +25,7 @@
 
 ## Testing
 - Add tests for each new feature or bug fix
-- Run `node tests/run.js` and ensure it passes before committing (skip for documentation-only changes)
+- Run `npm test` and ensure it passes before committing (skip for documentation-only changes)
 
 ## Commit Guidelines
 - Use clear, imperative commit messages; Conventional Commit style preferred
