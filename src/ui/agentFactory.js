@@ -8,6 +8,8 @@ import { MonteCarloAgent } from '../rl/monteCarloAgent.js';
 import { ActorCriticAgent } from '../rl/actorCriticAgent.js';
 import { DoubleQAgent } from '../rl/doubleQAgent.js';
 import { OptimisticAgent } from '../rl/optimisticAgent.js';
+import { ValueIterationAgent } from '../rl/valueIterationAgent.js';
+import { PolicyIterationAgent } from '../rl/policyIterationAgent.js';
 
 const agentFactory = {
   rl: RLAgent,
@@ -18,7 +20,9 @@ const agentFactory = {
   mc: MonteCarloAgent,
   ac: ActorCriticAgent,
   double: DoubleQAgent,
-  optimistic: OptimisticAgent
+  optimistic: OptimisticAgent,
+  'value-iteration': ValueIterationAgent,
+  'policy-iteration': PolicyIterationAgent
 };
 
 export function createAgent(type, options = {}) {

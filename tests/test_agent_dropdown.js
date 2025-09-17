@@ -21,6 +21,12 @@ export async function run(assert) {
   assert.ok(html.includes('<option value="optimistic">Optimistic</option>'));
   assert.ok(js.includes("import { OptimisticAgent } from '../rl/optimisticAgent.js';"));
   assert.ok(js.includes('optimistic: OptimisticAgent'));
+  assert.ok(html.includes('<option value="value-iteration">Value Iteration</option>'));
+  assert.ok(js.includes("import { ValueIterationAgent } from '../rl/valueIterationAgent.js';"));
+  assert.ok(js.includes("'value-iteration': ValueIterationAgent"));
+  assert.ok(html.includes('<option value="policy-iteration">Policy Iteration</option>'));
+  assert.ok(js.includes("import { PolicyIterationAgent } from '../rl/policyIterationAgent.js';"));
+  assert.ok(js.includes("'policy-iteration': PolicyIterationAgent"));
   assert.ok(!html.includes('<option value="dqn">'));
   assert.ok(!html.includes('@tensorflow/tfjs'));
   assert.ok(!js.includes('@tensorflow/tfjs'));

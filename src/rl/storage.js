@@ -2,6 +2,8 @@ import { RLAgent } from './agent.js';
 import { RLTrainer } from './training.js';
 import { DoubleQAgent } from './doubleQAgent.js';
 import { OptimisticAgent } from './optimisticAgent.js';
+import { ValueIterationAgent } from './valueIterationAgent.js';
+import { PolicyIterationAgent } from './policyIterationAgent.js';
 
 export function saveAgent(agent, storage = globalThis.localStorage) {
   const data = JSON.stringify(agent.toJSON());
@@ -17,6 +19,10 @@ export function loadAgent(trainer, storage = globalThis.localStorage) {
     agent = DoubleQAgent.fromJSON(parsed);
   } else if (parsed.type === 'optimistic') {
     agent = OptimisticAgent.fromJSON(parsed);
+  } else if (parsed.type === 'value-iteration') {
+    agent = ValueIterationAgent.fromJSON(parsed);
+  } else if (parsed.type === 'policy-iteration') {
+    agent = PolicyIterationAgent.fromJSON(parsed);
   } else {
     agent = RLAgent.fromJSON(parsed);
   }

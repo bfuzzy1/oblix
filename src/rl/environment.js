@@ -4,6 +4,8 @@ export const DEFAULT_REWARD_CONFIG = Object.freeze({
   goalReward: 1
 });
 
+export const GRID_ACTIONS = Object.freeze([0, 1, 2, 3]);
+
 function normalizeNumber(value, fallback) {
   const num = Number(value);
   return Number.isFinite(num) ? num : fallback;
@@ -33,6 +35,11 @@ export class GridWorldEnvironment {
 
   getGoalPosition() {
     return { x: this.size - 1, y: this.size - 1 };
+  }
+
+  isGoalPosition(x, y) {
+    const goal = this.getGoalPosition();
+    return x === goal.x && y === goal.y;
   }
 
   isObstacle(x, y) {
@@ -81,6 +88,90 @@ export class GridWorldEnvironment {
 
   describeCell() {
     return { classes: [] };
+  }
+
+  getPositionFromState(state) {
+    if (!state) {
+      throw new Error('State is required to derive a position');
+    }
+    if (ArrayBuffer.isView(state) || Array.isArray(state)) {
+      const [sx, sy] = state;
+      return { x: Math.trunc(Number(sx)), y: Math.trunc(Number(sy)) };
+    }
+    if (typeof state === 'object' && state !== null) {
+      const { x, y } = state;
+      if (Number.isFinite(x) && Number.isFinite(y)) {
+        return { x: Math.trunc(x), y: Math.trunc(y) };
+      }
+    }
+    throw new Error('Unsupported state representation');
+  }
+
+  createStateFromPosition(x, y) {
+    return new Float32Array([x, y]);
+  }
+
+  enumerateCells() {
+    const cells = [];
+    for (let y = 0; y < this.size; y++) {
+      for (let x = 0; x < this.size; x++) {
+        if (this.isObstacle(x, y)) continue;
+        cells.push({ x, y });
+      }
+    }
+    return cells;
+  }
+
+  enumerateStates() {
+    return this.enumerateCells().map(cell => this.createStateFromPosition(cell.x, cell.y));
+  }
+
+  getAvailableActions() {
+    return GRID_ACTIONS;
+  }
+
+  isTerminalState(state) {
+    const { x, y } = this.getPositionFromState(state);
+    return this.isGoalPosition(x, y);
+  }
+
+  _simulateAction(position, action) {
+    let newX = position.x;
+    let newY = position.y;
+    switch (action) {
+      case 0:
+        if (newY > 0) newY -= 1;
+        break;
+      case 1:
+        if (newY < this.size - 1) newY += 1;
+        break;
+      case 2:
+        if (newX > 0) newX -= 1;
+        break;
+      case 3:
+        if (newX < this.size - 1) newX += 1;
+        break;
+    }
+    return { x: newX, y: newY };
+  }
+
+  getTransition(state, action) {
+    const position = this.getPositionFromState(state);
+    const candidate = this._simulateAction(position, action);
+    if (this.isObstacle(candidate.x, candidate.y)) {
+      return {
+        state: this.createStateFromPosition(position.x, position.y),
+        reward: this.obstaclePenalty,
+        done: false
+      };
+    }
+    const done = this.isGoalPosition(candidate.x, candidate.y);
+    const reward = this.calculateReward(candidate.x, candidate.y, done);
+    return {
+      state: this.createStateFromPosition(candidate.x, candidate.y),
+      reward,
+      done
+    };
   }
 
   /**

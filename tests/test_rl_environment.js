@@ -43,4 +43,17 @@ export async function run() {
   stepResult = customEnv.step(1);
   assert.strictEqual(stepResult.reward, 5);
   assert.strictEqual(stepResult.done, true);
+
+  const cells = env.enumerateCells();
+  assert.strictEqual(cells.length, env.size * env.size);
+  assert.ok(cells.some(cell => cell.x === 0 && cell.y === 0));
+  const states = env.enumerateStates();
+  assert.strictEqual(states.length, cells.length);
+  const transition = env.getTransition(new Float32Array([0, 0]), 3);
+  assert.deepStrictEqual(Array.from(transition.state), [1, 0]);
+  assert.strictEqual(transition.reward, env.stepPenalty);
+  assert.strictEqual(transition.done, false);
+  const goalTransition = env.getTransition(new Float32Array([env.size - 1, env.size - 2]), 1);
+  assert.strictEqual(goalTransition.done, true);
+  assert.strictEqual(goalTransition.reward, env.goalReward);
 }
