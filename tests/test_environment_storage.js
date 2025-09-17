@@ -8,6 +8,7 @@ export async function run(assert) {
   assert.ok(html.includes('id="step-penalty"'));
   assert.ok(html.includes('id="obstacle-penalty"'));
   assert.ok(html.includes('id="goal-reward"'));
+  assert.ok(html.includes('id="scenario-select"'));
 
   const js = fs.readFileSync('src/ui/renderGrid.js', 'utf8');
   assert.ok(js.includes('saveEnvironment(env);'));
@@ -28,6 +29,8 @@ export async function run(assert) {
   assert.deepStrictEqual(loaded, {
     size: 4,
     obstacles: [{ x: 1, y: 1 }],
-    rewards: { stepPenalty: -0.25, obstaclePenalty: -1, goalReward: 3 }
+    rewards: { stepPenalty: -0.25, obstaclePenalty: -1, goalReward: 3 },
+    scenarioId: 'classic',
+    scenarioConfig: undefined
   });
 }

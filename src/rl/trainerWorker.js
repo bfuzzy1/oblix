@@ -1,6 +1,7 @@
-import { GridWorldEnvironment } from './environment.js';
+import { DEFAULT_REWARD_CONFIG } from './environment.js';
 import { RLTrainer } from './training.js';
 import { createAgent } from '../ui/agentFactory.js';
+import { createEnvironmentFromScenario, DEFAULT_SCENARIO_ID } from './environmentPresets.js';
 
 let postToHost = null;
 
@@ -33,6 +34,159 @@ let trainer = null;
 let agent = null;
 let environment = null;
 let agentRevision = null;
+let lastEnvConfig = null;
+
+function cloneObstacles(obstacles = []) {
+  if (!Array.isArray(obstacles)) return [];
+  return obstacles.map(obstacle => ({
+    x: obstacle?.x,
+    y: obstacle?.y
+  }));
+}
+
+function sanitizeReward(value, fallback) {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : fallback;
+}
+
+function cloneRewardConfig(rewards) {
+  if (!rewards || typeof rewards !== 'object') return undefined;
+  return {
+    stepPenalty: sanitizeReward(rewards.stepPenalty, DEFAULT_REWARD_CONFIG.stepPenalty),
+    obstaclePenalty: sanitizeReward(rewards.obstaclePenalty, DEFAULT_REWARD_CONFIG.obstaclePenalty),
+    goalReward: sanitizeReward(rewards.goalReward, DEFAULT_REWARD_CONFIG.goalReward)
+  };
+}
+
+function cloneScenarioConfig(config) {
+  if (config === undefined || config === null) {
+    return undefined;
+  }
+  return JSON.parse(JSON.stringify(config));
+}
+
+function areObstaclesEqual(a, b) {
+  const listA = Array.isArray(a) ? a : [];
+  const listB = Array.isArray(b) ? b : [];
+  if (listA.length !== listB.length) return false;
+  for (let i = 0; i < listA.length; i += 1) {
+    const left = listA[i];
+    const right = listB[i];
+    if (!left && !right) continue;
+    if (!left || !right) return false;
+    if (left.x !== right.x || left.y !== right.y) {
+      return false;
+    }
+  }
+  return true;
+}
+
+function areRewardConfigsEqual(a, b) {
+  if (!a && !b) return true;
+  if (!a || !b) return false;
+  return a.stepPenalty === b.stepPenalty
+    && a.obstaclePenalty === b.obstaclePenalty
+    && a.goalReward === b.goalReward;
+}
+
+function areScenarioConfigsEqual(a, b) {
+  const normalizedA = a === null ? undefined : a;
+  const normalizedB = b === null ? undefined : b;
+  if (normalizedA === undefined && normalizedB === undefined) {
+    return true;
+  }
+  if (normalizedA === undefined || normalizedB === undefined) {
+    return false;
+  }
+  return JSON.stringify(normalizedA) === JSON.stringify(normalizedB);
+}
+
+function applyScenarioConfig(environmentInstance, scenarioConfig) {
+  if (!environmentInstance || scenarioConfig === undefined) {
+    return false;
+  }
+  if (typeof environmentInstance.applyScenarioOptions === 'function') {
+    environmentInstance.applyScenarioOptions(scenarioConfig);
+    return true;
+  }
+  if (typeof environmentInstance.setScenarioConfig === 'function') {
+    environmentInstance.setScenarioConfig(scenarioConfig);
+    return true;
+  }
+  if (environmentInstance.scenarioId === 'windy' && typeof environmentInstance.setWind === 'function') {
+    const config = scenarioConfig?.windColumns ? scenarioConfig.windColumns : [];
+    environmentInstance.setWind(config);
+    return true;
+  }
+  if (environmentInstance.scenarioId === 'reward-grid' && typeof environmentInstance.setRewardCells === 'function') {
+    const cells = Array.isArray(scenarioConfig?.rewardCells) ? scenarioConfig.rewardCells : [];
+    environmentInstance.setRewardCells(cells);
+    return true;
+  }
+  return false;
+}
+
+function snapshotEnvironmentConfig(env) {
+  if (!env) return null;
+  const rewards = typeof env.getRewardConfig === 'function'
+    ? cloneRewardConfig(env.getRewardConfig())
+    : undefined;
+  const scenarioConfig = typeof env.getScenarioConfig === 'function'
+    ? cloneScenarioConfig(env.getScenarioConfig())
+    : undefined;
+  return {
+    scenarioId: env.scenarioId ?? DEFAULT_SCENARIO_ID,
+    size: env.size,
+    obstacles: cloneObstacles(env.obstacles),
+    rewards,
+    scenarioConfig
+  };
+}
+
+function createEnvironmentInstance(config) {
+  const options = {
+    size: config.size,
+    obstacles: cloneObstacles(config.obstacles)
+  };
+  if (config.rewards) {
+    options.rewards = { ...config.rewards };
+  }
+  if (config.scenarioConfig !== undefined) {
+    options.scenarioConfig = cloneScenarioConfig(config.scenarioConfig);
+  }
+  const id = config.scenarioId || DEFAULT_SCENARIO_ID;
+  return createEnvironmentFromScenario(id, options);
+}
+
+function emitEnvironmentMetadata(requestId) {
+  if (!postToHost) return;
+  if (!environment) {
+    postToHost({
+      type: 'env:metadata',
+      payload: { requestId, metadata: null }
+    });
+    return;
+  }
+  const rewards = typeof environment.getRewardConfig === 'function'
+    ? cloneRewardConfig(environment.getRewardConfig())
+    : undefined;
+  const scenarioConfig = typeof environment.getScenarioConfig === 'function'
+    ? cloneScenarioConfig(environment.getScenarioConfig())
+    : undefined;
+  postToHost({
+    type: 'env:metadata',
+    payload: {
+      requestId,
+      metadata: {
+        scenarioId: environment.scenarioId ?? DEFAULT_SCENARIO_ID,
+        size: environment.size,
+        obstacles: cloneObstacles(environment.obstacles),
+        rewards,
+        scenarioConfig
+      }
+    }
+  });
+}
 
 function emitProgress(state, reward, done, metrics) {
   if (!trainer || !postToHost) return;
@@ -64,18 +218,35 @@ function emitAgentState(requestId) {
 
 function configureTrainer(payload) {
   if (!payload) return;
-  const envConfig = payload.env || {};
+  const envConfigPayload = payload.env || {};
   const agentConfig = payload.agent || {};
   const trainerConfig = payload.trainer || {};
-  const envSize = envConfig.size ?? environment?.size ?? 5;
-  const obstacles = envConfig.obstacles || [];
-  const rewardConfig = envConfig.rewards ? { ...envConfig.rewards } : null;
+
+  const scenarioId = typeof envConfigPayload.scenarioId === 'string'
+    ? envConfigPayload.scenarioId
+    : lastEnvConfig?.scenarioId ?? environment?.scenarioId ?? DEFAULT_SCENARIO_ID;
+  const size = Number.isFinite(envConfigPayload.size)
+    ? Math.trunc(envConfigPayload.size)
+    : lastEnvConfig?.size ?? environment?.size ?? 5;
+  const obstacles = Array.isArray(envConfigPayload.obstacles)
+    ? cloneObstacles(envConfigPayload.obstacles)
+    : cloneObstacles(lastEnvConfig?.obstacles ?? environment?.obstacles ?? []);
+  const rewards = envConfigPayload.rewards
+    ? cloneRewardConfig(envConfigPayload.rewards)
+    : (lastEnvConfig?.rewards ? { ...lastEnvConfig.rewards } : undefined);
+  const hasScenarioConfig = Object.prototype.hasOwnProperty.call(envConfigPayload, 'scenarioConfig');
+  const scenarioConfig = hasScenarioConfig
+    ? cloneScenarioConfig(envConfigPayload.scenarioConfig)
+    : cloneScenarioConfig(lastEnvConfig?.scenarioConfig);
+
   const agentType = agentConfig.type || agent?.__factoryType || 'rl';
   const revision = agentConfig.revision;
   const intervalMs = trainerConfig.intervalMs ?? trainer?.intervalMs ?? 100;
 
+  const normalizedEnvConfig = { scenarioId, size, obstacles, rewards, scenarioConfig };
+
   if (!trainer) {
-    environment = new GridWorldEnvironment(envSize, obstacles, rewardConfig || undefined);
+    environment = createEnvironmentInstance(normalizedEnvConfig);
     agent = createAgent(agentType, agentConfig.params || {});
     trainer = new RLTrainer(agent, environment, {
       intervalMs,
@@ -84,6 +255,7 @@ function configureTrainer(payload) {
       }
     });
     trainer.resetTrainerState();
+    lastEnvConfig = snapshotEnvironmentConfig(environment);
     if (revision !== undefined) {
       agentRevision = revision;
     }
@@ -99,19 +271,37 @@ function configureTrainer(payload) {
     agent = createAgent(agentType, agentConfig.params || {});
   }
 
-  const sizeChanged = !environment || environment.size !== envSize;
-  if (!environment || sizeChanged) {
-    environment = new GridWorldEnvironment(envSize, obstacles, rewardConfig || undefined);
-  } else {
-    if (typeof environment.setObstacles === 'function') {
-      environment.setObstacles(obstacles);
-    }
-    if (rewardConfig && typeof environment.setRewardConfig === 'function') {
-      environment.setRewardConfig(rewardConfig);
+  const scenarioChanged = !lastEnvConfig || lastEnvConfig.scenarioId !== scenarioId;
+  const sizeChanged = !lastEnvConfig || lastEnvConfig.size !== size;
+  const obstaclesChanged = !lastEnvConfig || !areObstaclesEqual(lastEnvConfig.obstacles, obstacles);
+  const rewardsChanged = !lastEnvConfig || !areRewardConfigsEqual(lastEnvConfig.rewards, rewards);
+  const scenarioConfigChanged = !lastEnvConfig || !areScenarioConfigsEqual(lastEnvConfig.scenarioConfig, scenarioConfig);
+
+  let shouldRebuildEnvironment = !environment || scenarioChanged || sizeChanged;
+
+  if (!shouldRebuildEnvironment && scenarioConfigChanged) {
+    const scenarioClone = cloneScenarioConfig(scenarioConfig);
+    const applied = applyScenarioConfig(environment, scenarioClone);
+    if (!applied) {
+      shouldRebuildEnvironment = true;
     }
   }
 
-  const shouldRebuildTrainer = shouldReplaceAgent || sizeChanged;
+  if (!shouldRebuildEnvironment && obstaclesChanged && typeof environment.setObstacles === 'function') {
+    environment.setObstacles(obstacles);
+  }
+
+  if (!shouldRebuildEnvironment && rewardsChanged && typeof environment.setRewardConfig === 'function') {
+    environment.setRewardConfig(rewards || {});
+  }
+
+  if (shouldRebuildEnvironment) {
+    environment = createEnvironmentInstance(normalizedEnvConfig);
+  }
+
+  lastEnvConfig = snapshotEnvironmentConfig(environment);
+
+  const shouldRebuildTrainer = shouldReplaceAgent || shouldRebuildEnvironment;
   if (shouldRebuildTrainer && trainer) {
     trainer.pause();
   }
@@ -183,6 +373,9 @@ function handleMessage(message) {
       break;
     case 'agent:getState':
       emitAgentState(payload?.requestId);
+      break;
+    case 'env:getMetadata':
+      emitEnvironmentMetadata(payload?.requestId);
       break;
   }
 }

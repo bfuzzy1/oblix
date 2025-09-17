@@ -14,6 +14,7 @@ export class GridWorldEnvironment {
     this.size = size;
     this.obstacles = [];
     this.obstacleSet = new Set();
+    this.scenarioId = 'classic';
     this.setRewardConfig(rewardConfig);
     this.setObstacles(obstacles);
     this.reset();
@@ -28,6 +29,10 @@ export class GridWorldEnvironment {
   /** Convert the current agent position to state Float32Array. */
   getState() {
     return new Float32Array([this.agentPos.x, this.agentPos.y]);
+  }
+
+  getGoalPosition() {
+    return { x: this.size - 1, y: this.size - 1 };
   }
 
   isObstacle(x, y) {
@@ -70,6 +75,14 @@ export class GridWorldEnvironment {
     };
   }
 
+  calculateReward(newX, newY, done) {
+    return done ? this.goalReward : this.stepPenalty;
+  }
+
+  describeCell() {
+    return { classes: [] };
+  }
+
   /**
    * Step the environment with an action.
    * @param action 0:up,1:down,2:left,3:right
@@ -95,9 +108,9 @@ export class GridWorldEnvironment {
       return { state: this.getState(), reward: this.obstaclePenalty, done: false };
     }
     this.agentPos = { x: newX, y: newY };
-    const done =
-      this.agentPos.x === this.size - 1 && this.agentPos.y === this.size - 1;
-    const reward = done ? this.goalReward : this.stepPenalty;
+    const goal = this.getGoalPosition();
+    const done = this.agentPos.x === goal.x && this.agentPos.y === goal.y;
+    const reward = this.calculateReward(this.agentPos.x, this.agentPos.y, done);
     return { state: this.getState(), reward, done };
   }
 }
