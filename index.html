@@ -100,6 +100,23 @@
               </select>
             </label>
 
+            <div id="multi-agent-controls" class="control-stack is-hidden">
+              <div class="multi-agent-heading">
+                <span class="control-label">Multi-agent setup</span>
+                <span class="control-helper">Available for grids 10&times;10 or larger.</span>
+              </div>
+              <label class="control-block" for="agent-count">
+                <span class="control-label">Agents in grid</span>
+                <select id="agent-count" class="control-input">
+                  <option value="1">1 agent</option>
+                  <option value="2">2 agents</option>
+                  <option value="3">3 agents</option>
+                  <option value="4">4 agents</option>
+                </select>
+              </label>
+              <div id="multi-agent-list" class="multi-agent-list"></div>
+            </div>
+
             <div class="control-block">
               <div class="slider-header">
                 <span class="control-label">Exploration &epsilon;</span>

@@ -5,6 +5,7 @@ import { initRenderer, render } from './renderGrid.js';
 import { bindControls } from './bindControls.js';
 import { saveEnvironment } from '../rl/storage.js';
 import { createEnvironmentFromScenario, getScenarioDefinitions, DEFAULT_SCENARIO_ID } from '../rl/environmentPresets.js';
+import { RLTrainer } from '../rl/training.js';
 
 const supportsWorker = typeof Worker !== 'undefined';
 
@@ -13,7 +14,11 @@ const gridSizeInput = document.getElementById('grid-size');
 const stepPenaltyInput = document.getElementById('step-penalty');
 const obstaclePenaltyInput = document.getElementById('obstacle-penalty');
 const goalRewardInput = document.getElementById('goal-reward');
+const agentSelectControl = document.getElementById('agent-select');
 const scenarioSelect = document.getElementById('scenario-select');
+const multiAgentContainer = document.getElementById('multi-agent-controls');
+const agentCountSelect = document.getElementById('agent-count');
+const multiAgentList = document.getElementById('multi-agent-list');
 
 const scenarioDefinitions = getScenarioDefinitions();
 if (scenarioSelect) {
@@ -87,21 +92,134 @@ if (scenarioSelect) {
 }
 gridSizeInput.value = env.size;
 syncRewardInputsFromEnv(env);
+updateTrackedAgentState(1, env.getState());
+syncMultiAgentAvailability(env.size);
 let trainer;
 let agent;
+
+const AGENT_MARKER_CLASSES = [
+  'agent-marker-primary',
+  'agent-marker-secondary',
+  'agent-marker-tertiary',
+  'agent-marker-quaternary'
+];
+
+const AGENT_CHIP_CLASSES = [
+  'agent-chip-primary',
+  'agent-chip-secondary',
+  'agent-chip-tertiary',
+  'agent-chip-quaternary'
+];
+
+const multiAgentState = {
+  agentCount: 1,
+  entries: new Map(),
+  states: new Map(),
+  integrationEnabled: false,
+  isRunning: false,
+  trainerMethodProxies: null,
+  latestBaseMetrics: null,
+  latestDisplayMetrics: null,
+  originalLiveChart: null
+};
+
+function getAgentColorClass(index) {
+  const idx = Math.max(1, index);
+  return AGENT_MARKER_CLASSES[(idx - 1) % AGENT_MARKER_CLASSES.length];
+}
+
+function getAgentChipClass(index) {
+  const idx = Math.max(1, index);
+  return AGENT_CHIP_CLASSES[(idx - 1) % AGENT_CHIP_CLASSES.length];
+}
+
+function getAgentLabel(index) {
+  return `Agent ${index}`;
+}
+
+function toPosition(state) {
+  if (!state) return null;
+  if (ArrayBuffer.isView(state) || Array.isArray(state)) {
+    const [sx, sy] = state;
+    if (!Number.isFinite(sx) || !Number.isFinite(sy)) return null;
+    return { x: Math.trunc(sx), y: Math.trunc(sy) };
+  }
+  if (typeof state === 'object') {
+    if (Number.isFinite(state.x) && Number.isFinite(state.y)) {
+      return { x: Math.trunc(state.x), y: Math.trunc(state.y) };
+    }
+    if (Array.isArray(state.state) || ArrayBuffer.isView(state.state)) {
+      return toPosition(state.state);
+    }
+  }
+  return null;
+}
+
+function updateTrackedAgentState(index, state) {
+  const position = toPosition(state);
+  if (!position) return;
+  multiAgentState.states.set(index, {
+    position,
+    colorClass: getAgentColorClass(index),
+    label: getAgentLabel(index)
+  });
+}
+
+function removeTrackedAgentState(index) {
+  multiAgentState.states.delete(index);
+}
+
+function collectAgentRenderStates() {
+  const entries = Array.from(multiAgentState.states.entries())
+    .sort((a, b) => a[0] - b[0])
+    .map(([, value]) => ({
+      position: value.position,
+      colorClass: value.colorClass,
+      label: value.label
+    }));
+  return entries.map(entry => ({
+    position: entry.position,
+    colorClass: entry.colorClass,
+    label: entry.label
+  }));
+}
+
+function renderCurrentAgents() {
+  const states = collectAgentRenderStates();
+  if (states.length > 0) {
+    render(states.map(entry => ({
+      position: entry.position,
+      colorClass: entry.colorClass,
+      label: entry.label
+    })));
+    return;
+  }
+  if (env && typeof env.getState === 'function') {
+    render(env.getState());
+  }
+}
 
 function handleEnvironmentChange(updatedEnv = env) {
   if (!trainer) return;
   const nextEnv = updatedEnv || env;
   if (typeof trainer.setEnvironment === 'function') {
     trainer.setEnvironment(nextEnv);
+  } else if (nextEnv) {
+    trainer.env = nextEnv;
   }
+  if (nextEnv && typeof nextEnv.getState === 'function') {
+    updateTrackedAgentState(1, nextEnv.getState());
+  }
+  syncAdditionalEnvironments(nextEnv);
+  renderCurrentAgents();
+  updateDisplayedMetrics(multiAgentState.latestBaseMetrics || trainer?.metrics || null);
 }
 
 initRenderer(env, gridEl, env.size, handleEnvironmentChange);
 
 const policySelect = document.getElementById('policy-select');
 const lambdaSlider = document.getElementById('lambda-slider');
+const learningRateSlider = document.getElementById('learning-rate-slider');
 
 let baseAgent = createAgent('rl', {
   policy: policySelect.value,
@@ -118,14 +236,449 @@ const metricsEls = {
   epsilonValue: document.getElementById('epsilon-value')
 };
 
+function computeAggregatedMetrics(baseMetrics) {
+  const metricsList = [];
+  if (baseMetrics) metricsList.push(baseMetrics);
+  multiAgentState.entries.forEach(entry => {
+    if (entry.lastMetrics) {
+      metricsList.push(entry.lastMetrics);
+    } else if (entry.trainer?.metrics) {
+      metricsList.push(entry.trainer.metrics);
+    }
+  });
+  if (metricsList.length === 0) {
+    return baseMetrics || null;
+  }
+  const aggregate = {
+    episode: 0,
+    steps: 0,
+    cumulativeReward: 0,
+    epsilon: 0
+  };
+  let epsilonSamples = 0;
+  for (const metrics of metricsList) {
+    if (!metrics) continue;
+    if (Number.isFinite(metrics.episode)) {
+      aggregate.episode = Math.max(aggregate.episode, metrics.episode);
+    }
+    if (Number.isFinite(metrics.steps)) {
+      aggregate.steps += metrics.steps;
+    }
+    if (Number.isFinite(metrics.cumulativeReward)) {
+      aggregate.cumulativeReward += metrics.cumulativeReward;
+    }
+    if (Number.isFinite(metrics.epsilon)) {
+      aggregate.epsilon += metrics.epsilon;
+      epsilonSamples += 1;
+    }
+  }
+  const count = metricsList.length || 1;
+  aggregate.steps = aggregate.steps / count;
+  aggregate.cumulativeReward = aggregate.cumulativeReward / count;
+  aggregate.epsilon = epsilonSamples > 0 ? aggregate.epsilon / epsilonSamples : 0;
+  if (!Number.isFinite(aggregate.episode) || aggregate.episode <= 0) {
+    aggregate.episode = baseMetrics?.episode ?? 1;
+  }
+  return aggregate;
+}
+
+function updateDisplayedMetrics(baseMetrics) {
+  const aggregated = multiAgentState.agentCount > 1
+    ? computeAggregatedMetrics(baseMetrics)
+    : baseMetrics;
+  if (!aggregated) return;
+  metricsEls.episode.textContent = Math.max(1, Math.round(aggregated.episode));
+  metricsEls.steps.textContent = Math.max(0, Math.round(aggregated.steps ?? 0));
+  metricsEls.reward.textContent = Number(aggregated.cumulativeReward ?? 0).toFixed(2);
+  metricsEls.epsilon.textContent = Number(aggregated.epsilon ?? 0).toFixed(2);
+  if (metricsEls.epsilonSlider) {
+    metricsEls.epsilonSlider.value = Number(aggregated.epsilon ?? 0);
+  }
+  if (metricsEls.epsilonValue) {
+    metricsEls.epsilonValue.textContent = Number(aggregated.epsilon ?? 0).toFixed(2);
+  }
+  multiAgentState.latestDisplayMetrics = aggregated;
+}
+
+function getBaseAgentInstance() {
+  if (trainer && trainer.agent) {
+    return trainer.agent;
+  }
+  if (agent) return agent;
+  return baseAgent;
+}
+
+function applySharedSettings(targetAgent) {
+  if (!targetAgent) return;
+  const base = getBaseAgentInstance();
+  if (!base) return;
+  const epsilonValue = metricsEls.epsilonSlider ? parseFloat(metricsEls.epsilonSlider.value) : base.epsilon;
+  const lambdaValue = lambdaSlider ? parseFloat(lambdaSlider.value) : base.lambda;
+  const fields = [
+    'epsilon',
+    'epsilonDecay',
+    'minEpsilon',
+    'learningRate',
+    'gamma',
+    'lambda',
+    'temperature',
+    'ucbC',
+    'alpha',
+    'beta',
+    'planningSteps',
+    'exploringStarts',
+    'initialValue',
+    'alphaCritic',
+    'alphaActor'
+  ];
+  for (const field of fields) {
+    if (base[field] !== undefined && targetAgent[field] !== undefined) {
+      targetAgent[field] = base[field];
+    }
+  }
+  if (targetAgent.epsilon !== undefined && Number.isFinite(epsilonValue)) {
+    targetAgent.epsilon = epsilonValue;
+  }
+  if (targetAgent.lambda !== undefined && Number.isFinite(lambdaValue)) {
+    targetAgent.lambda = lambdaValue;
+  }
+  if (policySelect && targetAgent.policy !== undefined) {
+    targetAgent.policy = policySelect.value;
+  }
+}
+
+function applySharedSettingsToAdditionalAgents() {
+  multiAgentState.entries.forEach(entry => {
+    if (entry.agent) {
+      applySharedSettings(entry.agent);
+    }
+  });
+}
+
+function createEnvironmentClone(baseEnvironment = env) {
+  const source = baseEnvironment || env;
+  if (!source) return null;
+  const rewards = typeof source.getRewardConfig === 'function'
+    ? source.getRewardConfig()
+    : undefined;
+  const scenarioConfig = cloneScenarioConfig(source);
+  const options = {
+    size: source.size,
+    obstacles: cloneObstacles(source.obstacles)
+  };
+  if (rewards) {
+    options.rewards = { ...rewards };
+  }
+  if (scenarioConfig !== undefined) {
+    options.scenarioConfig = scenarioConfig;
+  }
+  const scenarioId = source.scenarioId ?? currentScenarioId;
+  return createEnvironmentFromScenario(scenarioId, options);
+}
+
+function createAdditionalAgentEntry(index, type) {
+  const envClone = createEnvironmentClone(env);
+  if (!envClone) return null;
+  const agentInstance = createAgent(type, {
+    policy: policySelect?.value ?? 'epsilon-greedy',
+    lambda: lambdaSlider ? parseFloat(lambdaSlider.value) : 0
+  });
+  applySharedSettings(agentInstance);
+  const interval = trainer?.intervalMs ?? 100;
+  const additionalTrainer = new RLTrainer(agentInstance, envClone, {
+    intervalMs: interval,
+    liveChart: null,
+    onStep: (state, reward, done, metrics) => {
+      handleAdditionalProgress(index, state, reward, done, metrics);
+    }
+  });
+  const entry = {
+    index,
+    type,
+    agent: agentInstance,
+    env: envClone,
+    trainer: additionalTrainer,
+    colorClass: getAgentColorClass(index),
+    chipClass: getAgentChipClass(index),
+    lastMetrics: additionalTrainer.metrics
+  };
+  multiAgentState.entries.set(index, entry);
+  if (typeof additionalTrainer.resetTrainerState === 'function') {
+    additionalTrainer.resetTrainerState();
+  } else if (typeof additionalTrainer.reset === 'function') {
+    additionalTrainer.reset();
+  }
+  updateTrackedAgentState(index, envClone.getState());
+  return entry;
+}
+
+function removeAdditionalAgent(index) {
+  const entry = multiAgentState.entries.get(index);
+  if (!entry) return;
+  if (entry.trainer && typeof entry.trainer.pause === 'function') {
+    entry.trainer.pause();
+  }
+  multiAgentState.entries.delete(index);
+  removeTrackedAgentState(index);
+}
+
+function resetAdditionalAgentStates() {
+  multiAgentState.entries.forEach(entry => {
+    if (entry.env && typeof entry.env.getState === 'function') {
+      updateTrackedAgentState(entry.index, entry.env.getState());
+    }
+  });
+}
+
+function handleAdditionalAgentSelection(index, type) {
+  removeAdditionalAgent(index);
+  const entry = createAdditionalAgentEntry(index, type);
+  if (!entry) return;
+  entry.type = type;
+  if (multiAgentState.isRunning && entry.trainer && typeof entry.trainer.start === 'function') {
+    entry.trainer.start();
+  }
+  updateDisplayedMetrics(multiAgentState.latestBaseMetrics || trainer?.metrics || null);
+  renderCurrentAgents();
+}
+
+function renderMultiAgentList() {
+  if (!multiAgentList) return;
+  multiAgentList.innerHTML = '';
+  for (let index = 2; index <= multiAgentState.agentCount; index += 1) {
+    const entry = multiAgentState.entries.get(index);
+    const item = document.createElement('div');
+    item.className = 'multi-agent-item';
+    const chip = document.createElement('span');
+    chip.className = `agent-chip ${getAgentChipClass(index)}`;
+    chip.textContent = index;
+    const block = document.createElement('div');
+    block.className = 'control-block';
+    const label = document.createElement('span');
+    label.className = 'control-label';
+    label.textContent = getAgentLabel(index);
+    const select = document.createElement('select');
+    select.className = 'control-input';
+    select.dataset.agentIndex = String(index);
+    if (agentSelectControl) {
+      select.innerHTML = agentSelectControl.innerHTML;
+    }
+    const selectedType = entry?.type ?? agentSelectControl?.value ?? 'rl';
+    select.value = selectedType;
+    select.addEventListener('change', event => {
+      handleAdditionalAgentSelection(index, event.target.value);
+    });
+    block.append(label, select);
+    item.append(chip, block);
+    multiAgentList.appendChild(item);
+  }
+}
+
+function ensureMultiAgentIntegration() {
+  if (!trainer || multiAgentState.integrationEnabled) return;
+  const originals = {};
+  if (typeof trainer.start === 'function') {
+    originals.start = trainer.start.bind(trainer);
+    trainer.start = () => {
+      originals.start();
+      multiAgentState.isRunning = true;
+      multiAgentState.entries.forEach(entry => {
+        if (entry.trainer && typeof entry.trainer.start === 'function') {
+          entry.trainer.start();
+        }
+      });
+    };
+  }
+  if (typeof trainer.pause === 'function') {
+    originals.pause = trainer.pause.bind(trainer);
+    trainer.pause = () => {
+      originals.pause();
+      multiAgentState.isRunning = false;
+      multiAgentState.entries.forEach(entry => {
+        if (entry.trainer && typeof entry.trainer.pause === 'function') {
+          entry.trainer.pause();
+        }
+      });
+    };
+  }
+  if (typeof trainer.reset === 'function') {
+    originals.reset = trainer.reset.bind(trainer);
+    trainer.reset = () => {
+      originals.reset();
+      multiAgentState.isRunning = false;
+      multiAgentState.latestBaseMetrics = trainer.metrics || null;
+      multiAgentState.entries.forEach(entry => {
+        if (entry.trainer && typeof entry.trainer.reset === 'function') {
+          entry.trainer.reset();
+        }
+      });
+      resetAdditionalAgentStates();
+      renderCurrentAgents();
+      updateDisplayedMetrics(multiAgentState.latestBaseMetrics || trainer.metrics || null);
+    };
+  }
+  if (typeof trainer.resetTrainerState === 'function') {
+    originals.resetTrainerState = trainer.resetTrainerState.bind(trainer);
+    trainer.resetTrainerState = () => {
+      originals.resetTrainerState();
+      multiAgentState.latestBaseMetrics = trainer.metrics || null;
+      multiAgentState.entries.forEach(entry => {
+        if (entry.trainer && typeof entry.trainer.resetTrainerState === 'function') {
+          entry.trainer.resetTrainerState();
+        } else if (entry.trainer && typeof entry.trainer.reset === 'function') {
+          entry.trainer.reset();
+        }
+      });
+      resetAdditionalAgentStates();
+      renderCurrentAgents();
+    };
+  }
+  if (typeof trainer.setIntervalMs === 'function') {
+    originals.setIntervalMs = trainer.setIntervalMs.bind(trainer);
+    trainer.setIntervalMs = ms => {
+      originals.setIntervalMs(ms);
+      multiAgentState.entries.forEach(entry => {
+        if (entry.trainer && typeof entry.trainer.setIntervalMs === 'function') {
+          entry.trainer.setIntervalMs(ms);
+        }
+      });
+    };
+  }
+  if (typeof trainer.setEnvironment === 'function') {
+    originals.setEnvironment = trainer.setEnvironment.bind(trainer);
+    trainer.setEnvironment = newEnv => {
+      originals.setEnvironment(newEnv);
+      syncAdditionalEnvironments(newEnv);
+    };
+  }
+  multiAgentState.trainerMethodProxies = originals;
+  if (trainer.liveChart !== undefined) {
+    multiAgentState.originalLiveChart = trainer.liveChart;
+    trainer.liveChart = null;
+  }
+  multiAgentState.integrationEnabled = true;
+}
+
+function disableMultiAgentIntegration() {
+  if (!trainer || !multiAgentState.integrationEnabled) return;
+  const originals = multiAgentState.trainerMethodProxies || {};
+  if (originals.start) trainer.start = originals.start;
+  if (originals.pause) trainer.pause = originals.pause;
+  if (originals.reset) trainer.reset = originals.reset;
+  if (originals.resetTrainerState) trainer.resetTrainerState = originals.resetTrainerState;
+  if (originals.setIntervalMs) trainer.setIntervalMs = originals.setIntervalMs;
+  if (originals.setEnvironment) trainer.setEnvironment = originals.setEnvironment;
+  multiAgentState.trainerMethodProxies = null;
+  multiAgentState.integrationEnabled = false;
+  multiAgentState.isRunning = false;
+  if (multiAgentState.originalLiveChart !== null && trainer.liveChart !== undefined) {
+    trainer.liveChart = multiAgentState.originalLiveChart;
+    multiAgentState.originalLiveChart = null;
+  }
+}
+
+function syncAdditionalEnvironments(baseEnvironment = env) {
+  multiAgentState.entries.forEach(entry => {
+    const envClone = createEnvironmentClone(baseEnvironment);
+    if (!envClone) return;
+    entry.env = envClone;
+    if (entry.trainer) {
+      if (typeof entry.trainer.setEnvironment === 'function') {
+        entry.trainer.setEnvironment(envClone);
+      } else {
+        entry.trainer.env = envClone;
+      }
+      if (typeof entry.trainer.reset === 'function') {
+        entry.trainer.reset();
+      }
+      if (multiAgentState.isRunning && typeof entry.trainer.start === 'function') {
+        entry.trainer.start();
+      }
+      entry.lastMetrics = entry.trainer.metrics;
+    }
+    updateTrackedAgentState(entry.index, envClone.getState());
+  });
+}
+
+function syncMultiAgentAvailability(size) {
+  if (!multiAgentContainer || !agentCountSelect) return;
+  if (size >= 10) {
+    multiAgentContainer.classList.remove('is-hidden');
+  } else {
+    multiAgentContainer.classList.add('is-hidden');
+    if (multiAgentState.agentCount !== 1) {
+      setAgentCount(1);
+    } else {
+      const extra = Array.from(multiAgentState.entries.keys());
+      for (const index of extra) {
+        removeAdditionalAgent(index);
+      }
+      renderMultiAgentList();
+      disableMultiAgentIntegration();
+    }
+  }
+}
+
+function setAgentCount(count) {
+  const maxAgents = AGENT_MARKER_CLASSES.length;
+  const nextCount = Math.max(1, Math.min(maxAgents, Number(count) || 1));
+  if (agentCountSelect) {
+    agentCountSelect.value = String(nextCount);
+  }
+  if (multiAgentState.agentCount === nextCount) {
+    renderMultiAgentList();
+    return;
+  }
+  multiAgentState.agentCount = nextCount;
+  if (nextCount > 1) {
+    ensureMultiAgentIntegration();
+  } else {
+    disableMultiAgentIntegration();
+  }
+  const existing = Array.from(multiAgentState.entries.keys());
+  for (const index of existing) {
+    if (index > nextCount) {
+      removeAdditionalAgent(index);
+    }
+  }
+  for (let index = 2; index <= nextCount; index += 1) {
+    if (!multiAgentState.entries.has(index)) {
+      const type = agentSelectControl?.value ?? 'rl';
+      const entry = createAdditionalAgentEntry(index, type);
+      if (entry && multiAgentState.isRunning && entry.trainer && typeof entry.trainer.start === 'function') {
+        entry.trainer.start();
+      }
+    }
+  }
+  resetAdditionalAgentStates();
+  renderMultiAgentList();
+  multiAgentState.latestBaseMetrics = trainer?.metrics || multiAgentState.latestBaseMetrics;
+  updateDisplayedMetrics(multiAgentState.latestBaseMetrics || trainer?.metrics || null);
+  renderCurrentAgents();
+}
+
+function handleAdditionalProgress(index, state, reward, done, metrics) {
+  const entry = multiAgentState.entries.get(index);
+  if (entry) {
+    entry.lastMetrics = metrics;
+  }
+  updateTrackedAgentState(index, state);
+  const baseMetrics = multiAgentState.latestBaseMetrics || trainer?.metrics || null;
+  updateDisplayedMetrics(baseMetrics);
+  renderCurrentAgents();
+}
+
 function handleProgress(state, reward, done, metrics) {
-  render(state);
-  metricsEls.episode.textContent = metrics.episode;
-  metricsEls.steps.textContent = metrics.steps;
-  metricsEls.reward.textContent = metrics.cumulativeReward.toFixed(2);
-  metricsEls.epsilon.textContent = metrics.epsilon.toFixed(2);
-  metricsEls.epsilonSlider.value = metrics.epsilon;
-  metricsEls.epsilonValue.textContent = metrics.epsilon.toFixed(2);
+  updateTrackedAgentState(1, state);
+  multiAgentState.latestBaseMetrics = metrics;
+  updateDisplayedMetrics(metrics);
+  if (multiAgentState.agentCount > 1 && liveChart) {
+    const aggregated = computeAggregatedMetrics(metrics);
+    if (aggregated) {
+      liveChart.push(aggregated.cumulativeReward ?? 0, aggregated.epsilon ?? 0);
+    }
+  }
+  renderCurrentAgents();
 }
 
 if (supportsWorker) {
@@ -136,13 +689,24 @@ if (supportsWorker) {
   });
   agent = trainer.agent;
 } else {
-  const { RLTrainer } = await import('../rl/training.js');
   trainer = new RLTrainer(baseAgent, env, {
     intervalMs: 100,
     liveChart,
     onStep: handleProgress
   });
   agent = baseAgent;
+}
+
+if (multiAgentState.agentCount > 1) {
+  ensureMultiAgentIntegration();
+}
+renderMultiAgentList();
+multiAgentState.latestBaseMetrics = trainer?.metrics || null;
+
+if (agentCountSelect) {
+  agentCountSelect.addEventListener('change', e => {
+    setAgentCount(parseInt(e.target.value, 10));
+  });
 }
 
 function rebuildEnvironment(config = {}) {
@@ -179,6 +743,8 @@ function rebuildEnvironment(config = {}) {
   }
   gridSizeInput.value = env.size;
   syncRewardInputsFromEnv(env);
+  updateTrackedAgentState(1, env.getState());
+  syncMultiAgentAvailability(env.size);
   initRenderer(env, gridEl, env.size, handleEnvironmentChange);
   if (trainer) {
     if (typeof trainer.setEnvironment === 'function') {
@@ -187,12 +753,13 @@ function rebuildEnvironment(config = {}) {
       trainer.env = env;
     }
     trainer.reset();
+    multiAgentState.latestBaseMetrics = trainer.metrics || null;
   }
+  syncAdditionalEnvironments(env);
+  resetAdditionalAgentStates();
   saveEnvironment(env);
-  const state = typeof env.getState === 'function' ? env.getState() : null;
-  if (state) {
-    render(state);
-  }
+  updateDisplayedMetrics(trainer?.metrics || multiAgentState.latestDisplayMetrics || null);
+  renderCurrentAgents();
   return env;
 }
 
@@ -201,10 +768,67 @@ gridSizeInput.addEventListener('change', e => {
   rebuildEnvironment({ size: newSize });
 });
 
-bindControls(trainer, agent, render, () => env, rebuildEnvironment);
+const renderForControls = state => {
+  if (state) {
+    updateTrackedAgentState(1, state);
+  }
+  renderCurrentAgents();
+};
+
+bindControls(trainer, agent, renderForControls, () => env, rebuildEnvironment);
+
+if (policySelect) {
+  policySelect.addEventListener('change', () => {
+    applySharedSettingsToAdditionalAgents();
+  });
+}
+
+if (agentSelectControl) {
+  agentSelectControl.addEventListener('change', () => {
+    applySharedSettingsToAdditionalAgents();
+  });
+}
+
+if (metricsEls.epsilonSlider) {
+  metricsEls.epsilonSlider.addEventListener('input', e => {
+    const value = parseFloat(e.target.value);
+    if (!Number.isFinite(value)) return;
+    multiAgentState.entries.forEach(entry => {
+      if (entry.agent && entry.agent.epsilon !== undefined) {
+        entry.agent.epsilon = value;
+      }
+    });
+  });
+}
+
+if (learningRateSlider) {
+  learningRateSlider.addEventListener('input', e => {
+    const value = parseFloat(e.target.value);
+    if (!Number.isFinite(value)) return;
+    multiAgentState.entries.forEach(entry => {
+      if (entry.agent && entry.agent.learningRate !== undefined) {
+        entry.agent.learningRate = value;
+      }
+    });
+  });
+}
+
+if (lambdaSlider) {
+  lambdaSlider.addEventListener('input', e => {
+    const value = parseFloat(e.target.value);
+    if (!Number.isFinite(value)) return;
+    multiAgentState.entries.forEach(entry => {
+      if (entry.agent && entry.agent.lambda !== undefined) {
+        entry.agent.lambda = value;
+      }
+    });
+  });
+}
+
+updateDisplayedMetrics(trainer?.metrics || multiAgentState.latestDisplayMetrics || null);
 
 saveEnvironment(env);
-render(env.getState());
+renderCurrentAgents();
 
 function createWorkerTrainer(initialAgent, initialEnv, options) {
   const worker = new Worker(new URL('../rl/trainerWorker.js', import.meta.url), { type: 'module' });
@@ -419,7 +1043,7 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
     if (typeof options.onProgress === 'function' && payload.metrics) {
       options.onProgress(payload.state, payload.reward, payload.done, payload.metrics);
     }
-    if (options.liveChart && payload.metrics) {
+    if (options.liveChart && payload.metrics && multiAgentState.agentCount <= 1) {
       options.liveChart.push(payload.metrics.cumulativeReward, payload.metrics.epsilon);
     }
   };
