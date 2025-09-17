@@ -31,6 +31,13 @@ export class RLTrainer {
     this.metricsTracker = new MetricsTracker(this.agent);
     this.metrics = this.metricsTracker.data;
     this.episodeRewards = this.metricsTracker.episodeRewards;
+    this._assignEnvironmentToAgent();
+  }
+
+  _assignEnvironmentToAgent() {
+    if (this.agent && typeof this.agent.setEnvironment === 'function') {
+      this.agent.setEnvironment(this.env);
+    }
   }
 
   _clearReplayBuffer() {
@@ -63,8 +70,9 @@ export class RLTrainer {
 
   _resetInternal({ resetAgent }) {
     this.pause();
+    this._assignEnvironmentToAgent();
     if (resetAgent && typeof this.agent.reset === 'function') {
-      this.agent.reset();
+      this.agent.reset(this.env);
     }
     this._clearReplayBuffer();
     this._initializeTrainerState();
