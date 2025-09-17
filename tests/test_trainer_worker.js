@@ -110,6 +110,58 @@ export async function run(assert) {
       msg => msg.type === 'progress' && msg.payload.metrics.epsilon <= 0.26
     );
     assert.strictEqual(updated.payload.metrics.epsilon.toFixed(2), '0.25');
+
+    const scenarioConfig = {
+      windColumns: [
+        {
+          x: 1,
+          offsets: [{ dx: 1, dy: 0, weight: 1 }]
+        }
+      ]
+    };
+    worker.postMessage({
+      type: 'config',
+      payload: {
+        agent: {
+          type: 'rl',
+          params: { epsilon: 0.25, learningRate: 0.1 },
+          revision: 1
+        },
+        env: {
+          size: 6,
+          obstacles: [{ x: 1, y: 1 }],
+          rewards: { stepPenalty: -0.05, obstaclePenalty: -0.5, goalReward: 1.5 },
+          scenarioId: 'windy',
+          scenarioConfig
+        },
+        trainer: {
+          intervalMs: 5
+        }
+      }
+    });
+    const metadataRequestId = 4321;
+    worker.postMessage({
+      type: 'env:getMetadata',
+      payload: { requestId: metadataRequestId }
+    });
+    const metadataMessage = await waitFor(
+      worker,
+      msg => msg.type === 'env:metadata' && msg.payload?.requestId === metadataRequestId
+    );
+    const metadata = metadataMessage.payload.metadata;
+    assert.ok(metadata);
+    assert.strictEqual(metadata.scenarioId, 'windy');
+    assert.strictEqual(metadata.size, 6);
+    assert.deepStrictEqual(metadata.obstacles, [{ x: 1, y: 1 }]);
+    assert.deepStrictEqual(metadata.rewards, {
+      stepPenalty: -0.05,
+      obstaclePenalty: -0.5,
+      goalReward: 1.5
+    });
+    assert.ok(metadata.scenarioConfig);
+    assert.deepStrictEqual(metadata.scenarioConfig.windColumns, [
+      { x: 1, offsets: [{ dx: 1, dy: 0, weight: 1 }] }
+    ]);
   } finally {
     await worker.terminate();
   }

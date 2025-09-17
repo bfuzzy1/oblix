@@ -371,6 +371,8 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
 
   function sendConfig() {
     const rewards = cloneRewardConfig(getEnvRewardConfig(currentEnv));
+    const scenarioId = currentEnv?.scenarioId ?? DEFAULT_SCENARIO_ID;
+    const scenarioConfig = cloneScenarioConfig(currentEnv);
     worker.postMessage({
       type: 'config',
       payload: {
@@ -380,9 +382,11 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
           revision: agentRevision
         },
         env: {
+          scenarioId,
           size: currentEnv.size,
           obstacles: cloneObstacles(currentEnv.obstacles),
-          ...(rewards ? { rewards } : {})
+          ...(rewards ? { rewards } : {}),
+          ...(scenarioConfig !== undefined ? { scenarioConfig } : {})
         },
         trainer: {
           intervalMs: trainerProxy.intervalMs
