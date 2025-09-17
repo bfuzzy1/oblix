@@ -6,6 +6,7 @@ function getElements() {
   return {
     agentSelect: document.getElementById('agent-select'),
     policySelect: document.getElementById('policy-select'),
+    scenarioSelect: document.getElementById('scenario-select'),
     epsilonSlider: document.getElementById('epsilon-slider'),
     epsilonValue: document.getElementById('epsilon-value'),
     intervalSlider: document.getElementById('interval-slider'),
@@ -74,6 +75,9 @@ function initializeControls(trainer, agent, env, els) {
   els.epsilonSlider.value = agent.epsilon;
   els.epsilonValue.textContent = agent.epsilon.toFixed(2);
   els.policySelect.value = agent.policy;
+  if (els.scenarioSelect && env?.scenarioId) {
+    els.scenarioSelect.value = env.scenarioId;
+  }
   els.intervalSlider.value = trainer.intervalMs;
   els.intervalValue.textContent = trainer.intervalMs;
   updateLearningRateControl(agent, els);
@@ -160,12 +164,18 @@ function bindEnvironmentControls(trainer, els, getAgent, getEnv, setEnv) {
     const rewards = readRewardInputs(els, env);
     const size = env?.size ?? 5;
     const obstacles = env ? cloneObstacles(env.obstacles) : [];
-    setEnv(size, obstacles, rewards);
+    setEnv({ size, obstacles, rewards });
     initializeControls(trainer, getAgent(), getEnv(), els);
   };
   els.stepPenaltyInput.addEventListener('change', handleChange);
   els.obstaclePenaltyInput.addEventListener('change', handleChange);
   els.goalRewardInput.addEventListener('change', handleChange);
+  if (els.scenarioSelect) {
+    els.scenarioSelect.addEventListener('change', e => {
+      setEnv({ scenarioId: e.target.value, useDefaults: true });
+      initializeControls(trainer, getAgent(), getEnv(), els);
+    });
+  }
 }
 
 function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEnv) {
@@ -192,7 +202,13 @@ function bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEn
     initializeControls(trainer, assigned, getEnv(), els);
     const envData = loadEnvironment();
     if (envData) {
-      setEnv(envData.size, envData.obstacles, envData.rewards);
+      setEnv({
+        size: envData.size,
+        obstacles: envData.obstacles,
+        rewards: envData.rewards,
+        scenarioId: envData.scenarioId,
+        scenarioConfig: envData.scenarioConfig
+      });
       initializeControls(trainer, getAgent(), getEnv(), els);
     }
     render(trainer.state);

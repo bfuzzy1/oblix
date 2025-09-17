@@ -41,6 +41,21 @@ export function loadAgent(trainer, storage = globalThis.localStorage) {
   return assigned;
 }
 
+function cloneObstacles(obstacles = []) {
+  return obstacles.map(obstacle => ({ x: obstacle.x, y: obstacle.y }));
+}
+
+function cloneScenarioConfig(env) {
+  if (typeof env?.getScenarioConfig !== 'function') {
+    return undefined;
+  }
+  const config = env.getScenarioConfig();
+  if (config === undefined || config === null) {
+    return config;
+  }
+  return JSON.parse(JSON.stringify(config));
+}
+
 export function saveEnvironment(env, storage = globalThis.localStorage) {
   const rewards = typeof env.getRewardConfig === 'function'
     ? env.getRewardConfig()
@@ -51,8 +66,10 @@ export function saveEnvironment(env, storage = globalThis.localStorage) {
     };
   const data = JSON.stringify({
     size: env.size,
-    obstacles: env.obstacles,
-    rewards
+    obstacles: cloneObstacles(env.obstacles),
+    rewards,
+    scenarioId: env.scenarioId ?? 'classic',
+    scenarioConfig: cloneScenarioConfig(env)
   });
   storage.setItem('environment', data);
 }
@@ -67,6 +84,8 @@ export function loadEnvironment(storage = globalThis.localStorage) {
   return {
     size: parsed.size,
     obstacles,
-    rewards: parsed.rewards
+    rewards: parsed.rewards,
+    scenarioId: parsed.scenarioId ?? 'classic',
+    scenarioConfig: parsed.scenarioConfig
   };
 }

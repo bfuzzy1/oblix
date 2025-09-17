@@ -1,9 +1,10 @@
-import { GridWorldEnvironment, DEFAULT_REWARD_CONFIG } from '../rl/environment.js';
+import { DEFAULT_REWARD_CONFIG } from '../rl/environment.js';
 import { LiveChart } from './liveChart.js';
 import { createAgent } from './agentFactory.js';
 import { initRenderer, render } from './renderGrid.js';
 import { bindControls } from './bindControls.js';
 import { saveEnvironment } from '../rl/storage.js';
+import { createEnvironmentFromScenario, getScenarioDefinitions, DEFAULT_SCENARIO_ID } from '../rl/environmentPresets.js';
 
 const supportsWorker = typeof Worker !== 'undefined';
 
@@ -12,6 +13,19 @@ const gridSizeInput = document.getElementById('grid-size');
 const stepPenaltyInput = document.getElementById('step-penalty');
 const obstaclePenaltyInput = document.getElementById('obstacle-penalty');
 const goalRewardInput = document.getElementById('goal-reward');
+const scenarioSelect = document.getElementById('scenario-select');
+
+const scenarioDefinitions = getScenarioDefinitions();
+if (scenarioSelect) {
+  scenarioSelect.innerHTML = '';
+  for (const scenario of scenarioDefinitions) {
+    const option = document.createElement('option');
+    option.value = scenario.id;
+    option.textContent = scenario.label;
+    scenarioSelect.appendChild(option);
+  }
+  scenarioSelect.value = DEFAULT_SCENARIO_ID;
+}
 
 function parseGridSize(value) {
   const size = parseInt(value, 10);
@@ -32,7 +46,47 @@ function getRewardConfigFromInputs() {
   };
 }
 
-let env = new GridWorldEnvironment(parseGridSize(gridSizeInput.value), [], getRewardConfigFromInputs());
+function syncRewardInputsFromEnv(environment) {
+  if (!environment) return;
+  const rewards = typeof environment.getRewardConfig === 'function'
+    ? environment.getRewardConfig()
+    : {
+      stepPenalty: environment.stepPenalty,
+      obstaclePenalty: environment.obstaclePenalty,
+      goalReward: environment.goalReward
+    };
+  if (stepPenaltyInput) stepPenaltyInput.value = rewards.stepPenalty;
+  if (obstaclePenaltyInput) obstaclePenaltyInput.value = rewards.obstaclePenalty;
+  if (goalRewardInput) goalRewardInput.value = rewards.goalReward;
+}
+
+function cloneObstacles(obstacles = []) {
+  return obstacles.map(obstacle => ({ x: obstacle.x, y: obstacle.y }));
+}
+
+function cloneScenarioConfig(environment) {
+  if (!environment || typeof environment.getScenarioConfig !== 'function') {
+    return undefined;
+  }
+  const config = environment.getScenarioConfig();
+  if (config === undefined || config === null) {
+    return config;
+  }
+  return JSON.parse(JSON.stringify(config));
+}
+
+const initialScenarioId = scenarioSelect?.value || DEFAULT_SCENARIO_ID;
+let currentScenarioId = initialScenarioId;
+let env = createEnvironmentFromScenario(initialScenarioId, {
+  size: parseGridSize(gridSizeInput.value),
+  rewards: getRewardConfigFromInputs()
+});
+currentScenarioId = env.scenarioId ?? initialScenarioId;
+if (scenarioSelect) {
+  scenarioSelect.value = currentScenarioId;
+}
+gridSizeInput.value = env.size;
+syncRewardInputsFromEnv(env);
 let trainer;
 let agent;
 
@@ -91,29 +145,66 @@ if (supportsWorker) {
   agent = baseAgent;
 }
 
-function rebuildEnvironment(size, obstacles = [], rewards) {
-  const rewardConfig = rewards ?? getRewardConfigFromInputs();
-  env = new GridWorldEnvironment(size, obstacles, rewardConfig);
-  if (typeof trainer.setEnvironment === 'function') {
-    trainer.setEnvironment(env);
-  } else {
-    trainer.env = env;
+function rebuildEnvironment(config = {}) {
+  const useDefaults = Boolean(config.useDefaults);
+  const scenarioId = config.scenarioId ?? currentScenarioId;
+  const options = {};
+  if (config.size !== undefined) {
+    options.size = config.size;
+  } else if (!useDefaults && env) {
+    options.size = env.size;
+  } else if (!useDefaults) {
+    options.size = parseGridSize(gridSizeInput.value);
   }
-  initRenderer(env, gridEl, size, handleEnvironmentChange);
-  trainer.reset();
-  gridSizeInput.value = size;
+  if (config.obstacles !== undefined) {
+    options.obstacles = cloneObstacles(config.obstacles);
+  } else if (!useDefaults && env) {
+    options.obstacles = cloneObstacles(env.obstacles);
+  }
+  if (config.rewards !== undefined) {
+    options.rewards = config.rewards;
+  } else if (!useDefaults) {
+    options.rewards = getRewardConfigFromInputs();
+  }
+  if (config.scenarioConfig !== undefined) {
+    options.scenarioConfig = config.scenarioConfig;
+  } else if (!useDefaults) {
+    options.scenarioConfig = cloneScenarioConfig(env);
+  }
+  const nextEnv = createEnvironmentFromScenario(scenarioId, options);
+  env = nextEnv;
+  currentScenarioId = nextEnv.scenarioId ?? scenarioId;
+  if (scenarioSelect) {
+    scenarioSelect.value = currentScenarioId;
+  }
+  gridSizeInput.value = env.size;
+  syncRewardInputsFromEnv(env);
+  initRenderer(env, gridEl, env.size, handleEnvironmentChange);
+  if (trainer) {
+    if (typeof trainer.setEnvironment === 'function') {
+      trainer.setEnvironment(env);
+    } else {
+      trainer.env = env;
+    }
+    trainer.reset();
+  }
   saveEnvironment(env);
+  const state = typeof env.getState === 'function' ? env.getState() : null;
+  if (state) {
+    render(state);
+  }
   return env;
 }
 
 gridSizeInput.addEventListener('change', e => {
   const newSize = parseGridSize(e.target.value);
-  rebuildEnvironment(newSize);
+  rebuildEnvironment({ size: newSize });
 });
 
 bindControls(trainer, agent, render, () => env, rebuildEnvironment);
 
-render(env.reset());
+saveEnvironment(env);
+render(env.getState());
 
 function createWorkerTrainer(initialAgent, initialEnv, options) {
   const worker = new Worker(new URL('../rl/trainerWorker.js', import.meta.url), { type: 'module' });
