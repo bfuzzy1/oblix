@@ -123,6 +123,22 @@ const multiAgentState = {
   originalLiveChart: null
 };
 
+function isTrainerRunningInstance(targetTrainer = trainer) {
+  if (!targetTrainer) return false;
+  const running = targetTrainer.isRunning;
+  if (typeof running === 'function') {
+    try {
+      return Boolean(running.call(targetTrainer));
+    } catch (err) {
+      return false;
+    }
+  }
+  if (typeof running === 'boolean') {
+    return running;
+  }
+  return Boolean(running);
+}
+
 function getAgentColorClass(index) {
   const idx = Math.max(1, index);
   return AGENT_MARKER_CLASSES[(idx - 1) % AGENT_MARKER_CLASSES.length];
@@ -477,6 +493,7 @@ function renderMultiAgentList() {
 function ensureMultiAgentIntegration() {
   if (!trainer || multiAgentState.integrationEnabled) return;
   const originals = {};
+  const currentlyRunning = isTrainerRunningInstance(trainer);
   if (typeof trainer.start === 'function') {
     originals.start = trainer.start.bind(trainer);
     trainer.start = () => {
@@ -557,6 +574,14 @@ function ensureMultiAgentIntegration() {
     trainer.liveChart = null;
   }
   multiAgentState.integrationEnabled = true;
+  multiAgentState.isRunning = currentlyRunning;
+  if (currentlyRunning) {
+    multiAgentState.entries.forEach(entry => {
+      if (entry.trainer && typeof entry.trainer.start === 'function') {
+        entry.trainer.start();
+      }
+    });
+  }
 }
 
 function disableMultiAgentIntegration() {
@@ -630,8 +655,10 @@ function setAgentCount(count) {
     return;
   }
   multiAgentState.agentCount = nextCount;
+  const baseTrainerRunning = isTrainerRunningInstance(trainer);
   if (nextCount > 1) {
     ensureMultiAgentIntegration();
+    multiAgentState.isRunning = baseTrainerRunning;
   } else {
     disableMultiAgentIntegration();
   }
@@ -641,11 +668,12 @@ function setAgentCount(count) {
       removeAdditionalAgent(index);
     }
   }
+  const shouldStartAgents = multiAgentState.isRunning;
   for (let index = 2; index <= nextCount; index += 1) {
     if (!multiAgentState.entries.has(index)) {
       const type = agentSelectControl?.value ?? 'rl';
       const entry = createAdditionalAgentEntry(index, type);
-      if (entry && multiAgentState.isRunning && entry.trainer && typeof entry.trainer.start === 'function') {
+      if (entry && shouldStartAgents && entry.trainer && typeof entry.trainer.start === 'function') {
         entry.trainer.start();
       }
     }
@@ -875,16 +903,21 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
     state: typeof currentEnv.getState === 'function' ? currentEnv.getState() : null,
     episodeRewards: [],
     agent: null,
+    isRunning: false,
     start() {
+      this.isRunning = true;
       worker.postMessage({ type: 'start' });
     },
     pause() {
+      this.isRunning = false;
       worker.postMessage({ type: 'pause' });
     },
     reset() {
+      this.isRunning = false;
       worker.postMessage({ type: 'reset' });
     },
     resetTrainerState() {
+      this.isRunning = false;
       worker.postMessage({ type: 'resetTrainerState' });
     },
     setIntervalMs(ms) {
