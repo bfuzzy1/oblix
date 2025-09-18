@@ -92,8 +92,7 @@ if (scenarioSelect) {
 }
 gridSizeInput.value = env.size;
 syncRewardInputsFromEnv(env);
-updateTrackedAgentState(1, env.getState());
-syncMultiAgentAvailability(env.size);
+
 let trainer;
 let agent;
 
@@ -122,6 +121,9 @@ const multiAgentState = {
   latestDisplayMetrics: null,
   originalLiveChart: null
 };
+
+updateTrackedAgentState(1, env.getState());
+syncMultiAgentAvailability(env.size);
 
 function isTrainerRunningInstance(targetTrainer = trainer) {
   if (!targetTrainer) return false;
