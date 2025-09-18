@@ -32,6 +32,7 @@ export class RLTrainer {
     this.metrics = this.metricsTracker.data;
     this.episodeRewards = this.metricsTracker.episodeRewards;
     this._assignEnvironmentToAgent();
+    this._initializeTrainerState();
   }
 
   _assignEnvironmentToAgent() {
@@ -146,7 +147,9 @@ export class RLTrainer {
 
   start() {
     if (this.isRunning) return;
-    this.state = this.env.reset();
+    if (!this.state) {
+      this._initializeTrainerState();
+    }
     this.isRunning = true;
     this._runLoop();
   }

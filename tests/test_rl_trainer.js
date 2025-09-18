@@ -21,24 +21,29 @@ export async function run(assert) {
       reports.push({ reward, done, metrics });
     }
   });
-  trainer.state = env.reset();
   await trainer.step();
   await trainer.step();
-  assert.strictEqual(reports.length, 3);
+  assert.strictEqual(reports.length, 4);
   assert.deepStrictEqual(reports[0].metrics, {
+    episode: 1,
+    steps: 0,
+    cumulativeReward: 0,
+    epsilon: 0.1
+  });
+  assert.deepStrictEqual(reports[1].metrics, {
     episode: 1,
     steps: 1,
     cumulativeReward: -0.01,
     epsilon: 0.1
   });
-  assert.strictEqual(reports[1].done, true);
-  assert.deepStrictEqual(reports[1].metrics, {
+  assert.strictEqual(reports[2].done, true);
+  assert.deepStrictEqual(reports[2].metrics, {
     episode: 1,
     steps: 2,
     cumulativeReward: 0.99,
     epsilon: 0.1
   });
-  assert.deepStrictEqual(reports[2].metrics, {
+  assert.deepStrictEqual(reports[3].metrics, {
     episode: 2,
     steps: 0,
     cumulativeReward: 0,
