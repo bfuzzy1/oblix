@@ -232,14 +232,15 @@ export async function run(assert) {
   assert.strictEqual(env5.stepCount, maxSteps);
   assert.strictEqual(agent5.learnCalls.length, maxSteps);
   assert.strictEqual(agent5.learnCalls[agent5.learnCalls.length - 1].done, true);
-  assert.strictEqual(limitReports.length, maxSteps + 1);
-  for (let i = 0; i < maxSteps - 1; i++) {
+  assert.strictEqual(limitReports.length, maxSteps + 2);
+  assert.strictEqual(limitReports[0].done, false);
+  for (let i = 1; i < maxSteps; i++) {
     assert.strictEqual(limitReports[i].done, false);
   }
-  assert.strictEqual(limitReports[maxSteps - 1].done, true);
-  assert.strictEqual(limitReports[maxSteps - 1].metrics.steps, maxSteps);
-  assert.strictEqual(env5.resetCount, 2);
-  assert.deepStrictEqual(limitReports[maxSteps].metrics, {
+  assert.strictEqual(limitReports[maxSteps].done, true);
+  assert.strictEqual(limitReports[maxSteps].metrics.steps, maxSteps);
+  assert.strictEqual(env5.resetCount, 3);
+  assert.deepStrictEqual(limitReports[maxSteps + 1].metrics, {
     episode: 2,
     steps: 0,
     cumulativeReward: 0,

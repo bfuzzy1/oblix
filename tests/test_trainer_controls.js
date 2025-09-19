@@ -46,15 +46,19 @@ export async function run(assert) {
   trainer.pause();
 
   const pausedState = Array.from(trainer.state);
+  const pausedSteps = trainer.stepsInEpisode;
   assert.deepStrictEqual(pausedState, [1, 0]);
+  assert.ok(pausedSteps > 0);
   timeoutFn = null;
 
   trainer.start();
   assert.deepStrictEqual(Array.from(trainer.state), pausedState);
+  assert.strictEqual(trainer.stepsInEpisode, pausedSteps);
   assert.strictEqual(currentMs, 50);
   assert.ok(timeoutFn);
   await timeoutFn();
 
+  assert.strictEqual(trainer.stepsInEpisode, pausedSteps + 1);
   assert.deepStrictEqual(agent.stateHistory[0], [0, 0]);
   assert.deepStrictEqual(agent.stateHistory[1], pausedState);
   assert.deepStrictEqual(agent.stateHistory[2], pausedState);
