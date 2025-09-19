@@ -7,7 +7,10 @@ export class RLTrainer {
   constructor(agent, env, options = {}) {
     this.agent = agent;
     this.env = env;
-    this.maxSteps = options.maxSteps ?? 50;
+    const configuredMaxSteps = Number(options.maxSteps ?? 50);
+    this.maxSteps = Number.isFinite(configuredMaxSteps) && configuredMaxSteps > 0
+      ? Math.trunc(configuredMaxSteps)
+      : 50;
     this.intervalMs = options.intervalMs ?? 100;
     this.liveChart = options.liveChart || null;
     const userOnStep = options.onStep || null;
@@ -28,6 +31,7 @@ export class RLTrainer {
     this.isStepping = false; // prevents overlapping step calls
     this.timeout = null;
     this.state = null;
+    this.stepsInEpisode = 0;
     this.metricsTracker = new MetricsTracker(this.agent);
     this.metrics = this.metricsTracker.data;
     this.episodeRewards = this.metricsTracker.episodeRewards;
@@ -81,6 +85,7 @@ export class RLTrainer {
 
   _initializeTrainerState() {
     this.state = this.env.reset();
+    this.stepsInEpisode = 0;
     this.metricsTracker.reset(this.agent);
     this.metrics = this.metricsTracker.data;
     this.episodeRewards = this.metricsTracker.episodeRewards;
@@ -90,10 +95,7 @@ export class RLTrainer {
   async _applyTransition() {
     const action = await this.agent.act(this.state);
     const { state: nextState, reward, done } = this.env.step(action);
-    const transition = { state: this.state, action, reward, nextState, done };
-    await this.agent.learn(transition.state, transition.action, transition.reward, transition.nextState, transition.done);
-    this.state = nextState;
-    return transition;
+    return { state: this.state, action, reward, nextState, done };
   }
 
   async _processReplay(transition) {
@@ -117,15 +119,22 @@ export class RLTrainer {
     if (!done) return;
     this.metrics = this.metricsTracker.endEpisode(this.agent);
     this.state = this.env.reset();
+    this.stepsInEpisode = 0;
     this._emitStep(this.state, 0, false);
   }
 
   async step() {
     if (!this.state) return;
     const transition = await this._applyTransition();
-    await this._processReplay(transition);
-    this._updateMetrics(transition);
-    this._handleEpisodeEnd(transition.done);
+    this.stepsInEpisode += 1;
+    const limitReached = Number.isFinite(this.maxSteps) && this.maxSteps > 0 && this.stepsInEpisode >= this.maxSteps;
+    const done = transition.done || limitReached;
+    await this.agent.learn(transition.state, transition.action, transition.reward, transition.nextState, done);
+    this.state = transition.nextState;
+    const updatedTransition = { ...transition, done };
+    await this._processReplay(updatedTransition);
+    this._updateMetrics(updatedTransition);
+    this._handleEpisodeEnd(updatedTransition.done);
   }
 
   _runLoop() {
@@ -147,9 +156,14 @@ export class RLTrainer {
 
   start() {
     if (this.isRunning) return;
+    
+    this.state = this.env.reset();
+    this.stepsInEpisode = 0;
+    
     if (!this.state) {
       this._initializeTrainerState();
     }
+    
     this.isRunning = true;
     this._runLoop();
   }
@@ -160,6 +174,14 @@ export class RLTrainer {
       if (this.timeout) clearTimeout(this.timeout);
       this._runLoop();
     }
+  }
+
+  setMaxSteps(limit) {
+    const parsed = Number(limit);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return;
+    }
+    this.maxSteps = Math.trunc(parsed);
   }
 
   pause() {

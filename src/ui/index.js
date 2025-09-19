@@ -14,6 +14,7 @@ const gridSizeInput = document.getElementById('grid-size');
 const stepPenaltyInput = document.getElementById('step-penalty');
 const obstaclePenaltyInput = document.getElementById('obstacle-penalty');
 const goalRewardInput = document.getElementById('goal-reward');
+const maxStepsInput = document.getElementById('max-steps');
 const agentSelectControl = document.getElementById('agent-select');
 const scenarioSelect = document.getElementById('scenario-select');
 const multiAgentContainer = document.getElementById('multi-agent-controls');
@@ -35,6 +36,14 @@ if (scenarioSelect) {
 function parseGridSize(value) {
   const size = parseInt(value, 10);
   return Number.isFinite(size) ? size : 5;
+}
+
+function parseMaxSteps(value, fallback = 50) {
+  const limit = parseInt(value, 10);
+  if (!Number.isFinite(limit) || limit <= 0) {
+    return fallback;
+  }
+  return limit;
 }
 
 function parseRewardValue(inputEl, fallback) {
@@ -92,6 +101,10 @@ if (scenarioSelect) {
 }
 gridSizeInput.value = env.size;
 syncRewardInputsFromEnv(env);
+const initialMaxSteps = parseMaxSteps(maxStepsInput?.value, 50);
+if (maxStepsInput) {
+  maxStepsInput.value = initialMaxSteps;
+}
 
 let trainer;
 let agent;
@@ -403,8 +416,10 @@ function createAdditionalAgentEntry(index, type) {
   });
   applySharedSettings(agentInstance);
   const interval = trainer?.intervalMs ?? 100;
+  const limit = trainer?.maxSteps ?? parseMaxSteps(maxStepsInput?.value, initialMaxSteps);
   const additionalTrainer = new RLTrainer(agentInstance, envClone, {
     intervalMs: interval,
+    maxSteps: limit,
     liveChart: null,
     onStep: (state, reward, done, metrics) => {
       handleAdditionalProgress(index, state, reward, done, metrics);
@@ -563,6 +578,19 @@ function ensureMultiAgentIntegration() {
       });
     };
   }
+  if (typeof trainer.setMaxSteps === 'function') {
+    originals.setMaxSteps = trainer.setMaxSteps.bind(trainer);
+    trainer.setMaxSteps = limit => {
+      originals.setMaxSteps(limit);
+      multiAgentState.entries.forEach(entry => {
+        if (entry.trainer && typeof entry.trainer.setMaxSteps === 'function') {
+          entry.trainer.setMaxSteps(limit);
+        } else if (entry.trainer) {
+          entry.trainer.maxSteps = limit;
+        }
+      });
+    };
+  }
   if (typeof trainer.setEnvironment === 'function') {
     originals.setEnvironment = trainer.setEnvironment.bind(trainer);
     trainer.setEnvironment = newEnv => {
@@ -594,6 +622,7 @@ function disableMultiAgentIntegration() {
   if (originals.reset) trainer.reset = originals.reset;
   if (originals.resetTrainerState) trainer.resetTrainerState = originals.resetTrainerState;
   if (originals.setIntervalMs) trainer.setIntervalMs = originals.setIntervalMs;
+  if (originals.setMaxSteps) trainer.setMaxSteps = originals.setMaxSteps;
   if (originals.setEnvironment) trainer.setEnvironment = originals.setEnvironment;
   multiAgentState.trainerMethodProxies = null;
   multiAgentState.integrationEnabled = false;
@@ -714,6 +743,7 @@ function handleProgress(state, reward, done, metrics) {
 if (supportsWorker) {
   trainer = createWorkerTrainer(baseAgent, env, {
     intervalMs: 100,
+    maxSteps: initialMaxSteps,
     liveChart,
     onProgress: handleProgress
   });
@@ -721,6 +751,7 @@ if (supportsWorker) {
 } else {
   trainer = new RLTrainer(baseAgent, env, {
     intervalMs: 100,
+    maxSteps: initialMaxSteps,
     liveChart,
     onStep: handleProgress
   });
@@ -873,6 +904,9 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
   };
   const pendingAgentStateRequests = new Map();
   let nextAgentStateRequestId = 0;
+  const defaultMaxSteps = Number.isFinite(options.maxSteps) && options.maxSteps > 0
+    ? Math.trunc(options.maxSteps)
+    : 50;
 
   function fallbackAgentState() {
     if (!rawAgent || typeof rawAgent.toJSON !== 'function') {
@@ -901,6 +935,7 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
 
   const trainerProxy = {
     intervalMs: options.intervalMs ?? 100,
+    maxSteps: defaultMaxSteps,
     metrics,
     state: typeof currentEnv.getState === 'function' ? currentEnv.getState() : null,
     episodeRewards: [],
@@ -925,6 +960,15 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
     setIntervalMs(ms) {
       this.intervalMs = ms;
       worker.postMessage({ type: 'interval', payload: ms });
+    },
+    setMaxSteps(limit) {
+      const parsed = Number(limit);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return;
+      }
+      const nextLimit = Math.trunc(parsed);
+      this.maxSteps = nextLimit;
+      worker.postMessage({ type: 'maxSteps', payload: nextLimit });
     },
     setAgent(newAgent) {
       rawAgent = newAgent;
@@ -1048,7 +1092,8 @@ function createWorkerTrainer(initialAgent, initialEnv, options) {
           ...(scenarioConfig !== undefined ? { scenarioConfig } : {})
         },
         trainer: {
-          intervalMs: trainerProxy.intervalMs
+          intervalMs: trainerProxy.intervalMs,
+          maxSteps: trainerProxy.maxSteps
         }
       }
     });

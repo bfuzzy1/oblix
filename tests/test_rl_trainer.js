@@ -190,4 +190,69 @@ export async function run(assert) {
   for (const update of replayBuffer.priorityUpdates) {
     assert.strictEqual(update.priority, 0.5);
   }
+
+  const maxSteps = 3;
+  class LoopEnvironment {
+    constructor() {
+      this.resetCount = 0;
+      this.stepCount = 0;
+    }
+    reset() {
+      this.resetCount++;
+      return { step: 0 };
+    }
+    step() {
+      this.stepCount++;
+      return { state: { step: this.stepCount }, reward: -0.01, done: false };
+    }
+  }
+  class PassiveAgent {
+    constructor() {
+      this.epsilon = 0;
+      this.learnCalls = [];
+    }
+    act() { return 0; }
+    learn(state, action, reward, nextState, done) {
+      this.learnCalls.push({ state, action, reward, nextState, done });
+    }
+  }
+  const env5 = new LoopEnvironment();
+  const agent5 = new PassiveAgent();
+  const limitReports = [];
+  const trainer5 = new RLTrainer(agent5, env5, {
+    maxSteps,
+    onStep: (state, reward, done, metrics) => {
+      limitReports.push({ state, reward, done, metrics });
+    }
+  });
+  trainer5.state = env5.reset();
+  for (let i = 0; i < maxSteps; i++) {
+    await trainer5.step();
+  }
+  assert.strictEqual(env5.stepCount, maxSteps);
+  assert.strictEqual(agent5.learnCalls.length, maxSteps);
+  assert.strictEqual(agent5.learnCalls[agent5.learnCalls.length - 1].done, true);
+  assert.strictEqual(limitReports.length, maxSteps + 1);
+  for (let i = 0; i < maxSteps - 1; i++) {
+    assert.strictEqual(limitReports[i].done, false);
+  }
+  assert.strictEqual(limitReports[maxSteps - 1].done, true);
+  assert.strictEqual(limitReports[maxSteps - 1].metrics.steps, maxSteps);
+  assert.strictEqual(env5.resetCount, 2);
+  assert.deepStrictEqual(limitReports[maxSteps].metrics, {
+    episode: 2,
+    steps: 0,
+    cumulativeReward: 0,
+    epsilon: 0
+  });
+  assert.strictEqual(trainer5.metrics.episode, 2);
+  assert.strictEqual(trainer5.metrics.steps, 0);
+
+  trainer5.setMaxSteps(2);
+  assert.strictEqual(trainer5.maxSteps, 2);
+  await trainer5.step();
+  await trainer5.step();
+  assert.strictEqual(agent5.learnCalls[agent5.learnCalls.length - 1].done, true);
+  assert.strictEqual(trainer5.metrics.episode, 3);
+  assert.strictEqual(trainer5.metrics.steps, 0);
 }

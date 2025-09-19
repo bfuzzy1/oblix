@@ -11,6 +11,7 @@ function getElements() {
     epsilonValue: document.getElementById('epsilon-value'),
     intervalSlider: document.getElementById('interval-slider'),
     intervalValue: document.getElementById('interval-value'),
+    maxStepsInput: document.getElementById('max-steps'),
     learningRateSlider: document.getElementById('learning-rate-slider'),
     learningRateValue: document.getElementById('learning-rate-value'),
     lambdaSlider: document.getElementById('lambda-slider'),
@@ -80,6 +81,9 @@ function initializeControls(trainer, agent, env, els) {
   }
   els.intervalSlider.value = trainer.intervalMs;
   els.intervalValue.textContent = trainer.intervalMs;
+  if (els.maxStepsInput && trainer?.maxSteps !== undefined) {
+    els.maxStepsInput.value = trainer.maxSteps;
+  }
   updateLearningRateControl(agent, els);
   syncLambda(agent, els);
   syncEnvironmentControls(env, els);
@@ -135,6 +139,27 @@ function bindSliders(trainer, els, getAgent) {
     agent.lambda = val;
     els.lambdaValue.textContent = val.toFixed(2);
   });
+}
+
+function bindMaxStepsControl(trainer, els) {
+  if (!els.maxStepsInput) {
+    return;
+  }
+  const apply = value => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      els.maxStepsInput.value = trainer.maxSteps;
+      return;
+    }
+    const limit = Math.trunc(parsed);
+    if (typeof trainer.setMaxSteps === 'function') {
+      trainer.setMaxSteps(limit);
+    } else {
+      trainer.maxSteps = limit;
+    }
+    els.maxStepsInput.value = limit;
+  };
+  els.maxStepsInput.addEventListener('change', e => apply(e.target.value));
 }
 
 function parseRewardInput(value, fallback) {
@@ -239,6 +264,7 @@ export function bindControls(trainer, agent, render, getEnv, setEnv) {
   bindAgentSelection(trainer, els, getAgent, setAgent, getEnv);
   bindPolicySelection(els, getAgent);
   bindSliders(trainer, els, getAgent);
+  bindMaxStepsControl(trainer, els);
   bindEnvironmentControls(trainer, els, getAgent, getEnv, setEnv);
   bindPersistence(trainer, els, getAgent, setAgent, render, getEnv, setEnv);
 }
