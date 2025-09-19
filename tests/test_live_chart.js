@@ -43,13 +43,12 @@ export async function run(assert) {
   const canvas = new MockCanvas();
   const chart = new LiveChart(canvas, 2);
   const trainer = new RLTrainer(agent, env, { liveChart: chart });
-  trainer.state = env.reset();
   await trainer.step();
   await trainer.step();
-  assert.deepStrictEqual(chart.rewards.map(v => +v.toFixed(2)), [-0.01, 0.99, 0]);
-  assert.deepStrictEqual(chart.avgRewards.map(v => +v.toFixed(2)), [-0.01, 0.49, 0.49]);
-  assert.deepStrictEqual(chart.epsilons.map(v => +v.toFixed(2)), [0.1, 0.1, 0.1]);
-  assert.strictEqual(canvas.ctx.clearCount, 3);
+  assert.deepStrictEqual(chart.rewards.map(v => +v.toFixed(2)), [0, -0.01, 0.99, 0]);
+  assert.deepStrictEqual(chart.avgRewards.map(v => +v.toFixed(2)), [0, -0.01, 0.49, 0.49]);
+  assert.deepStrictEqual(chart.epsilons.map(v => +v.toFixed(2)), [0.1, 0.1, 0.1, 0.1]);
+  assert.strictEqual(canvas.ctx.clearCount, 4);
   const expectedStrokes = ['rgba(148, 163, 184, 0.25)', '#5eead4', '#fbbf24', '#38bdf8'];
   for (let i = 0; i < canvas.ctx.strokeStyles.length; i += 4) {
     assert.deepStrictEqual(
