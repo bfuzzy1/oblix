@@ -155,12 +155,11 @@ export class GridWorldEnvironment {
     return { x: newX, y: newY };
   }
 
-  getTransition(state, action) {
-    const position = this.getPositionFromState(state);
+  _resolveTransition(position, action) {
     const candidate = this._simulateAction(position, action);
     if (this.isObstacle(candidate.x, candidate.y)) {
       return {
-        state: this.createStateFromPosition(position.x, position.y),
+        nextPosition: { x: position.x, y: position.y },
         reward: this.obstaclePenalty,
         done: false
       };
@@ -168,7 +167,17 @@ export class GridWorldEnvironment {
     const done = this.isGoalPosition(candidate.x, candidate.y);
     const reward = this.calculateReward(candidate.x, candidate.y, done);
     return {
-      state: this.createStateFromPosition(candidate.x, candidate.y),
+      nextPosition: candidate,
+      reward,
+      done
+    };
+  }
+
+  getTransition(state, action) {
+    const position = this.getPositionFromState(state);
+    const { nextPosition, reward, done } = this._resolveTransition(position, action);
+    return {
+      state: this.createStateFromPosition(nextPosition.x, nextPosition.y),
       reward,
       done
     };
@@ -179,29 +188,8 @@ export class GridWorldEnvironment {
    * @param action 0:up,1:down,2:left,3:right
    */
   step(action) {
-    let newX = this.agentPos.x;
-    let newY = this.agentPos.y;
-    switch (action) {
-      case 0:
-        if (newY > 0) newY -= 1;
-        break;
-      case 1:
-        if (newY < this.size - 1) newY += 1;
-        break;
-      case 2:
-        if (newX > 0) newX -= 1;
-        break;
-      case 3:
-        if (newX < this.size - 1) newX += 1;
-        break;
-    }
-    if (this.isObstacle(newX, newY)) {
-      return { state: this.getState(), reward: this.obstaclePenalty, done: false };
-    }
-    this.agentPos = { x: newX, y: newY };
-    const goal = this.getGoalPosition();
-    const done = this.agentPos.x === goal.x && this.agentPos.y === goal.y;
-    const reward = this.calculateReward(this.agentPos.x, this.agentPos.y, done);
+    const { nextPosition, reward, done } = this._resolveTransition(this.agentPos, action);
+    this.agentPos = { x: nextPosition.x, y: nextPosition.y };
     return { state: this.getState(), reward, done };
   }
 }
