@@ -242,6 +242,10 @@ function configureTrainer(payload) {
   const agentType = agentConfig.type || agent?.__factoryType || 'rl';
   const revision = agentConfig.revision;
   const intervalMs = trainerConfig.intervalMs ?? trainer?.intervalMs ?? 100;
+  let maxSteps = trainer?.maxSteps ?? 50;
+  if (Number.isFinite(trainerConfig.maxSteps) && trainerConfig.maxSteps > 0) {
+    maxSteps = Math.trunc(trainerConfig.maxSteps);
+  }
 
   const normalizedEnvConfig = { scenarioId, size, obstacles, rewards, scenarioConfig };
 
@@ -250,6 +254,7 @@ function configureTrainer(payload) {
     agent = createAgent(agentType, agentConfig.params || {});
     trainer = new RLTrainer(agent, environment, {
       intervalMs,
+      maxSteps,
       onStep: (state, reward, done, metrics) => {
         emitProgress(state, reward, done, metrics);
       }
@@ -309,6 +314,7 @@ function configureTrainer(payload) {
   if (shouldRebuildTrainer) {
     trainer = new RLTrainer(agent, environment, {
       intervalMs,
+      maxSteps,
       onStep: (state, reward, done, metrics) => {
         emitProgress(state, reward, done, metrics);
       }
@@ -319,6 +325,14 @@ function configureTrainer(payload) {
       && trainerConfig.intervalMs !== trainer.intervalMs;
     if (intervalChanged) {
       trainer.setIntervalMs(trainerConfig.intervalMs);
+    }
+    if (Number.isFinite(trainerConfig.maxSteps) && trainerConfig.maxSteps > 0) {
+      const desired = Math.trunc(trainerConfig.maxSteps);
+      if (typeof trainer.setMaxSteps === 'function') {
+        trainer.setMaxSteps(desired);
+      } else {
+        trainer.maxSteps = desired;
+      }
     }
     trainer.env = environment;
     if (!trainer.state) {
@@ -366,6 +380,16 @@ function handleMessage(message) {
     case 'interval':
       if (trainer && typeof payload === 'number') {
         trainer.setIntervalMs(payload);
+      }
+      break;
+    case 'maxSteps':
+      if (trainer && Number.isFinite(payload) && payload > 0) {
+        const desired = Math.trunc(payload);
+        if (typeof trainer.setMaxSteps === 'function') {
+          trainer.setMaxSteps(desired);
+        } else {
+          trainer.maxSteps = desired;
+        }
       }
       break;
     case 'agent:update':
