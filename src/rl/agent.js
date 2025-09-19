@@ -62,13 +62,20 @@ export class RLAgent {
   }
 
   _softmax(qVals) {
+    if (!(this.temperature > 0)) {
+      return this.bestAction(qVals);
+    }
     const max = Math.max(...qVals);
     const exps = qVals.map(v => Math.exp((v - max) / this.temperature));
     const sum = exps.reduce((a, b) => a + b, 0);
-    let r = Math.random() * sum;
+    if (!isFinite(sum) || sum === 0) {
+      return this.bestAction(qVals);
+    }
+    let cumulative = 0;
+    const r = Math.random();
     for (let i = 0; i < exps.length; i++) {
-      r -= exps[i];
-      if (r <= 0) return i;
+      cumulative += exps[i] / sum;
+      if (r <= cumulative) return i;
     }
     return exps.length - 1;
   }

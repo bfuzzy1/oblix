@@ -76,6 +76,21 @@ export async function run(assert) {
     }
   }
 
+  {
+    const zeroTempAgent = new ActorCriticAgent({ temperature: 0 });
+    zeroTempAgent.policyTable.set(key, new Float32Array([1, 2, 3, 4]));
+    const zeroTempPrefs = Array.from(zeroTempAgent.policyTable.get(key));
+    const zeroTempProbs = zeroTempAgent._softmax(zeroTempPrefs);
+    const zeroSum = zeroTempProbs.reduce((a, b) => a + b, 0);
+    assert.deepStrictEqual(zeroTempProbs, [0, 0, 0, 1]);
+    assert.ok(Math.abs(zeroSum - 1) < 1e-8);
+    zeroTempAgent.temperature = -5;
+    const negativeTempProbs = zeroTempAgent._softmax(zeroTempPrefs);
+    const negativeSum = negativeTempProbs.reduce((a, b) => a + b, 0);
+    assert.deepStrictEqual(negativeTempProbs, [0, 0, 0, 1]);
+    assert.ok(Math.abs(negativeSum - 1) < 1e-8);
+  }
+
   const epsilonAgent = new ActorCriticAgent({ epsilon: 0.7 });
   epsilonAgent.epsilon = 0.1;
   epsilonAgent.reset();

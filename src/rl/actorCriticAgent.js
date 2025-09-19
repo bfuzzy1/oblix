@@ -33,9 +33,27 @@ export class ActorCriticAgent {
   }
 
   _softmax(prefs) {
+    const greedyProbs = index => {
+      const probs = new Array(prefs.length).fill(0);
+      if (index >= 0 && index < prefs.length) probs[index] = 1;
+      return probs;
+    };
+    const bestIndex = () => {
+      let best = 0;
+      for (let i = 1; i < prefs.length; i++) {
+        if (prefs[i] > prefs[best]) best = i;
+      }
+      return best;
+    };
+    if (!(this.temperature > 0)) {
+      return greedyProbs(bestIndex());
+    }
     const max = Math.max(...prefs);
     const exps = prefs.map(v => Math.exp((v - max) / this.temperature));
     const sum = exps.reduce((a, b) => a + b, 0);
+    if (!isFinite(sum) || sum === 0) {
+      return greedyProbs(bestIndex());
+    }
     return exps.map(v => v / sum);
   }
 
