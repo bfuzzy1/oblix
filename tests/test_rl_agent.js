@@ -1,6 +1,7 @@
 import { RLAgent } from '../src/rl/agent.js';
 import { saveAgent, loadAgent } from '../src/rl/storage.js';
 import { mapToObject, objectToMap } from '../src/rl/utils/serialization.js';
+import { POLICIES } from '../src/rl/policies.js';
 
 export async function run(assert) {
   const map = new Map([['a', new Float32Array([1, 2])]]);
@@ -28,6 +29,14 @@ export async function run(assert) {
   greedyAgent.qTable.set(key, new Float32Array([1, 5, 3, 2]));
   const action = greedyAgent.act(state);
   assert.strictEqual(action, 1);
+
+  const softmaxAgent = new RLAgent({ policy: POLICIES.SOFTMAX, temperature: 0 });
+  softmaxAgent.qTable.set(key, new Float32Array([1, 5, 3, 2]));
+  const zeroTempAction = softmaxAgent._softmax(softmaxAgent.qTable.get(key));
+  assert.strictEqual(zeroTempAction, 1);
+  softmaxAgent.temperature = -2;
+  const negativeTempAction = softmaxAgent._softmax(softmaxAgent.qTable.get(key));
+  assert.strictEqual(negativeTempAction, 1);
 
   const data = greedyAgent.toJSON();
   const loadedAgent = RLAgent.fromJSON(data);
