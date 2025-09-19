@@ -5,6 +5,13 @@ import { OptimisticAgent } from './optimisticAgent.js';
 import { ValueIterationAgent } from './valueIterationAgent.js';
 import { PolicyIterationAgent } from './policyIterationAgent.js';
 
+const AGENT_DESERIALIZERS = Object.freeze({
+  double: DoubleQAgent.fromJSON,
+  optimistic: OptimisticAgent.fromJSON,
+  'value-iteration': ValueIterationAgent.fromJSON,
+  'policy-iteration': PolicyIterationAgent.fromJSON
+});
+
 export function saveAgent(agent, storage = globalThis.localStorage) {
   const data = JSON.stringify(agent.toJSON());
   storage.setItem('agent', data);
@@ -14,20 +21,16 @@ export function loadAgent(trainer, storage = globalThis.localStorage) {
   const data = storage.getItem('agent');
   if (!data) return trainer.agent;
   const parsed = JSON.parse(data);
-  let agent;
-  if (parsed.type === 'double') {
-    agent = DoubleQAgent.fromJSON(parsed);
-  } else if (parsed.type === 'optimistic') {
-    agent = OptimisticAgent.fromJSON(parsed);
-  } else if (parsed.type === 'value-iteration') {
-    agent = ValueIterationAgent.fromJSON(parsed);
-  } else if (parsed.type === 'policy-iteration') {
-    agent = PolicyIterationAgent.fromJSON(parsed);
-  } else {
-    agent = RLAgent.fromJSON(parsed);
+  const type = parsed.type ?? 'rl';
+  const deserialize = AGENT_DESERIALIZERS[type];
+  const agent = typeof deserialize === 'function'
+    ? deserialize(parsed)
+    : RLAgent.fromJSON(parsed);
+  if (!agent || typeof agent !== 'object') {
+    return trainer.agent;
   }
   Object.defineProperty(agent, '__factoryType', {
-    value: parsed.type || 'rl',
+    value: type,
     writable: true,
     configurable: true,
     enumerable: false
