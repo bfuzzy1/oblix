@@ -32,6 +32,7 @@ export class RLTrainer {
     this.timeout = null;
     this.state = null;
     this.stepsInEpisode = 0;
+    this.hasEmittedInitialMetrics = false;
     this.metricsTracker = new MetricsTracker(this.agent);
     this.metrics = this.metricsTracker.data;
     this.episodeRewards = this.metricsTracker.episodeRewards;
@@ -89,6 +90,7 @@ export class RLTrainer {
     this.metricsTracker.reset(this.agent);
     this.metrics = this.metricsTracker.data;
     this.episodeRewards = this.metricsTracker.episodeRewards;
+    this.hasEmittedInitialMetrics = true;
     this._emitStep(this.state, 0, false);
   }
 
@@ -156,14 +158,14 @@ export class RLTrainer {
 
   start() {
     if (this.isRunning) return;
-    
-    this.state = this.env.reset();
-    this.stepsInEpisode = 0;
-    
+
     if (!this.state) {
       this._initializeTrainerState();
+    } else if (!this.hasEmittedInitialMetrics) {
+      this._emitStep(this.state, 0, false);
+      this.hasEmittedInitialMetrics = true;
     }
-    
+
     this.isRunning = true;
     this._runLoop();
   }
