@@ -15,6 +15,8 @@ loops directly in the browser or from simple scripts.
   - [Exploration policies](#exploration-policies)
   - [Training utilities](#training-utilities)
   - [Environment & UI](#environment--ui)
+    - [Built-in environment presets](#built-in-environment-presets)
+    - [Multi-agent dashboard](#multi-agent-dashboard)
   - [Persistence](#persistence)
 - [Directory layout](#directory-layout)
 - [Programmatic usage](#programmatic-usage)
@@ -95,6 +97,22 @@ Choose from several action selection strategies provided by `src/rl/policies.js`
 - **GridWorldEnvironment:** Adjustable size, obstacle editing and reward configuration.
 - **UI bindings:** `src/ui/` wires controls for grid editing, live charts and parameter tweaks.
 - **Pure ES modules:** Load directly in modern browsers without bundling.
+
+#### Built-in environment presets
+
+After serving the project and opening the playground in a browser (see [Start the browser demo](#start-the-browser-demo)), use the **Scenario** dropdown in the left-hand control panel to swap between curated grid layouts.【F:index.html†L152-L166】 The following presets mirror the configurations in `src/rl/environmentPresets.js` and can be selected directly from that menu:
+
+- **Windy Pass** – Starts on a 7×7 grid with vertical wind columns that nudge the agent off course. The preset also lowers the step reward and increases obstacle penalties to reflect the tougher navigation challenge.【F:src/rl/environmentPresets.js†L110-L119】 Choose “Windy Pass” from the Scenario dropdown to load the stochastic gusts.
+- **Moving Target** – Uses a 6×6 grid where the goal cycles through a pattern of edge and centre positions every few steps, paired with a slightly higher goal reward and lighter step penalty.【F:src/rl/environmentPresets.js†L122-L133】 Select “Moving Target” to watch the goal reposition during training.
+- **Treasure Fields** – Spawns a 6×6 world with scattered positive and negative reward cells, along with a richer goal reward and steeper obstacle penalty to emphasise exploration of the reward landscape.【F:src/rl/environmentPresets.js†L136-L147】 Pick “Treasure Fields” to experiment with sparse reward shaping.
+
+Each preset can be customised further after loading—adjust the grid size or reward sliders and the environment will rebuild with your overrides applied.
+
+#### Multi-agent dashboard
+
+The **Multi-agent setup** panel is hidden until the grid is large enough; increase the **Grid size** field to 10 or higher to reveal the controls (the helper text in the panel and the runtime logic both enforce this threshold).【F:index.html†L103-L166】【F:src/ui/index.js†L659-L676】 Once available, the **Agents in grid** selector lets you run between one and four concurrent agents; each additional slot mirrors the main agent picker so you can assign a learning algorithm to every participant.【F:index.html†L108-L117】【F:src/ui/index.js†L678-L707】【F:src/ui/index.js†L478-L507】 Existing runs continue uninterrupted when you add or remove agents because the trainer clones and synchronises the active environment for each entry.【F:src/ui/index.js†L410-L456】【F:src/ui/index.js†L636-L656】
+
+When more than one agent is active, the metrics banner switches to aggregated reporting: episodes display the furthest progress reached by any agent, while steps, cumulative reward and epsilon show the average across the team.【F:src/ui/index.js†L300-L331】 The same aggregated reward and exploration rate values are pushed to the live telemetry chart so trends reflect collective performance.【F:src/ui/index.js†L730-L737】 This makes it easy to gauge how cooperative or competing policies behave without inspecting each agent individually.
 
 ### Persistence
 
