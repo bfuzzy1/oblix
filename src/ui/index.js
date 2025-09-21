@@ -7,6 +7,9 @@ import { saveEnvironment } from '../rl/storage.js';
 import { createEnvironmentFromScenario, getScenarioDefinitions, DEFAULT_SCENARIO_ID } from '../rl/environmentPresets.js';
 import { RLTrainer } from '../rl/training.js';
 
+const testOverrides = typeof window !== 'undefined' ? window.__OBLIX_TEST_OVERRIDES__ || null : null;
+const TrainerCtor = testOverrides?.RLTrainer || RLTrainer;
+
 const supportsWorker = typeof Worker !== 'undefined';
 
 const gridEl = document.getElementById('grid');
@@ -417,7 +420,7 @@ function createAdditionalAgentEntry(index, type) {
   applySharedSettings(agentInstance);
   const interval = trainer?.intervalMs ?? 100;
   const limit = trainer?.maxSteps ?? parseMaxSteps(maxStepsInput?.value, initialMaxSteps);
-  const additionalTrainer = new RLTrainer(agentInstance, envClone, {
+  const additionalTrainer = new TrainerCtor(agentInstance, envClone, {
     intervalMs: interval,
     maxSteps: limit,
     liveChart: null,
@@ -749,7 +752,7 @@ if (supportsWorker) {
   });
   agent = trainer.agent;
 } else {
-  trainer = new RLTrainer(baseAgent, env, {
+  trainer = new TrainerCtor(baseAgent, env, {
     intervalMs: 100,
     maxSteps: initialMaxSteps,
     liveChart,
@@ -890,6 +893,19 @@ updateDisplayedMetrics(trainer?.metrics || multiAgentState.latestDisplayMetrics 
 
 saveEnvironment(env);
 renderCurrentAgents();
+
+if (typeof window !== 'undefined' && window.__OBLIX_TEST_HARNESS__) {
+  window.__oblixTestApi = {
+    setAgentCount,
+    computeAggregatedMetrics,
+    updateDisplayedMetrics,
+    handleProgress,
+    handleAdditionalProgress,
+    getTrainer: () => trainer,
+    getLiveChart: () => liveChart,
+    getMultiAgentState: () => multiAgentState
+  };
+}
 
 function createWorkerTrainer(initialAgent, initialEnv, options) {
   const worker = new Worker(new URL('../rl/trainerWorker.js', import.meta.url), { type: 'module' });
